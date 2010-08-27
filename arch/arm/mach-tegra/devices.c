@@ -871,3 +871,28 @@ struct platform_device tegra_aes_device = {
 		.coherent_dma_mask = DMA_BIT_MASK(32),
 	},
 };
+
+static struct resource tegra_wdt_resources[] = {
+	[0] = {
+		.start	= TEGRA_CLK_RESET_BASE,
+		.end	= TEGRA_CLK_RESET_BASE + 4 - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start	= TEGRA_TMR1_BASE,
+		.end	= TEGRA_TMR1_BASE + TEGRA_TMR1_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	[2] = {
+		.start	= INT_TMR1,
+		.end	= INT_TMR1,
+		.flags	= IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device tegra_wdt_device = {
+	.name		= "tegra_wdt",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(tegra_wdt_resources),
+	.resource	= tegra_wdt_resources,
+};
