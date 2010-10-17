@@ -54,5 +54,6 @@ extern struct platform_device tegra_spdif_device;
 extern struct platform_device tegra_grhost_device;
 extern struct platform_device tegra_pwfm0_device;
 extern struct platform_device tegra_pwfm2_device;
+extern struct platform_device tegra_aes_device;
 
 #endif
