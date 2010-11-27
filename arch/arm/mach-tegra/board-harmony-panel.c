@@ -35,11 +35,11 @@
 #include "devices.h"
 #include "gpio-names.h"
 
-#define harmony_bl_enb		TEGRA_GPIO_PB5
-#define harmony_lvds_shutdown	TEGRA_GPIO_PB2
-#define harmony_en_vdd_pnl	TEGRA_GPIO_PC6
-#define harmony_bl_vdd		TEGRA_GPIO_PW0
-#define harmony_bl_pwm		TEGRA_GPIO_PB4
+#define harmony_bl_enb		TEGRA_GPIO_PU4  // PB5
+#define harmony_lvds_shutdown	TEGRA_GPIO_PM6  // PB2
+#define harmony_en_vdd_pnl	TEGRA_GPIO_PA4  // PC6
+#define harmony_bl_vdd		TEGRA_GPIO_PW0  // PW0
+#define harmony_bl_pwm		TEGRA_GPIO_PU3  // PB4
 
 static int harmony_backlight_init(struct device *dev)
 {
