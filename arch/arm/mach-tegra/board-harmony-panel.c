@@ -40,6 +40,7 @@
 #define harmony_en_vdd_pnl	TEGRA_GPIO_PA4  // PC6
 #define harmony_bl_vdd		TEGRA_GPIO_PW0  // PW0
 #define harmony_bl_pwm		TEGRA_GPIO_PU3  // PB4
+#define harmony_hdmi_hdp	TEGRA_GPIO_PN7  // enable Hotplug
 
 static int harmony_backlight_init(struct device *dev)
 {
