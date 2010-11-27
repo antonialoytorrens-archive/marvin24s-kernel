@@ -275,11 +275,11 @@ static struct platform_device *harmony_devices[] __initdata = {
 static void __init tegra_harmony_fixup(struct machine_desc *desc,
 	struct tag *tags, char **cmdline, struct meminfo *mi)
 {
-	mi->nr_banks = 2;
+	mi->nr_banks = 1;
 	mi->bank[0].start = PHYS_OFFSET;
 	mi->bank[0].size = 448 * SZ_1M;
-	mi->bank[1].start = SZ_512M;
-	mi->bank[1].size = SZ_512M;
+/*	mi->bank[1].start = SZ_512M;
+	mi->bank[1].size = SZ_512M; */
 }
 
 static __initdata struct tegra_clk_init_table harmony_clk_init_table[] = {
