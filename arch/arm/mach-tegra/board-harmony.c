@@ -28,6 +28,7 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/tegra_usb.h>
+#include <linux/fsl_devices.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -45,6 +46,7 @@
 #include "board.h"
 #include "board-harmony.h"
 #include "devices.h"
+#include "gpio-names.h"
 
 /* NVidia bootloader tags */
 #define ATAG_NVIDIA		0x41000801
@@ -70,22 +72,6 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 }
 __tagtable(ATAG_NVIDIA, parse_tag_nvidia);
 
-static struct tegra_utmip_config utmi_phy_config = {
-	.hssync_start_delay = 0,
-	.idle_wait_delay = 17,
-	.elastic_limit = 16,
-	.term_range_adj = 6,
-	.xcvr_setup = 9,
-	.xcvr_lsfslew = 2,
-	.xcvr_lsrslew = 2,
-};
-
-static struct tegra_ehci_platform_data tegra_ehci_pdata = {
-	.phy_config = &utmi_phy_config,
-	.operating_mode = TEGRA_USB_HOST,
-	.power_down_on_bus_suspend = 1,
-};
-
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
 		.membase	= IO_ADDRESS(TEGRA_UARTD_BASE),
@@ -105,6 +91,50 @@ static struct platform_device debug_uart = {
 	.id = PLAT8250_DEV_PLATFORM,
 	.dev = {
 		.platform_data = debug_uart_platform_data,
+	},
+};
+
+static struct tegra_utmip_config utmi_phy_config[] = {
+	[0] = {
+		.hssync_start_delay = 0,
+		.idle_wait_delay = 17,
+		.elastic_limit = 16,
+		.term_range_adj = 6,
+		.xcvr_setup = 9,
+		.xcvr_lsfslew = 2,
+		.xcvr_lsrslew = 2,
+	},
+	[1] = {
+		.hssync_start_delay = 0,
+		.idle_wait_delay = 17,
+		.elastic_limit = 16,
+		.term_range_adj = 6,
+		.xcvr_setup = 15,
+		.xcvr_lsfslew = 2,
+		.xcvr_lsrslew = 2,
+	},
+};
+
+static struct tegra_ulpi_config ulpi_phy_config = {
+	.reset_gpio = TEGRA_GPIO_PG2,
+	.clk = "clk_dev2",
+};
+
+static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
+	[0] = {
+		.phy_config = &utmi_phy_config[0],
+		.operating_mode = TEGRA_USB_OTG,
+		.power_down_on_bus_suspend = 0,
+	},
+	[1] = {
+		.phy_config = &ulpi_phy_config,
+		.operating_mode = TEGRA_USB_HOST,
+		.power_down_on_bus_suspend = 1,
+	},
+	[2] = {
+		.phy_config = &utmi_phy_config[1],
+		.operating_mode = TEGRA_USB_HOST,
+		.power_down_on_bus_suspend = 1,
 	},
 };
 
@@ -164,7 +194,7 @@ static struct tegra_i2c_platform_data harmony_dvc_platform_data = {
 
 static struct i2c_board_info __initdata harmony_i2c_bus1_board_info[] = {
 	{
-		I2C_BOARD_INFO("alc5632", 0x3C),
+		I2C_BOARD_INFO("alc5632", 0x36),
 	},
 };
 
@@ -322,7 +352,7 @@ static void __init tegra_harmony_init(void)
 
 	harmony_pinmux_init();
 
-	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata;
+	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
 
 	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata;
 
