@@ -157,9 +157,14 @@ static struct tegra_i2c_platform_data harmony_dvc_platform_data = {
 	.is_dvc		= true,
 };
 
+/* FIXME: Audio codec on PAZ00 is alc5632
+ * no codec exists yet
+ * propably requires userspace */
+
+
 static struct i2c_board_info __initdata harmony_i2c_bus1_board_info[] = {
 	{
-		I2C_BOARD_INFO("wm8903", 0x1a),
+		I2C_BOARD_INFO("alc5632", 0x3C),
 	},
 };
 
@@ -182,6 +187,7 @@ static void harmony_i2c_init(void)
 	tegra_i2c_device3.dev.platform_data = &harmony_i2c3_platform_data;
 	tegra_i2c_device4.dev.platform_data = &harmony_dvc_platform_data;
 
+/* No audio yet */
 	i2c_register_board_info(0, harmony_i2c_bus1_board_info, 1);
 
 	platform_device_register(&tegra_i2c_device1);
@@ -189,6 +195,7 @@ static void harmony_i2c_init(void)
 	platform_device_register(&tegra_i2c_device3);
 	platform_device_register(&tegra_i2c_device4);
 
+/* Why twice ? */
 	i2c_register_board_info(0, harmony_i2c_bus1_board_info,
 				ARRAY_SIZE(harmony_i2c_bus1_board_info));
 }
