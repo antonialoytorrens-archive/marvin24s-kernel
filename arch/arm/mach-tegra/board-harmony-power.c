@@ -74,6 +74,7 @@ static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
 	REGULATOR_SUPPLY("wifi3vs", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo5_supply[] = {
+	REGULATOR_SUPPLY("vddio_nand", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo6_supply[] = {
 	REGULATOR_SUPPLY("avdd_vdac", NULL),
@@ -115,19 +116,19 @@ static struct regulator_consumer_supply tps658621_soc_supply[] = {
 		.consumer_supplies = tps658621_##_id##_supply,		\
 	}
 
-static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 725, 1500);
-static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 725, 1500);
-static struct regulator_init_data sm2_data = REGULATOR_INIT(sm2, 3000, 4550);
-static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3300);
-static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725, 1500);
-static struct regulator_init_data ldo2_data = REGULATOR_INIT(ldo2, 725, 1500);
-static struct regulator_init_data ldo3_data = REGULATOR_INIT(ldo3, 1250, 3300);
-static struct regulator_init_data ldo4_data = REGULATOR_INIT(ldo4, 1700, 2475);
-static struct regulator_init_data ldo5_data = REGULATOR_INIT(ldo5, 1250, 3300);
-static struct regulator_init_data ldo6_data = REGULATOR_INIT(ldo6, 1250, 3300);
-static struct regulator_init_data ldo7_data = REGULATOR_INIT(ldo7, 1250, 3300);
-static struct regulator_init_data ldo8_data = REGULATOR_INIT(ldo8, 1250, 3300);
-static struct regulator_init_data ldo9_data = REGULATOR_INIT(ldo9, 1250, 3300);
+static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 625, 2700);    // 1200
+static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 625, 1000);    // 1000
+static struct regulator_init_data sm2_data = REGULATOR_INIT(sm2, 3000, 4550);   // 3700
+static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3350); // 3300
+static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725, 1500);  // 1100
+static struct regulator_init_data ldo2_data = REGULATOR_INIT(ldo2, 725, 1500);  // 1200
+static struct regulator_init_data ldo3_data = REGULATOR_INIT(ldo3, 1250, 3350); // 3300
+static struct regulator_init_data ldo4_data = REGULATOR_INIT(ldo4, 1700, 2000); // 1800
+static struct regulator_init_data ldo5_data = REGULATOR_INIT(ldo5, 1250, 3350); // 2850
+static struct regulator_init_data ldo6_data = REGULATOR_INIT(ldo6, 1250, 3350); // 2850
+static struct regulator_init_data ldo7_data = REGULATOR_INIT(ldo7, 1250, 3350); // 3300
+static struct regulator_init_data ldo8_data = REGULATOR_INIT(ldo8, 1250, 3350); // 1800
+static struct regulator_init_data ldo9_data = REGULATOR_INIT(ldo9, 1250, 3350); // 2850
 /*
 static struct regulator_init_data soc_data = REGULATOR_INIT(soc, 1250, 3300);
 static struct regulator_init_data buck_data = REGULATOR_INIT(buck, 1250, 3300); 
@@ -180,10 +181,13 @@ int __init harmony_regulator_init(void)
 int __init harmony_power_init(void)
 {
 	int err;
+	static struct regulator *reg = NULL; 
 
 	err = harmony_regulator_init();
-	if (err < 0)
+	if (err < 0) {
 		pr_warning("Unable to initialize regulator\n");
+		return -1;
+	}
 
 	return 0;
 }
