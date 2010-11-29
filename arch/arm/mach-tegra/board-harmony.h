@@ -18,6 +18,7 @@
 #define _MACH_TEGRA_BOARD_HARMONY_H
 
 void harmony_pinmux_init(void);
+int harmony_power_init(void);
 int harmony_panel_init(void);
 int harmony_sdhci_init(void);
 

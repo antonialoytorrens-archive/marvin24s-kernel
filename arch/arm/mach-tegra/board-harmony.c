@@ -361,6 +361,7 @@ static void __init tegra_harmony_init(void)
 	harmony_panel_init();
 	harmony_sdhci_init();
 	harmony_i2c_init();
+	harmony_power_init();
 }
 
 MACHINE_START(HARMONY, "harmony")
