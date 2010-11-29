@@ -1,7 +1,8 @@
 /*
- * arch/arm/mach-tegra/board-harmony.h
+ * arch/arm/mach-tegra/board-paz00.h
  *
  * Copyright (C) 2010 Google, Inc.
+ *               2010 Marc Dietrich <marvin24@gmx.de>
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -14,11 +15,12 @@
  *
  */
 
-#ifndef _MACH_TEGRA_BOARD_HARMONY_H
-#define _MACH_TEGRA_BOARD_HARMONY_H
+#ifndef _MACH_TEGRA_BOARD_PAZ00_H
+#define _MACH_TEGRA_BOARD_PAZ00_H
 
-void harmony_pinmux_init(void);
-int harmony_panel_init(void);
-int harmony_sdhci_init(void);
+void paz00_pinmux_init(void);
+int paz00_power_init(void);
+int paz00_panel_init(void);
+int paz00_sdhci_init(void);
 
 #endif

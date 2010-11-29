@@ -34,6 +34,11 @@ config MACH_TEGRA_SEABOARD
        help
          Support for NVIDIA Seaboard development platform
 
+config MACH_PAZ00
+       bool "Paz00 board"
+       help
+         Support for the Dynabook AZ/Toshiba AC100 cloud companion
+
 choice
         prompt "Low-level debug console UART"
         default TEGRA_DEBUG_UART_NONE

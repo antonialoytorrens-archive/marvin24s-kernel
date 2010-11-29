@@ -23,7 +23,7 @@
 #include <linux/power/gpio-charger.h>
 #include <linux/platform_device.h>
 
-#include "board-harmony.h"
+#include "board-paz00.h"
 #include "gpio-names.h"
 
 static struct regulator_consumer_supply tps658621_sm0_supply[] = {
@@ -165,25 +165,25 @@ static struct tps6586x_platform_data tps_platform = {
 	.gpio_base = TEGRA_NR_GPIOS,
 };
 
-static struct i2c_board_info __initdata harmony_regulators[] = {
+static struct i2c_board_info __initdata paz00_regulators[] = {
 	{
 		I2C_BOARD_INFO("tps6586x", 0x68), /* 0x34 */
 		.platform_data = &tps_platform,
 	},
 };
 
-int __init harmony_regulator_init(void)
+int __init paz00_regulator_init(void)
 {
-	i2c_register_board_info(4, harmony_regulators, 1);
+	i2c_register_board_info(4, paz00_regulators, 1);
 	return 0;
 }
 
-int __init harmony_power_init(void)
+int __init paz00_power_init(void)
 {
 	int err;
 	static struct regulator *reg = NULL; 
 
-	err = harmony_regulator_init();
+	err = paz00_regulator_init();
 	if (err < 0) {
 		pr_warning("Unable to initialize regulator\n");
 		return -1;

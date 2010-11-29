@@ -41,7 +41,6 @@ obj-y					+= nv/
 obj-${CONFIG_MACH_HARMONY}              += board-harmony.o
 obj-${CONFIG_MACH_HARMONY}              += board-harmony-pinmux.o
 obj-${CONFIG_MACH_HARMONY}              += board-harmony-panel.o
-obj-${CONFIG_MACH_HARMONY}              += board-harmony-power.o
 obj-${CONFIG_MACH_HARMONY}              += board-harmony-sdhci.o
 
 obj-${CONFIG_MACH_VENTANA}              += board-ventana.o
@@ -50,8 +49,14 @@ obj-${CONFIG_MACH_VENTANA}              += board-ventana-sdhci.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-power.o
 obj-${CONFIG_MACH_VENTANA}              += board-ventana-panel.o
 
-obj-${CONFIG_MACH_TEGRA_SEABOARD}             += board-seaboard.o
-obj-${CONFIG_MACH_TEGRA_SEABOARD}             += board-seaboard-pinmux.o
-obj-${CONFIG_MACH_TEGRA_SEABOARD}             += board-seaboard-sdhci.o
-obj-${CONFIG_MACH_TEGRA_SEABOARD}             += board-seaboard-power.o
-obj-${CONFIG_MACH_TEGRA_SEABOARD}             += board-seaboard-panel.o
+obj-${CONFIG_MACH_TEGRA_SEABOARD}       += board-seaboard.o
+obj-${CONFIG_MACH_TEGRA_SEABOARD}       += board-seaboard-pinmux.o
+obj-${CONFIG_MACH_TEGRA_SEABOARD}       += board-seaboard-sdhci.o
+obj-${CONFIG_MACH_TEGRA_SEABOARD}       += board-seaboard-power.o
+obj-${CONFIG_MACH_TEGRA_SEABOARD}       += board-seaboard-panel.o
+
+obj-${CONFIG_MACH_PAZ00}                += board-paz00.o
+obj-${CONFIG_MACH_PAZ00}                += board-paz00-pinmux.o
+obj-${CONFIG_MACH_PAZ00}                += board-paz00-panel.o
+obj-${CONFIG_MACH_PAZ00}                += board-paz00-power.o
+obj-${CONFIG_MACH_PAZ00}                += board-paz00-sdhci.o

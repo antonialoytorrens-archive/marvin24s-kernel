@@ -1,7 +1,8 @@
 /*
- * arch/arm/mach-tegra/board-harmony.c
+ * arch/arm/mach-tegra/board-paz00.c
  *
  * Copyright (C) 2010 Google, Inc.
+ *               2010 Marc Dietrich <marvin24@gmx.de>
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -28,6 +29,7 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/tegra_usb.h>
+#include <linux/fsl_devices.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -38,14 +40,14 @@
 #include <mach/i2s.h>
 #include <mach/iomap.h>
 #include <mach/irqs.h>
-#include <mach/nand.h>
 #include <mach/clk.h>
 #include <mach/usb_phy.h>
 
 #include "clock.h"
 #include "board.h"
-#include "board-harmony.h"
+#include "board-paz00.h"
 #include "devices.h"
+#include "gpio-names.h"
 
 /* NVidia bootloader tags */
 #define ATAG_NVIDIA		0x41000801
@@ -71,85 +73,6 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 }
 __tagtable(ATAG_NVIDIA, parse_tag_nvidia);
 
-static struct tegra_utmip_config utmi_phy_config = {
-	.hssync_start_delay = 0,
-	.idle_wait_delay = 17,
-	.elastic_limit = 16,
-	.term_range_adj = 6,
-	.xcvr_setup = 9,
-	.xcvr_lsfslew = 2,
-	.xcvr_lsrslew = 2,
-};
-
-static struct tegra_ehci_platform_data tegra_ehci_pdata = {
-	.phy_config = &utmi_phy_config,
-	.operating_mode = TEGRA_USB_HOST,
-	.power_down_on_bus_suspend = 1,
-};
-
-static struct tegra_nand_chip_parms nand_chip_parms[] = {
-	/* Samsung K5E2G1GACM */
-	[0] = {
-		.vendor_id   = 0xEC,
-		.device_id   = 0xAA,
-		.capacity    = 256,
-		.timing      = {
-			.trp		= 21,
-			.trh		= 15,
-			.twp		= 21,
-			.twh		= 15,
-			.tcs		= 31,
-			.twhr		= 60,
-			.tcr_tar_trr	= 20,
-			.twb		= 100,
-			.trp_resp	= 30,
-			.tadl		= 100,
-		},
-	},
-	/* Hynix H5PS1GB3EFR */
-	[1] = {
-		.vendor_id   = 0xAD,
-		.device_id   = 0xDC,
-		.capacity    = 512,
-		.timing      = {
-			.trp		= 12,
-			.trh		= 10,
-			.twp		= 12,
-			.twh		= 10,
-			.tcs		= 20,
-			.twhr		= 80,
-			.tcr_tar_trr	= 20,
-			.twb		= 100,
-			.trp_resp	= 20,
-			.tadl		= 70,
-		},
-	},
-};
-
-struct tegra_nand_platform harmony_nand_data = {
-	.max_chips	= 8,
-	.chip_parms	= nand_chip_parms,
-	.nr_chip_parms  = ARRAY_SIZE(nand_chip_parms),
-};
-
-static struct resource resources_nand[] = {
-	[0] = {
-		.start  = INT_NANDFLASH,
-		.end    = INT_NANDFLASH,
-		.flags  = IORESOURCE_IRQ,
-	},
-};
-
-struct platform_device tegra_nand_device = {
-	.name           = "tegra_nand",
-	.id             = -1,
-	.num_resources  = ARRAY_SIZE(resources_nand),
-	.resource       = resources_nand,
-	.dev            = {
-		.platform_data = &harmony_nand_data,
-	},
-};
-
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
 		.membase	= IO_ADDRESS(TEGRA_UARTD_BASE),
@@ -172,6 +95,50 @@ static struct platform_device debug_uart = {
 	},
 };
 
+static struct tegra_utmip_config utmi_phy_config[] = {
+	[0] = {
+		.hssync_start_delay = 0,
+		.idle_wait_delay = 17,
+		.elastic_limit = 16,
+		.term_range_adj = 6,
+		.xcvr_setup = 9,
+		.xcvr_lsfslew = 2,
+		.xcvr_lsrslew = 2,
+	},
+	[1] = {
+		.hssync_start_delay = 0,
+		.idle_wait_delay = 17,
+		.elastic_limit = 16,
+		.term_range_adj = 6,
+		.xcvr_setup = 15,
+		.xcvr_lsfslew = 2,
+		.xcvr_lsrslew = 2,
+	},
+};
+
+static struct tegra_ulpi_config ulpi_phy_config = {
+	.reset_gpio = TEGRA_GPIO_PG2,
+	.clk = "clk_dev2",
+};
+
+static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
+	[0] = {
+		.phy_config = &utmi_phy_config[0],
+		.operating_mode = TEGRA_USB_OTG,
+		.power_down_on_bus_suspend = 0,
+	},
+	[1] = {
+		.phy_config = &ulpi_phy_config,
+		.operating_mode = TEGRA_USB_HOST,
+		.power_down_on_bus_suspend = 1,
+	},
+	[2] = {
+		.phy_config = &utmi_phy_config[1],
+		.operating_mode = TEGRA_USB_HOST,
+		.power_down_on_bus_suspend = 1,
+	},
+};
+
 /* PDA power */
 static struct pda_power_pdata pda_power_pdata = {
 };
@@ -184,7 +151,7 @@ static struct platform_device pda_power_device = {
 	},
 };
 
-static struct tegra_i2c_platform_data harmony_i2c1_platform_data = {
+static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 400000, 0 },
@@ -200,7 +167,7 @@ static const struct tegra_pingroup_config i2c2_gen2 = {
 	.func		= TEGRA_MUX_I2C2,
 };
 
-static struct tegra_i2c_platform_data harmony_i2c2_platform_data = {
+static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
 	.adapter_nr	= 1,
 	.bus_count	= 2,
 	.bus_clk_rate	= { 400000, 100000 },
@@ -208,22 +175,27 @@ static struct tegra_i2c_platform_data harmony_i2c2_platform_data = {
 	.bus_mux_len	= { 1, 1 },
 };
 
-static struct tegra_i2c_platform_data harmony_i2c3_platform_data = {
+static struct tegra_i2c_platform_data paz00_i2c3_platform_data = {
 	.adapter_nr	= 3,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 400000, 0 },
 };
 
-static struct tegra_i2c_platform_data harmony_dvc_platform_data = {
+static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 400000, 0 },
 	.is_dvc		= true,
 };
 
-static struct i2c_board_info __initdata harmony_i2c_bus1_board_info[] = {
+/* FIXME: Audio codec on PAZ00 is alc5632
+ * no codec exists yet
+ * propably requires userspace */
+
+
+static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	{
-		I2C_BOARD_INFO("wm8903", 0x1a),
+		I2C_BOARD_INFO("alc5632", 0x36),
 	},
 };
 
@@ -239,28 +211,29 @@ static struct tegra_audio_platform_data tegra_audio_pdata = {
 	.bit_size	= I2S_BIT_SIZE_16,
 };
 
-static void harmony_i2c_init(void)
+static void paz00_i2c_init(void)
 {
-	tegra_i2c_device1.dev.platform_data = &harmony_i2c1_platform_data;
-	tegra_i2c_device2.dev.platform_data = &harmony_i2c2_platform_data;
-	tegra_i2c_device3.dev.platform_data = &harmony_i2c3_platform_data;
-	tegra_i2c_device4.dev.platform_data = &harmony_dvc_platform_data;
+	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
+	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
+	tegra_i2c_device3.dev.platform_data = &paz00_i2c3_platform_data;
+	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
-	i2c_register_board_info(0, harmony_i2c_bus1_board_info, 1);
+/* No audio yet */
+	i2c_register_board_info(0, paz00_i2c_bus1_board_info, 1);
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device3);
 	platform_device_register(&tegra_i2c_device4);
 
-	i2c_register_board_info(0, harmony_i2c_bus1_board_info,
-				ARRAY_SIZE(harmony_i2c_bus1_board_info));
+/* Why twice ? */
+	i2c_register_board_info(0, paz00_i2c_bus1_board_info,
+				ARRAY_SIZE(paz00_i2c_bus1_board_info));
 }
 
-static struct platform_device *harmony_devices[] __initdata = {
+static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&pmu_device,
-	&tegra_nand_device,
 	&tegra_udc_device,
 	&pda_power_device,
 	&tegra_ehci3_device,
@@ -272,17 +245,17 @@ static struct platform_device *harmony_devices[] __initdata = {
 	&tegra_i2s_device1,
 };
 
-static void __init tegra_harmony_fixup(struct machine_desc *desc,
+static void __init tegra_paz00_fixup(struct machine_desc *desc,
 	struct tag *tags, char **cmdline, struct meminfo *mi)
 {
-	mi->nr_banks = 2;
+	mi->nr_banks = 1;
 	mi->bank[0].start = PHYS_OFFSET;
 	mi->bank[0].size = 448 * SZ_1M;
-	mi->bank[1].start = SZ_512M;
-	mi->bank[1].size = SZ_512M;
+/*	mi->bank[1].start = SZ_512M;
+	mi->bank[1].size = SZ_512M; */
 }
 
-static __initdata struct tegra_clk_init_table harmony_clk_init_table[] = {
+static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "clk_dev1",	NULL,		26000000,	true},
 	{ "clk_m",	NULL,		12000000,	true},
@@ -372,32 +345,44 @@ static __initdata struct tegra_clk_init_table harmony_clk_init_table[] = {
 	{ NULL,		NULL,		0,		0},
 };
 
-static void __init tegra_harmony_init(void)
+static void __init tegra_paz00_init(void)
 {
 	tegra_common_init();
 
-	tegra_clk_init_from_table(harmony_clk_init_table);
+	tegra_clk_init_from_table(paz00_clk_init_table);
 
-	harmony_pinmux_init();
+	paz00_pinmux_init();
 
-	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata;
+	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
 
 	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata;
 
-	platform_add_devices(harmony_devices, ARRAY_SIZE(harmony_devices));
+	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
-	harmony_panel_init();
-	harmony_sdhci_init();
-	harmony_i2c_init();
+	paz00_panel_init();
+	paz00_sdhci_init();
+	paz00_i2c_init();
+	paz00_power_init();
 }
 
-MACHINE_START(HARMONY, "harmony")
+MACHINE_START(PAZ00, "paz00")
 	.boot_params  = 0x00000100,
 	.phys_io        = IO_APB_PHYS,
 	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
-	.fixup		= tegra_harmony_fixup,
+	.fixup		= tegra_paz00_fixup,
 	.init_irq       = tegra_init_irq,
-	.init_machine   = tegra_harmony_init,
+	.init_machine   = tegra_paz00_init,
+	.map_io         = tegra_map_common_io,
+	.timer          = &tegra_timer,
+MACHINE_END
+
+MACHINE_START(TEGRA_LEGACY, "tegra_legacy")
+	.boot_params  = 0x00000100,
+	.phys_io        = IO_APB_PHYS,
+	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
+	.fixup		= tegra_paz00_fixup,
+	.init_irq       = tegra_init_irq,
+	.init_machine   = tegra_paz00_init,
 	.map_io         = tegra_map_common_io,
 	.timer          = &tegra_timer,
 MACHINE_END
