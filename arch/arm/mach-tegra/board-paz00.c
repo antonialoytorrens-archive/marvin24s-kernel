@@ -359,10 +359,10 @@ static void __init tegra_paz00_init(void)
 
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
-	paz00_panel_init();
 	paz00_sdhci_init();
 	paz00_i2c_init();
 	paz00_power_init();
+	paz00_panel_init();
 }
 
 MACHINE_START(PAZ00, "paz00")

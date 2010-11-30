@@ -22,6 +22,7 @@
 #include <linux/gpio.h>
 #include <linux/power/gpio-charger.h>
 #include <linux/platform_device.h>
+#include <linux/err.h>
 
 #include "board-paz00.h"
 #include "gpio-names.h"
@@ -57,7 +58,7 @@ static struct regulator_consumer_supply tps658621_ldo3_supply[] = { /* 3V3 */
 	REGULATOR_SUPPLY("vddio_nand_3v3", NULL), /* AON? */
 	REGULATOR_SUPPLY("sdio", NULL),
 	REGULATOR_SUPPLY("vddio_vi", NULL),
-	REGULATOR_SUPPLY("vdd_lvds", NULL),
+	REGULATOR_SUPPLY("avdd_lvds", NULL),
 	REGULATOR_SUPPLY("tmon0", NULL),
 	REGULATOR_SUPPLY("vddio_wlan", NULL),
 };
@@ -181,7 +182,6 @@ int __init paz00_regulator_init(void)
 int __init paz00_power_init(void)
 {
 	int err;
-	static struct regulator *reg = NULL; 
 
 	err = paz00_regulator_init();
 	if (err < 0) {

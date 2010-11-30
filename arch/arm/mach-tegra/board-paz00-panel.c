@@ -26,6 +26,7 @@
 #include <asm/mach-types.h>
 #include <linux/platform_device.h>
 #include <linux/pwm_backlight.h>
+#include <linux/err.h>
 #include <mach/nvhost.h>
 #include <mach/nvmap.h>
 #include <mach/irqs.h>
@@ -41,7 +42,7 @@
 #define paz00_en_vdd_pnl	TEGRA_GPIO_PA4  // PC6
 #define paz00_bl_vdd		TEGRA_GPIO_PW0  // PW0
 #define paz00_bl_pwm		TEGRA_GPIO_PU3  // PB4
-#define paz00_hdmi_hdp	TEGRA_GPIO_PN7  // enable Hotplug
+#define paz00_hdmi_hdp		TEGRA_GPIO_PN7  // enable Hotplug
 
 static int paz00_backlight_init(struct device *dev)
 {
@@ -93,6 +94,16 @@ static struct platform_device paz00_backlight_device = {
 
 static int paz00_panel_enable(void)
 {
+	static struct regulator *reg = NULL; 
+	
+	reg = regulator_get(NULL, "avdd_lvds");
+	if (IS_ERR(reg)) {
+		pr_warning("Couldn't get regulator avdd_lvds\n");
+		return -1;
+	} else {
+		regulator_enable(reg);
+	}
+
 	gpio_set_value(paz00_lvds_shutdown, 1);
 	return 0;
 }
@@ -233,9 +244,11 @@ int __init paz00_panel_init(void)
 	gpio_direction_output(paz00_bl_vdd, 1);
 	tegra_gpio_enable(paz00_bl_vdd);
 
-	gpio_request(paz00_lvds_shutdown, "lvds_shdn");
+/*	gpio_request(paz00_lvds_shutdown, "lvds_shdn");
 	gpio_direction_output(paz00_lvds_shutdown, 1);
 	tegra_gpio_enable(paz00_lvds_shutdown);
+*/
+//	paz00_panel_enable();
 
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));
