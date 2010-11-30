@@ -114,6 +114,18 @@ static int paz00_panel_disable(void)
 	return 0;
 }
 
+static int paz00_hdmi_enable(void)
+{
+/*	gpio_set_value(paz00_hdmi_enb, 1);   <- not here */
+	return 0;
+}
+
+static int paz00_hdmi_disable(void)
+{
+/*	gpio_set_value(paz00_hdmi_enb, 0);  <- not here */
+	return 0;
+}
+
 static struct resource paz00_disp1_resources[] = {
 	{
 		.name	= "irq",
@@ -130,9 +142,36 @@ static struct resource paz00_disp1_resources[] = {
 	{
 		.name	= "fbmem",
 		.start	= 0x1c012000,
-		.end	= 0x1c012000 + 0x500000 - 1,
+		.end	= 0x1c012000 + 0x500000 - 1,   /* 5 MB @ 448 MB */
 		.flags	= IORESOURCE_MEM,
 	},
+};
+
+static struct resource paz00_disp2_resources[] = {
+	{
+		.name	= "irq",
+		.start	= INT_DISPLAY_B_GENERAL,
+		.end	= INT_DISPLAY_B_GENERAL,
+		.flags	= IORESOURCE_IRQ,
+	},
+	{
+		.name	= "regs",
+		.start	= TEGRA_DISPLAY2_BASE,
+		.end	= TEGRA_DISPLAY2_BASE + TEGRA_DISPLAY2_SIZE-1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "fbmem",
+		.start	= 0x1c512000,
+		.end	= 0x1c512000 + 0x500000 - 1,  /* 5 MB */
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "hdmi_regs",
+		.start	= TEGRA_HDMI_BASE,
+		.end	= TEGRA_HDMI_BASE + TEGRA_HDMI_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	}
 };
 
 static struct tegra_dc_mode paz00_panel_modes[] = {
@@ -158,6 +197,13 @@ static struct tegra_fb_data paz00_fb_data = {
 	.bits_per_pixel	= 24,
 };
 
+static struct tegra_fb_data paz00_hdmi_fb_data = {
+	.win		= 0,
+	.xres		= 1024,
+	.yres		= 600,
+	.bits_per_pixel	= 24,
+};
+
 static struct tegra_dc_out paz00_disp1_out = {
 	.type		= TEGRA_DC_OUT_RGB,
 
@@ -171,10 +217,30 @@ static struct tegra_dc_out paz00_disp1_out = {
 	.disable	= paz00_panel_disable,
 };
 
+static struct tegra_dc_out paz00_disp2_out = {
+	.type		= TEGRA_DC_OUT_HDMI,
+	.flags		= TEGRA_DC_OUT_HOTPLUG_HIGH,
+
+	.dcc_bus	= 1,
+	.hotplug_gpio	= paz00_hdmi_hdp,
+
+	.align		= TEGRA_DC_ALIGN_MSB,
+	.order		= TEGRA_DC_ORDER_RED_BLUE,
+
+	.enable		= paz00_hdmi_enable,
+	.disable	= paz00_hdmi_disable,
+};
+
 static struct tegra_dc_platform_data paz00_disp1_pdata = {
 	.flags		= TEGRA_DC_FLAG_ENABLED,
 	.default_out	= &paz00_disp1_out,
 	.fb		= &paz00_fb_data,
+};
+
+static struct tegra_dc_platform_data paz00_disp2_pdata = {
+	.flags		= TEGRA_DC_FLAG_ENABLED,
+	.default_out	= &paz00_disp2_out,
+	.fb		= &paz00_hdmi_fb_data,
 };
 
 static struct nvhost_device paz00_disp1_device = {
@@ -184,6 +250,16 @@ static struct nvhost_device paz00_disp1_device = {
 	.num_resources	= ARRAY_SIZE(paz00_disp1_resources),
 	.dev = {
 		.platform_data = &paz00_disp1_pdata,
+	},
+};
+
+static struct nvhost_device paz00_disp2_device = {
+	.name		= "tegradc",
+	.id		= 1,
+	.resource	= paz00_disp2_resources,
+	.num_resources	= ARRAY_SIZE(paz00_disp2_resources),
+	.dev = {
+		.platform_data = &paz00_disp2_pdata,
 	},
 };
 
@@ -198,8 +274,8 @@ static struct nvmap_platform_carveout paz00_carveouts[] = {
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0x18C00000,
-		.size		= SZ_128M - 0xC00000,
+		.base		= 0x1CA12000,  /* must be behind lcd + hdmi fb */
+		.size		= SZ_64M - 0xC00000,
 		.buddy_size	= SZ_32K,
 	},
 };
@@ -228,7 +304,11 @@ int __init paz00_panel_init(void)
 {
 	int err;
 
-	gpio_request(paz00_en_vdd_pnl, "en_vdd_pnl");
+	gpio_request(paz00_lvds_shutdown, "lvds_shdn");
+	gpio_direction_output(paz00_lvds_shutdown, 1);
+	tegra_gpio_enable(paz00_lvds_shutdown);
+
+/*	gpio_request(paz00_en_vdd_pnl, "en_vdd_pnl");
 	gpio_direction_output(paz00_en_vdd_pnl, 1);
 	tegra_gpio_enable(paz00_en_vdd_pnl);
 
@@ -243,18 +323,23 @@ int __init paz00_panel_init(void)
 	gpio_request(paz00_bl_vdd, "bl_vdd");
 	gpio_direction_output(paz00_bl_vdd, 1);
 	tegra_gpio_enable(paz00_bl_vdd);
-
-/*	gpio_request(paz00_lvds_shutdown, "lvds_shdn");
-	gpio_direction_output(paz00_lvds_shutdown, 1);
-	tegra_gpio_enable(paz00_lvds_shutdown);
 */
-//	paz00_panel_enable();
+	gpio_request(paz00_hdmi_hdp, "hdmi_hdp");
+	gpio_direction_input(paz00_hdmi_hdp);
+	tegra_gpio_enable(paz00_hdmi_hdp);
 
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));
 
 	if (!err)
 		err = nvhost_device_register(&paz00_disp1_device);
+	else
+		pr_warning("registered disp1 device\n");
+
+	if (!err)
+		err = nvhost_device_register(&paz00_disp2_device);
+	else
+		pr_warning("registered disp2 device\n");
 
 	return err;
 }
