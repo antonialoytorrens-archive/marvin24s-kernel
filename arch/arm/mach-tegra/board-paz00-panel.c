@@ -95,14 +95,25 @@ static struct platform_device paz00_backlight_device = {
 static int paz00_panel_enable(void)
 {
 	static struct regulator *reg = NULL; 
-	
+	int ret = 0;
+
+	pr_warning(">>> panel_enable\n");
+
 	reg = regulator_get(NULL, "avdd_lvds");
 	if (IS_ERR(reg)) {
 		pr_warning("Couldn't get regulator avdd_lvds\n");
 		return -1;
-	} else {
-		regulator_enable(reg);
 	}
+
+	ret = regulator_set_voltage(reg, 3300, 3300);
+	if (ret) {
+		pr_warning("Couldn't set regulator voltage add_lvds\n");
+		return -1;
+	}
+
+	ret = regulator_enable(reg);
+	if (ret)
+		pr_warning("Couldn't enable regualtor avdd_lvds\n");
 
 	gpio_set_value(paz00_lvds_shutdown, 1);
 	return 0;
