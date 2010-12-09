@@ -46,6 +46,7 @@
 
 static int paz00_backlight_init(struct device *dev)
 {
+	static struct regulator *reg = NULL;
 	int ret;
 
 	pr_warning(">>> backlight_enable\n");
@@ -118,7 +119,7 @@ static struct platform_device paz00_backlight_device = {
 
 static int paz00_panel_enable(void)
 {
-	static struct regulator *reg = NULL; 
+	static struct regulator *reg = NULL;
 	int ret = 0;
 
 	pr_warning(">>> panel_enable\n");
