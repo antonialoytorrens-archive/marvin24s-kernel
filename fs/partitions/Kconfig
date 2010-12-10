@@ -110,6 +110,13 @@ config MSDOS_PARTITION
 	help
 	  Say Y here.
 
+config NVTEGRA_PARTITION
+	bool "Nvidia Tegra partition table support" if PARTITION_ADVANCED
+	default n
+	help
+	  Add support for undocummented partition table format used by Tegra2
+	  systems.
+
 config BSD_DISKLABEL
 	bool "BSD disklabel (FreeBSD partition tables) support"
 	depends on PARTITION_ADVANCED && MSDOS_PARTITION
@@ -249,3 +256,4 @@ config SYSV68_PARTITION
 	  partition table format used by Motorola Delta machines (using
 	  sysv68).
 	  Otherwise, say N.
+
