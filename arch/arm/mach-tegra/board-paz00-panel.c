@@ -95,12 +95,14 @@ static void paz00_backlight_exit(struct device *dev)
 
 static int paz00_backlight_notify(struct device *unused, int brightness)
 {
+	gpio_set_value(paz00_en_vdd_pnl, !!brightness);
+	gpio_set_value(paz00_lvds_shutdown, !!brightness);
 	gpio_set_value(paz00_bl_enb, !!brightness);
 	return brightness;
 }
 
 static struct platform_pwm_backlight_data paz00_backlight_data = {
-	.pwm_id		= 2,
+	.pwm_id		= 0,
 	.max_brightness	= 255,
 	.dft_brightness	= 224,
 	.pwm_period_ns	= 5000000,
@@ -381,7 +383,7 @@ static struct platform_device paz00_nvmap_device = {
 static struct platform_device *paz00_gfx_devices[] __initdata = {
 	&paz00_nvmap_device,
 	&tegra_grhost_device,
-	&tegra_pwfm2_device,
+	&tegra_pwfm0_device,
 	&paz00_backlight_device,
 };
 
@@ -389,29 +391,20 @@ int __init paz00_panel_init(void)
 {
 	int err;
 
-/*	gpio_request(paz00_lvds_shutdown, "lvds_shdn");
-	gpio_direction_output(paz00_lvds_shutdown, 1);
-	tegra_gpio_enable(paz00_lvds_shutdown);
-
 	gpio_request(paz00_en_vdd_pnl, "en_vdd_pnl");
 	gpio_direction_output(paz00_en_vdd_pnl, 1);
 	tegra_gpio_enable(paz00_en_vdd_pnl);
-
-	gpio_request(paz00_bl_enb, "bl_enb");
-	gpio_direction_output(paz00_bl_enb, 1);
-	tegra_gpio_enable(paz00_bl_enb);
-
-	gpio_request(paz00_bl_pwm, "bl_pwm");
-	gpio_direction_output(paz00_bl_pwm, 1);
-	tegra_gpio_enable(paz00_bl_pwm);
+	gpio_free(paz00_en_vdd_pnl);
 
 	gpio_request(paz00_bl_vdd, "bl_vdd");
 	gpio_direction_output(paz00_bl_vdd, 1);
 	tegra_gpio_enable(paz00_bl_vdd);
-*/
+	gpio_free(paz00_bl_vdd);
+
 	gpio_request(paz00_hdmi_hdp, "hdmi_hdp");
 	gpio_direction_input(paz00_hdmi_hdp);
 	tegra_gpio_enable(paz00_hdmi_hdp);
+	gpio_free(paz00_hdmi_hdp);
 
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));
