@@ -263,7 +263,7 @@ static struct resource paz00_disp2_resources[] = {
 
 static struct tegra_dc_mode paz00_panel_modes[] = {
 	{
-		.pclk = 79500000,
+		.pclk = 42430000,
 		.h_ref_to_sync = 4,
 		.v_ref_to_sync = 2,
 		.h_sync_width = 136,
