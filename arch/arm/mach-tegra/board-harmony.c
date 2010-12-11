@@ -41,6 +41,7 @@
 #include <mach/nand.h>
 #include <mach/clk.h>
 #include <mach/usb_phy.h>
+#include <mach/suspend.h>
 
 #include "clock.h"
 #include "board.h"
@@ -362,7 +363,7 @@ static __initdata struct tegra_clk_init_table harmony_clk_init_table[] = {
 	{ "usb3",	"clk_m",	12000000,	true},
 	{ "isp",	"clk_m",	12000000,	false},
 	{ "csus",	"clk_m",	12000000,	false},
-	{ "pwm",	"clk_m",	32768,		true},
+	{ "pwm",	"clk_32k",	32768,		false},
 	{ "clk_32k",	NULL,		32768,		true},
 	{ "pll_s",	"clk_32k",	32768,		false},
 	{ "rtc",	"clk_32k",	32768,		true},
@@ -370,9 +371,22 @@ static __initdata struct tegra_clk_init_table harmony_clk_init_table[] = {
 	{ NULL,		NULL,		0,		0},
 };
 
+static struct tegra_suspend_platform_data harmony_suspend = {
+	.cpu_timer = 5000,
+	.cpu_off_timer = 5000,
+	.core_timer = 0x7e7e,
+	.core_off_timer = 0x7f,
+	.separate_req = true,
+	.corereq_high = false,
+	.sysclkreq_high = true,
+	.suspend_mode = TEGRA_SUSPEND_LP0,
+};
+
 static void __init tegra_harmony_init(void)
 {
 	tegra_common_init();
+
+	tegra_init_suspend(&harmony_suspend);
 
 	tegra_clk_init_from_table(harmony_clk_init_table);
 
