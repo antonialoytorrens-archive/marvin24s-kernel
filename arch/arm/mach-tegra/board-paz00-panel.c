@@ -238,7 +238,7 @@ static struct resource paz00_disp1_resources[] = {
 	{
 		.name	= "fbmem",
 		.start	= 0x1c012000,
-		.end	= 0x1c012000 + 0x500000 - 1,   /* 5 MB @ 448 MB */
+		.end	= 0x1c012000 + 0x130000 - 1,   /* 1.2 MB @ 448 MB */
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -258,8 +258,8 @@ static struct resource paz00_disp2_resources[] = {
 	},
 	{
 		.name	= "fbmem",
-		.start	= 0x1c512000,
-		.end	= 0x1c512000 + 0x500000 - 1,  /* 5 MB */
+		.start	= 0x1c142000,
+		.end	= 0x1c142000 + 0x500000 - 1,  /* 5 MB */
 		.flags	= IORESOURCE_MEM,
 	},
 	{
@@ -370,7 +370,7 @@ static struct nvmap_platform_carveout paz00_carveouts[] = {
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0x1C00000,  /* must be behind lcd + hdmi fb */
+		.base		= 0x1C642000,  /* must be behind lcd + hdmi fb */
 		.size		= SZ_64M,
 		.buddy_size	= SZ_32K,
 	},
