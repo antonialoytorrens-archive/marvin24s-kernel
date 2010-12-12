@@ -370,8 +370,8 @@ static struct nvmap_platform_carveout paz00_carveouts[] = {
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0x1C642000,  /* must be behind lcd + hdmi fb */
-		.size		= SZ_64M,
+		.base		= 0x1C650000,  /* must be behind lcd + hdmi fb */
+		.size		= SZ_64M - 0x640000,
 		.buddy_size	= SZ_32K,
 	},
 };
