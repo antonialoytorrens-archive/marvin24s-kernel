@@ -57,15 +57,19 @@ static int paz00_backlight_init(struct device *dev)
 		return -1;
 	}
 
-	ret = regulator_set_voltage(reg, 1800000, 1800000);
-	if (ret) {
-		pr_warning("Couldn't set regulator voltage vddio_lcd\n");
-		return ret;
-	}
+	if (regulator_is_enabled(reg)) {
+		pr_warning("regulator avdd_lvds already enabled\n");
+	} else {
+		ret = regulator_set_voltage(reg, 1800000, 1800000);
+		if (ret) {
+			pr_warning("Couldn't set regulator voltage vddio_lcd\n");
+			return ret;
+		}
 
-	ret = regulator_enable(reg);
-	if (ret)
-		pr_warning("Couldn't enable regualtor vddio_lcd\n");
+		ret = regulator_enable(reg);
+		if (ret)
+			pr_warning("Couldn't enable regualtor vddio_lcd\n");
+	}
 
 	ret = gpio_request(paz00_bl_enb, "blacklight_enable");
 	if (ret) {
@@ -80,7 +84,6 @@ static int paz00_backlight_init(struct device *dev)
 	}
 
 	gpio_set_value(paz00_bl_enb, 1);
-	tegra_gpio_enable(paz00_bl_enb);
 
 	return 0;
 
@@ -90,7 +93,6 @@ static void paz00_backlight_exit(struct device *dev)
 {
 	gpio_set_value(paz00_bl_enb, 0);
 	gpio_free(paz00_bl_enb);
-	tegra_gpio_disable(paz00_bl_enb);
 }
 
 static int paz00_backlight_notify(struct device *unused, int brightness)
@@ -132,15 +134,20 @@ static int paz00_panel_enable(void)
 		return -1;
 	}
 
-	ret = regulator_set_voltage(reg, 3300000, 3300000);
-	if (ret) {
-		pr_warning("Couldn't set regulator voltage add_lvds\n");
-		return -1;
-	}
+	if (regulator_is_enabled(reg)) {
+		pr_warning("regulator avdd_lvds already enabled\n");
+	} else {
 
-	ret = regulator_enable(reg);
-	if (ret)
-		pr_warning("Couldn't enable regualtor avdd_lvds\n");
+		ret = regulator_set_voltage(reg, 3300000, 3300000);
+		if (ret) {
+			pr_warning("Couldn't set regulator voltage add_lvds\n");
+			return -1;
+		}
+
+		ret = regulator_enable(reg);
+		if (ret)
+			pr_warning("Couldn't enable regualtor avdd_lvds\n");
+	}
 
 	ret = gpio_request(paz00_lvds_shutdown, "lvds_shdn");
 	if (ret) {
@@ -155,7 +162,6 @@ static int paz00_panel_enable(void)
 	}
 
 	gpio_set_value(paz00_lvds_shutdown, 1);
-	tegra_gpio_enable(paz00_lvds_shutdown);
 
 /* Backlight */
 
@@ -167,15 +173,19 @@ static int paz00_panel_enable(void)
 		return -1;
 	}
 
-	ret = regulator_set_voltage(reg, 1800000, 1800000);
-	if (ret) {
-		pr_warning("Couldn't set regulator voltage vddio_lcd\n");
-		return -1;
-	}
+	if (regulator_is_enabled(reg)) {
+		pr_warning("regulator vddio_lcd already enabled\n");
+	} else {
+		ret = regulator_set_voltage(reg, 1800000, 1800000);
+		if (ret) {
+			pr_warning("Couldn't set regulator voltage vddio_lcd\n");
+			return -1;
+		}
 
-	ret = regulator_enable(reg);
-	if (ret)
-		pr_warning("Couldn't enable regualtor vddio_lcd\n");
+		ret = regulator_enable(reg);
+		if (ret)
+			pr_warning("Couldn't enable regualtor vddio_lcd\n");
+	}
 
 	ret = gpio_request(paz00_bl_enb, "blacklight_enable");
 	if (ret) {
@@ -190,7 +200,6 @@ static int paz00_panel_enable(void)
 	}
 
 	gpio_set_value(paz00_bl_enb, 1);
-	tegra_gpio_enable(paz00_bl_enb);
 
 	return 0;
 }
@@ -203,13 +212,13 @@ static int paz00_panel_disable(void)
 
 static int paz00_hdmi_enable(void)
 {
-/*	gpio_set_value(paz00_hdmi_enb, 1);   <- not here */
+	pr_warning(">>> hdmi enable\n");
 	return 0;
 }
 
 static int paz00_hdmi_disable(void)
 {
-/*	gpio_set_value(paz00_hdmi_enb, 0);  <- not here */
+	pr_warning(">>> hdmi disable\n");
 	return 0;
 }
 
