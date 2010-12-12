@@ -42,7 +42,7 @@
 #define paz00_en_vdd_pnl	TEGRA_GPIO_PA4  // PC6
 #define paz00_bl_vdd		TEGRA_GPIO_PW0  // PW0
 #define paz00_bl_pwm		TEGRA_GPIO_PU3  // PB4
-#define paz00_hdmi_hdp		TEGRA_GPIO_PN7  // enable Hotplug
+#define paz00_hdmi_hpd		TEGRA_GPIO_PN7  // enable Hotplug
 
 static int paz00_backlight_init(struct device *dev)
 {
@@ -281,14 +281,14 @@ static struct tegra_fb_data paz00_fb_data = {
 	.win		= 0,
 	.xres		= 1024,
 	.yres		= 600,
-	.bits_per_pixel	= 24,
+	.bits_per_pixel	= 16,
 };
 
 static struct tegra_fb_data paz00_hdmi_fb_data = {
 	.win		= 0,
 	.xres		= 1024,
 	.yres		= 600,
-	.bits_per_pixel	= 24,
+	.bits_per_pixel	= 16,
 };
 
 static struct tegra_dc_out paz00_disp1_out = {
@@ -309,7 +309,7 @@ static struct tegra_dc_out paz00_disp2_out = {
 	.flags		= TEGRA_DC_OUT_HOTPLUG_HIGH,
 
 	.dcc_bus	= 1,
-	.hotplug_gpio	= paz00_hdmi_hdp,
+	.hotplug_gpio	= paz00_hdmi_hpd,
 
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
@@ -361,8 +361,8 @@ static struct nvmap_platform_carveout paz00_carveouts[] = {
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0x1CC0000,  /* must be behind lcd + hdmi fb */
-		.size		= SZ_64M - 0xC00000,
+		.base		= 0x1C00000,  /* must be behind lcd + hdmi fb */
+		.size		= SZ_64M,
 		.buddy_size	= SZ_32K,
 	},
 };
@@ -401,10 +401,10 @@ int __init paz00_panel_init(void)
 	tegra_gpio_enable(paz00_bl_vdd);
 	gpio_free(paz00_bl_vdd);
 
-	gpio_request(paz00_hdmi_hdp, "hdmi_hdp");
-	gpio_direction_input(paz00_hdmi_hdp);
-	tegra_gpio_enable(paz00_hdmi_hdp);
-	gpio_free(paz00_hdmi_hdp);
+	gpio_request(paz00_hdmi_hpd, "hdmi_hpd");
+	gpio_direction_input(paz00_hdmi_hpd);
+	tegra_gpio_enable(paz00_hdmi_hpd);
+	gpio_free(paz00_hdmi_hpd);
 
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));
