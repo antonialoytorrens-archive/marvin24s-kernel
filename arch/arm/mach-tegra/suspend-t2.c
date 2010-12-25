@@ -72,7 +72,7 @@ struct pmc_scratch_field {
 		.shift_dst = 0?dst,					\
 	}
 
-static const struct pmc_scratch_field pllx[] __initdata = {
+static struct pmc_scratch_field pllx[] __initdata = {
 	field(CLK_RESET, 0xe0, 22:20, 17:15), /* PLLX_DIVP */
 	field(CLK_RESET, 0xe0, 17:8, 14:5), /* PLLX_DIVN */
 	field(CLK_RESET, 0xe0, 4:0, 4:0), /* PLLX_DIVM */
@@ -83,7 +83,7 @@ static const struct pmc_scratch_field pllx[] __initdata = {
 	field(APB_MISC, 0x8d0, 2:2, 31:31), /* XM2CLKCFG_PREEMP_EN */
 };
 
-static const struct pmc_scratch_field emc_0[] __initdata = {
+static struct pmc_scratch_field emc_0[] __initdata = {
 	field(EMC, 0x3c, 4:0, 31:27), /* R2W */
 	field(EMC, 0x34, 5:0, 20:15), /* RAS */
 	field(EMC, 0x2c, 5:0, 5:0), /* RC */
@@ -91,7 +91,7 @@ static const struct pmc_scratch_field emc_0[] __initdata = {
 	field(EMC, 0x38, 5:0, 26:21), /* RP */
 };
 
-static const struct pmc_scratch_field emc_1[] __initdata = {
+static struct pmc_scratch_field emc_1[] __initdata = {
 	field(EMC, 0x44, 4:0, 9:5), /* R2P */
 	field(EMC, 0x4c, 5:0, 20:15), /* RD_RCD */
 	field(EMC, 0x54, 3:0, 30:27), /* RRD */
@@ -100,7 +100,7 @@ static const struct pmc_scratch_field emc_1[] __initdata = {
 	field(EMC, 0x50, 5:0, 26:21), /* WR_RCD */
 };
 
-static const struct pmc_scratch_field emc_2[] __initdata = {
+static struct pmc_scratch_field emc_2[] __initdata = {
 	field(EMC, 0x2b8, 2:2, 31:31), /* CLKCHANGE_SR_ENABLE */
 	field(EMC, 0x2b8, 10:10, 30:30), /* USE_ADDR_CLK */
 	field(EMC, 0x80, 4:0, 29:25), /* PCHG2PDEN */
@@ -112,7 +112,7 @@ static const struct pmc_scratch_field emc_2[] __initdata = {
 	field(EMC, 0x5c, 3:0, 7:4), /* WDV */
 };
 
-static const struct pmc_scratch_field emc_3[] __initdata = {
+static struct pmc_scratch_field emc_3[] __initdata = {
 	field(EMC, 0x74, 3:0, 19:16), /* BURST_REFRESH_NUM */
 	field(EMC, 0x7c, 3:0, 27:24), /* PDEX2RD */
 	field(EMC, 0x78, 3:0, 23:20), /* PDEX2WR */
@@ -121,7 +121,7 @@ static const struct pmc_scratch_field emc_3[] __initdata = {
 	field(EMC, 0xa0, 3:0, 31:28), /* TCLKSTABLE */
 };
 
-static const struct pmc_scratch_field emc_4[] __initdata = {
+static struct pmc_scratch_field emc_4[] __initdata = {
 	field(EMC, 0x84, 4:0, 4:0), /* ACT2PDEN */
 	field(EMC, 0x88, 4:0, 9:5), /* AR2PDEN */
 	field(EMC, 0x8c, 5:0, 15:10), /* RW2PDEN */
@@ -129,7 +129,7 @@ static const struct pmc_scratch_field emc_4[] __initdata = {
 	field(EMC, 0x90, 11:0, 27:16), /* TXSR */
 };
 
-static const struct pmc_scratch_field emc_5[] __initdata = {
+static struct pmc_scratch_field emc_5[] __initdata = {
 	field(EMC, 0x8, 10:10, 30:30), /* AP_REQ_BUSY_CTRL */
 	field(EMC, 0x8, 24:24, 31:31), /* CFG_PRIORITY */
 	field(EMC, 0x8, 2:2, 26:26), /* FORCE_UPDATE */
@@ -143,7 +143,7 @@ static const struct pmc_scratch_field emc_5[] __initdata = {
 	field(EMC, 0x9c, 5:0, 5:0), /* TRPAB */
 };
 
-static const struct pmc_scratch_field emc_6[] __initdata = {
+static struct pmc_scratch_field emc_6[] __initdata = {
 	field(EMC, 0xfc, 1:0, 1:0), /* DQSIB_DLY_MSB_BYTE_0 */
 	field(EMC, 0xfc, 9:8, 3:2), /* DQSIB_DLY_MSB_BYTE_1 */
 	field(EMC, 0xfc, 17:16, 5:4), /* DQSIB_DLY_MSB_BYTE_2 */
@@ -158,20 +158,20 @@ static const struct pmc_scratch_field emc_6[] __initdata = {
 	field(APB_MISC, 0x8e4, 19:16, 29:26), /* XM2CFGC_VREF_DQS */
 };
 
-static const struct pmc_scratch_field emc_dqsib_dly[] __initdata = {
+static struct pmc_scratch_field emc_dqsib_dly[] __initdata = {
 	field(EMC, 0xf8, 31:0, 31:0), /* DQSIB_DLY_BYTE_0 - DQSIB_DLY_BYTE_3*/
 };
 
-static const struct pmc_scratch_field emc_quse_dly[] __initdata = {
+static struct pmc_scratch_field emc_quse_dly[] __initdata = {
 	field(EMC, 0x10c, 31:0, 31:0), /* QUSE_DLY_BYTE_0 - QUSE_DLY_BYTE_3*/
 };
 
-static const struct pmc_scratch_field emc_clktrim[] __initdata = {
+static struct pmc_scratch_field emc_clktrim[] __initdata = {
 	field(EMC, 0x2d0, 29:0, 29:0), /* DATA0_CLKTRIM - DATA3_CLKTRIM +
 					* MCLK_ADDR_CLKTRIM */
 };
 
-static const struct pmc_scratch_field emc_autocal_fbio[] __initdata = {
+static struct pmc_scratch_field emc_autocal_fbio[] __initdata = {
 	field(EMC, 0x2a4, 29:29, 29:29), /* AUTO_CAL_ENABLE */
 	field(EMC, 0x2a4, 30:30, 30:30), /* AUTO_CAL_OVERRIDE */
 	field(EMC, 0x2a4, 12:8, 18:14), /* AUTO_CAL_PD_OFFSET */
@@ -186,14 +186,14 @@ static const struct pmc_scratch_field emc_autocal_fbio[] __initdata = {
 	field(EMC, 0x114, 2:0, 3:1), /* CFG_QUSE_LATE */
 };
 
-static const struct pmc_scratch_field emc_autocal_interval[] __initdata = {
+static struct pmc_scratch_field emc_autocal_interval[] __initdata = {
 	field(EMC, 0x2a8, 27:0, 27:0), /* AUTOCAL_INTERVAL */
 	field(EMC, 0x2b8, 1:1, 29:29), /* CLKCHANGE_PD_ENABLE */
 	field(EMC, 0x2b8, 0:0, 28:28), /* CLKCHANGE_REQ_ENABLE */
 	field(EMC, 0x2b8, 9:8, 31:30), /* PIN_CONFIG */
 };
 
-static const struct pmc_scratch_field emc_cfgs[] __initdata = {
+static struct pmc_scratch_field emc_cfgs[] __initdata = {
 	field(EMC, 0x10, 9:8, 4:3), /* EMEM_BANKWIDTH */
 	field(EMC, 0x10, 2:0, 2:0), /* EMEM_COLWIDTH */
 	field(EMC, 0x10, 19:16, 8:5), /* EMEM_DEVSIZE */
@@ -212,7 +212,7 @@ static const struct pmc_scratch_field emc_cfgs[] __initdata = {
 	field(MC, 0x10c, 1:1, 27:27), /* LL_SEND_BOTH */
 };
 
-static const struct pmc_scratch_field emc_adr_cfg1[] __initdata = {
+static struct pmc_scratch_field emc_adr_cfg1[] __initdata = {
 	field(EMC, 0x14, 9:8, 9:8), /* EMEM1_BANKWIDTH */
 	field(EMC, 0x14, 2:0, 7:5), /* EMEM1_COLWIDTH */
 	field(EMC, 0x14, 19:16, 13:10), /* EMEM1_DEVSIZE */
@@ -226,7 +226,7 @@ static const struct pmc_scratch_field emc_adr_cfg1[] __initdata = {
 	field(APB_MISC, 0x8d8, 10:8, 29:27), /* XM2VTTGEN_VCLAMP_LEVEL */
 };
 
-static const struct pmc_scratch_field emc_digital_dll[] __initdata = {
+static struct pmc_scratch_field emc_digital_dll[] __initdata = {
 	field(EMC, 0x2bc, 1:1, 23:23), /* DLI_TRIMMER_EN */
 	field(EMC, 0x2bc, 0:0, 22:22), /* DLL_EN */
 	field(EMC, 0x2bc, 5:5, 27:27), /* DLL_LOWSPEED */
@@ -237,26 +237,26 @@ static const struct pmc_scratch_field emc_digital_dll[] __initdata = {
 	field(MC, 0xc, 21:0, 21:0), /* EMEM_SIZE_KB */
 };
 
-static const struct pmc_scratch_field emc_dqs_clktrim[] __initdata = {
+static struct pmc_scratch_field emc_dqs_clktrim[] __initdata = {
 	field(EMC, 0x2d4, 29:0, 29:0), /* DQS0_CLKTRIM - DQS3 + MCLK*/
 	field(APB_MISC, 0x8e4, 3:3, 31:31), /* XM2CFGC_CTT_HIZ_EN */
 	field(APB_MISC, 0x8e4, 4:4, 30:30), /* XM2CFGC_VREF_DQS_EN */
 };
 
-static const struct pmc_scratch_field emc_dq_clktrim[] __initdata = {
+static struct pmc_scratch_field emc_dq_clktrim[] __initdata = {
 	field(EMC, 0x2d8, 29:0, 29:0),
 	field(APB_MISC, 0x8e4, 2:2, 30:30), /* XM2CFGC_PREEMP_EN */
 	field(APB_MISC, 0x8e4, 0:0, 31:31), /* XM2CFGC_RX_FT_REC_EN */
 };
 
-static const struct pmc_scratch_field emc_dll_xform_dqs[] __initdata = {
+static struct pmc_scratch_field emc_dll_xform_dqs[] __initdata = {
 	field(EMC, 0x2bc, 25:16, 29:20), /* CFG_DLL_OVERRIDE_VAL */
 	field(EMC, 0x2c0, 4:0, 4:0), /* DQS_MULT */
 	field(EMC, 0x2c0, 22:8, 19:5), /* DQS_OFFS */
 	field(MC, 0x10c, 31:31, 30:30), /* LL_DRAM_INTERLEAVE */
 };
 
-static const struct pmc_scratch_field emc_odt_rw[] __initdata = {
+static struct pmc_scratch_field emc_odt_rw[] __initdata = {
 	field(EMC, 0x2c4, 4:0, 4:0), /* QUSE_MULT */
 	field(EMC, 0x2c4, 22:8, 19:5), /* QUSE_OFF */
 	field(EMC, 0xb4, 31:31, 29:29), /* DISABLE_ODT_DURING_READ */
@@ -267,16 +267,16 @@ static const struct pmc_scratch_field emc_odt_rw[] __initdata = {
 	field(EMC, 0xb0, 2:0, 22:20), /* WR_DELAY */
 };
 
-static const struct pmc_scratch_field arbitration_xbar[] __initdata = {
+static struct pmc_scratch_field arbitration_xbar[] __initdata = {
 	field(AHB_GIZMO, 0xdc, 31:0, 31:0),
 };
 
-static const struct pmc_scratch_field emc_zcal[] __initdata = {
+static struct pmc_scratch_field emc_zcal[] __initdata = {
 	field(EMC, 0x2e0, 23:0, 23:0), /* ZCAL_REF_INTERVAL */
 	field(EMC, 0x2e4, 7:0, 31:24), /* ZCAL_WAIT_CNT */
 };
 
-static const struct pmc_scratch_field emc_ctt_term[] __initdata = {
+static struct pmc_scratch_field emc_ctt_term[] __initdata = {
 	field(EMC, 0x2dc, 19:15, 30:26), /* TERM_DRVDN */
 	field(EMC, 0x2dc, 12:8, 25:21), /* TERM_OFFSET */
 	field(EMC, 0x2dc, 31:31, 31:31), /* TERM_OVERRIDE */
@@ -285,7 +285,7 @@ static const struct pmc_scratch_field emc_ctt_term[] __initdata = {
 	field(EMC, 0x2e8, 7:0, 7:0), /* ZQ_MRW_OP */
 };
 
-static const struct pmc_scratch_field xm2_cfgd[] __initdata = {
+static struct pmc_scratch_field xm2_cfgd[] __initdata = {
 	field(APB_MISC, 0x8e8, 18:16, 11:9), /* CFGD0_DLYIN_TRM */
 	field(APB_MISC, 0x8e8, 22:20, 8:6), /* CFGD1_DLYIN_TRM */
 	field(APB_MISC, 0x8e8, 26:24, 5:3), /* CFGD2_DLYIN_TRM */
@@ -308,7 +308,7 @@ struct pmc_scratch_reg {
 		.num_fields = ARRAY_SIZE(field_list),			\
 	}
 
-static const struct pmc_scratch_reg scratch[] __initdata = {
+static struct pmc_scratch_reg scratch[] __initdata = {
 	scratch(PMC_SCRATCH3, pllx),
 	scratch(PMC_SCRATCH5, emc_0),
 	scratch(PMC_SCRATCH6, emc_1),
