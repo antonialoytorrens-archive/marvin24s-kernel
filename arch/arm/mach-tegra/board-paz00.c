@@ -43,6 +43,7 @@
 #include <mach/clk.h>
 #include <mach/usb_phy.h>
 #include <mach/suspend.h>
+#include <mach/kbc.h>
 
 #include "clock.h"
 #include "board.h"
@@ -343,6 +344,74 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	{ NULL,		NULL,		0,		0},
 };
 
+static struct tegra_kbc_wake_key paz00_wake_cfg[] = {
+        [0] = {
+                .row = 1,
+                .col = 7,
+        },
+        [1] = {
+                .row = 15,
+                .col = 0,
+        },
+};
+
+static struct resource paz00_kbc_resources[] = {
+        [0] = {
+                .start = TEGRA_KBC_BASE,
+                .end   = TEGRA_KBC_BASE + TEGRA_KBC_SIZE - 1,
+                .flags = IORESOURCE_MEM,
+        },
+        [1] = {
+                .start = INT_KBC,
+                .end   = INT_KBC,
+                .flags = IORESOURCE_IRQ,
+        },
+};
+
+static struct tegra_kbc_platform_data paz00_kbc_platform_data = {
+        .debounce_cnt = 2,
+        .repeat_cnt = 5 * 32,
+        .wake_cnt = 2,
+        .wake_cfg = &paz00_wake_cfg[0],
+};
+
+static struct platform_device paz00_kbc_device = {
+        .name = "tegra-kbc",
+        .id = -1,
+        .resource = paz00_kbc_resources,
+        .num_resources = ARRAY_SIZE(paz00_kbc_resources),
+        .dev = {
+                .platform_data = &paz00_kbc_platform_data,
+        },
+
+};
+
+static void paz00_kbc_init(void)
+{
+        struct tegra_kbc_platform_data *data = &paz00_kbc_platform_data;
+        int i, j;
+
+        BUG_ON((KBC_MAX_ROW + KBC_MAX_COL) > KBC_MAX_GPIO);
+        /*
+         * Setup the pin configuration information.
+         */
+        for (i = 0; i < KBC_MAX_ROW; i++) {
+                data->pin_cfg[i].num = i;
+                data->pin_cfg[i].is_row = true;
+                data->pin_cfg[i].is_col = false;
+        }
+
+        for (j = 0; j < KBC_MAX_COL; j++) {
+                data->pin_cfg[i + j].num = j;
+                data->pin_cfg[i + j].is_row = false;
+                data->pin_cfg[i + j].is_col = true;
+        }
+
+        /* tegra-kbc will use default keycodes. */
+        data->plain_keycode = data->fn_keycode = NULL;
+        platform_device_register(&paz00_kbc_device);
+}
+
 static struct tegra_suspend_platform_data paz00_suspend = {
 	.cpu_timer = 5000,
 	.cpu_off_timer = 5000,
@@ -364,9 +433,9 @@ static void __init tegra_paz00_init(void)
 
 	paz00_pinmux_init();
 
-/* disable for now
+	/* disable for now
 	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
-*/
+	*/
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
 
 	platform_device_register(&tegra_ehci2_device);
@@ -380,6 +449,7 @@ static void __init tegra_paz00_init(void)
 	paz00_i2c_init();
 	paz00_power_init();
 	paz00_panel_init();
+	paz00_kbc_init();
 }
 
 MACHINE_START(PAZ00, "paz00")
