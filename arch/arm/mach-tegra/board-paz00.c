@@ -98,7 +98,16 @@ static struct platform_device debug_uart = {
 
 static struct tegra_utmip_config utmi_phy_config[] = {
 	[0] = {
-		.hssync_start_delay = 0,
+		.hssync_start_delay = 9,
+		.idle_wait_delay = 17,
+		.elastic_limit = 16,
+		.term_range_adj = 6,
+		.xcvr_setup = 15,
+		.xcvr_lsfslew = 1,
+		.xcvr_lsrslew = 1,
+	},
+	[1] = {
+		.hssync_start_delay = 9,
 		.idle_wait_delay = 17,
 		.elastic_limit = 16,
 		.term_range_adj = 6,
@@ -106,19 +115,10 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 		.xcvr_lsfslew = 2,
 		.xcvr_lsrslew = 2,
 	},
-	[1] = {
-		.hssync_start_delay = 0,
-		.idle_wait_delay = 17,
-		.elastic_limit = 16,
-		.term_range_adj = 6,
-		.xcvr_setup = 15,
-		.xcvr_lsfslew = 2,
-		.xcvr_lsrslew = 2,
-	},
 };
 
 static struct tegra_ulpi_config ulpi_phy_config = {
-	.reset_gpio = TEGRA_GPIO_PG2,
+	.reset_gpio = TEGRA_GPIO_PV0,
 	.clk = "clk_dev2",
 };
 
@@ -234,7 +234,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&pmu_device,
 	&tegra_udc_device,
 	&pda_power_device,
-	&tegra_ehci3_device,
 	&tegra_spi_device1,
 	&tegra_spi_device2,
 	&tegra_spi_device3,
@@ -256,6 +255,7 @@ static void __init tegra_paz00_fixup(struct machine_desc *desc,
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "clk_dev1",	NULL,		26000000,	true},
+	{ "clk_dev2",	NULL,		26000000,	true},
 	{ "clk_m",	NULL,		12000000,	true},
 	{ "3d",		"pll_m",	266400000,	true},
 	{ "2d",		"pll_m",	266400000,	true},
@@ -364,7 +364,13 @@ static void __init tegra_paz00_init(void)
 
 	paz00_pinmux_init();
 
+/* disable for now
+	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
+*/
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
+
+	platform_device_register(&tegra_ehci2_device);
+	platform_device_register(&tegra_ehci3_device);
 
 	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata;
 
