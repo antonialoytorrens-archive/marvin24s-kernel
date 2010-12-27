@@ -200,6 +200,12 @@ static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	},
 };
 
+static struct i2c_board_info __initdata paz00_i2c_bus4_board_info[] = {
+	{
+		I2C_BOARD_INFO("atd7461", 0x4c), /* aka lm90 */
+	},
+};
+
 static struct tegra_audio_platform_data tegra_audio_pdata = {
 	.i2s_master	= false,
 	.dsp_master	= false,
@@ -227,6 +233,9 @@ static void paz00_i2c_init(void)
 /* no audio yet */
 	i2c_register_board_info(0, paz00_i2c_bus1_board_info,
 				ARRAY_SIZE(paz00_i2c_bus1_board_info));
+
+	i2c_register_board_info(4, paz00_i2c_bus4_board_info,
+				ARRAY_SIZE(paz00_i2c_bus4_board_info));
 }
 
 static struct platform_device *paz00_devices[] __initdata = {
