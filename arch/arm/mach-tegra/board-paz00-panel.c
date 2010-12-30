@@ -370,8 +370,8 @@ static struct nvmap_platform_carveout paz00_carveouts[] = {
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0x18C0000,
-		.size		= SZ_128M - 0xC00000,
+		.base		= 0x1C000000,   /* carveout starts at 448 */
+		.size		= SZ_64M - 0xC00000,
 		.buddy_size	= SZ_32K,
 	},
 };

@@ -98,7 +98,16 @@ static struct platform_device debug_uart = {
 
 static struct tegra_utmip_config utmi_phy_config[] = {
 	[0] = {
-		.hssync_start_delay = 0,
+		.hssync_start_delay = 9,
+		.idle_wait_delay = 17,
+		.elastic_limit = 16,
+		.term_range_adj = 6,
+		.xcvr_setup = 15,
+		.xcvr_lsfslew = 1,
+		.xcvr_lsrslew = 1,
+	},
+	[1] = {
+		.hssync_start_delay = 9,
 		.idle_wait_delay = 17,
 		.elastic_limit = 16,
 		.term_range_adj = 6,
@@ -106,19 +115,10 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 		.xcvr_lsfslew = 2,
 		.xcvr_lsrslew = 2,
 	},
-	[1] = {
-		.hssync_start_delay = 0,
-		.idle_wait_delay = 17,
-		.elastic_limit = 16,
-		.term_range_adj = 6,
-		.xcvr_setup = 15,
-		.xcvr_lsfslew = 2,
-		.xcvr_lsrslew = 2,
-	},
 };
 
 static struct tegra_ulpi_config ulpi_phy_config = {
-	.reset_gpio = TEGRA_GPIO_PG2,
+	.reset_gpio = TEGRA_GPIO_PV0,
 	.clk = "clk_dev2",
 };
 
@@ -200,6 +200,18 @@ static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	},
 };
 
+static struct i2c_board_info __initdata paz00_i2c_bus3_board_info[] = {
+	{
+		I2C_BOARD_INFO("kb926qf", 0x45), /* EC */
+	},
+};
+
+static struct i2c_board_info __initdata paz00_i2c_bus4_board_info[] = {
+	{
+		I2C_BOARD_INFO("atd7461", 0x4c), /* aka lm90 */
+	},
+};
+
 static struct tegra_audio_platform_data tegra_audio_pdata = {
 	.i2s_master	= false,
 	.dsp_master	= false,
@@ -227,6 +239,12 @@ static void paz00_i2c_init(void)
 /* no audio yet */
 	i2c_register_board_info(0, paz00_i2c_bus1_board_info,
 				ARRAY_SIZE(paz00_i2c_bus1_board_info));
+
+	i2c_register_board_info(3, paz00_i2c_bus3_board_info,
+				ARRAY_SIZE(paz00_i2c_bus3_board_info));
+
+	i2c_register_board_info(4, paz00_i2c_bus4_board_info,
+				ARRAY_SIZE(paz00_i2c_bus4_board_info));
 }
 
 static struct platform_device *paz00_devices[] __initdata = {
@@ -234,7 +252,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&pmu_device,
 	&tegra_udc_device,
 	&pda_power_device,
-	&tegra_ehci3_device,
 	&tegra_spi_device1,
 	&tegra_spi_device2,
 	&tegra_spi_device3,
@@ -256,6 +273,7 @@ static void __init tegra_paz00_fixup(struct machine_desc *desc,
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "clk_dev1",	NULL,		26000000,	true},
+	{ "clk_dev2",	NULL,		26000000,	true},
 	{ "clk_m",	NULL,		12000000,	true},
 	{ "3d",		"pll_m",	266400000,	true},
 	{ "2d",		"pll_m",	266400000,	true},
@@ -364,7 +382,13 @@ static void __init tegra_paz00_init(void)
 
 	paz00_pinmux_init();
 
+/* disable for now
+	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
+*/
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
+
+	platform_device_register(&tegra_ehci2_device);
+	platform_device_register(&tegra_ehci3_device);
 
 	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata;
 
