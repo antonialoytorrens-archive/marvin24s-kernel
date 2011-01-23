@@ -63,9 +63,7 @@
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
-		.membase	= IO_ADDRESS(TEGRA_UARTD_BASE),
-		.mapbase	= TEGRA_UARTD_BASE,
-		.irq		= INT_UARTD,
+		/* Memory and IRQ filled in before registration */
 		.flags		= UPF_BOOT_AUTOCONF,
 		.iotype		= UPIO_MEM,
 		.regshift	= 2,
@@ -117,7 +115,6 @@ static __initdata struct tegra_clk_init_table seaboard_clk_init_table[] = {
 	{ "pclk",	"hclk",		54000000,	true},
 	{ "spdif_in",	"pll_p",	36000000,	false},
 	{ "csite",	"pll_p",	144000000,	true},
-	{ "uartd",	"pll_p",	216000000,	true},
 	{ "host1x",	"pll_p",	144000000,	true},
 	{ "disp1",	"pll_p",	216000000,	true},
 	{ "pll_d",	"clk_m",	1000000,	false},
@@ -151,8 +148,9 @@ static __initdata struct tegra_clk_init_table seaboard_clk_init_table[] = {
 	{ "i2c3",	"clk_m",	3000000,	false},
 	{ "dvc",	"clk_m",	3000000,	false},
 	{ "uarta",	"clk_m",	12000000,	false},
-	{ "uartb",	"clk_m",	12000000,	false},
+	{ "uartb",	"pll_p",	216000000,	true},
 	{ "uartc",	"clk_m",	12000000,	false},
+	{ "uartd",	"pll_p",	216000000,	true},
 	{ "uarte",	"clk_m",	12000000,	false},
 	{ "cve",	"clk_m",	12000000,	false},
 	{ "tvo",	"clk_m",	12000000,	false},
@@ -171,40 +169,6 @@ static __initdata struct tegra_clk_init_table seaboard_clk_init_table[] = {
 	{ "kbc",	"clk_32k",	32768,		true},
 	{ "blink",      "clk_32k",      32768,          true},
 	{ NULL,		NULL,		0,		0},
-};
-
-/* OTG gadget device */
-static u64 tegra_otg_dmamask = DMA_BIT_MASK(32);
-
-
-static struct resource tegra_otg_resources[] = {
-	[0] = {
-		.start  = TEGRA_USB_BASE,
-		.end    = TEGRA_USB_BASE + TEGRA_USB_SIZE - 1,
-		.flags  = IORESOURCE_MEM,
-	},
-	[1] = {
-		.start  = INT_USB,
-		.end    = INT_USB,
-		.flags  = IORESOURCE_IRQ,
-	},
-};
-
-static struct fsl_usb2_platform_data tegra_otg_pdata = {
-	.operating_mode	= FSL_USB2_DR_DEVICE,
-	.phy_mode	= FSL_USB2_PHY_UTMI,
-};
-
-static struct platform_device tegra_otg = {
-	.name = "fsl-tegra-udc",
-	.id   = -1,
-	.dev  = {
-		.dma_mask		= &tegra_otg_dmamask,
-		.coherent_dma_mask	= 0xffffffff,
-		.platform_data = &tegra_otg_pdata,
-	},
-	.resource = tegra_otg_resources,
-	.num_resources = ARRAY_SIZE(tegra_otg_resources),
 };
 
 static struct tegra_utmip_config utmi_phy_config[] = {
@@ -249,21 +213,6 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 		.operating_mode = TEGRA_USB_HOST,
 		.power_down_on_bus_suspend = 1,
 	},
-};
-
-static struct resource tegra_gart_resources[] = {
-	{
-		.name = "mc",
-		.flags = IORESOURCE_MEM,
-		.start = TEGRA_MC_BASE,
-		.end = TEGRA_MC_BASE + TEGRA_MC_SIZE - 1,
-	},
-	{
-		.name = "gart",
-		.flags = IORESOURCE_MEM,
-		.start = 0x58000000,
-		.end = 0x58000000 - 1 + 32 * 1024 * 1024,
-	}
 };
 
 static struct tegra_i2c_platform_data seaboard_i2c1_platform_data = {
@@ -322,6 +271,26 @@ static struct i2c_board_info __initdata seaboard_i2c4_devices[] = {
 		.irq		= TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_MAGNETOMETER),
 	},
 };
+
+static int cros_kbd_keycode[] = {
+	/* Row 0 */	KEY_RESERVED,	KEY_RESERVED,	KEY_LEFTCTRL,	KEY_RESERVED,	KEY_RIGHTCTRL,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,
+	/* Row 1 */	KEY_SEARCH,	KEY_ESC,	KEY_TAB,	KEY_GRAVE,	KEY_A,		KEY_Z,		KEY_1,		KEY_Q,
+	/* Row 2 */	KEY_BACK,	KEY_RESERVED,	KEY_REFRESH,	KEY_FORWARD,	KEY_D,		KEY_C,		KEY_3,		KEY_E,
+	/* Row 3 */	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,
+	/* Row 4 */	KEY_B,		KEY_G,		KEY_T,		KEY_5,		KEY_F,		KEY_V,		KEY_4,		KEY_R,
+	/* Row 5 */	KEY_VOLUMEUP,	KEY_BRIGHTNESSUP,	KEY_BRIGHTNESSDOWN,	KEY_RESERVED,	KEY_S,	KEY_X,	KEY_2,		KEY_W,
+	/* Row 6 */	KEY_RESERVED,	KEY_RESERVED,	KEY_RIGHTBRACE,	KEY_RESERVED,	KEY_K,		KEY_COMMA,	KEY_8,		KEY_I,
+	/* Row 7 */	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,
+	/* Row 8 */	KEY_N,		KEY_H,		KEY_Y,		KEY_6,		KEY_J,		KEY_M,		KEY_7,		KEY_U,
+	/* Row 9 */	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_LEFTSHIFT,	KEY_RESERVED,	KEY_RIGHTSHIFT,
+	/* Row A */	KEY_EQUAL,	KEY_APOSTROPHE,	KEY_LEFTBRACE,	KEY_MINUS,	KEY_SEMICOLON,	KEY_SLASH,	KEY_0,		KEY_P,
+	/* Row B */	KEY_RESERVED,	KEY_VOLUMEDOWN,	KEY_MUTE,	KEY_RESERVED,	KEY_L,		KEY_DOT,	KEY_9,		KEY_O,
+	/* Row C */	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,
+	/* Row D */	KEY_RIGHTALT,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_LEFTALT,	KEY_RESERVED,
+	/* Row E */	KEY_RESERVED,	KEY_BACKSPACE,	KEY_RESERVED,	KEY_BACKSLASH,	KEY_ENTER,	KEY_SPACE,	KEY_DOWN,	KEY_UP,
+	/* Row F */	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RESERVED,	KEY_RIGHT,	KEY_LEFT
+};
+
 
 static void seaboard_isl29018_init(void)
 {
@@ -490,8 +459,6 @@ static void seaboard_kbc_init(void)
 		data->pin_cfg[i + j].is_col = true;
 	}
 
-	/* tegra-kbc will use default keycodes. */
-	data->plain_keycode = data->fn_keycode = NULL;
 	platform_device_register(&seaboard_kbc_device);
 }
 
@@ -545,9 +512,11 @@ static int seaboard_ehci_init(void)
 
 	platform_device_register(&tegra_ehci1_device);
 	platform_device_register(&tegra_ehci3_device);
+
+	return 0;
 }
 
-static void __init tegra_seaboard_init(void)
+static void __init __tegra_seaboard_init(void)
 {
 	tegra_common_init();
 	tegra_init_suspend(&seaboard_suspend);
@@ -572,6 +541,41 @@ static void __init tegra_seaboard_init(void)
 	tegra_gpio_enable(TEGRA_GPIO_POWERKEY);
 }
 
+static void __init tegra_seaboard_init(void)
+{
+	/* Seaboard uses UARTD for the debug port. */
+	debug_uart_platform_data[0].membase = IO_ADDRESS(TEGRA_UARTD_BASE);
+	debug_uart_platform_data[0].mapbase = TEGRA_UARTD_BASE;
+	debug_uart_platform_data[0].irq = INT_UARTD;
+
+	__tegra_seaboard_init();
+}
+
+static void __init tegra_kaen_init(void)
+{
+	/* Kaen uses UARTB for the debug port. */
+	debug_uart_platform_data[0].membase = IO_ADDRESS(TEGRA_UARTB_BASE);
+	debug_uart_platform_data[0].mapbase = TEGRA_UARTB_BASE;
+	debug_uart_platform_data[0].irq = INT_UARTB;
+
+	__tegra_seaboard_init();
+}
+
+
+static void __init tegra_wario_init(void)
+{
+	/* Wario uses UARTB for the debug port. */
+	debug_uart_platform_data[0].membase = IO_ADDRESS(TEGRA_UARTB_BASE);
+	debug_uart_platform_data[0].mapbase = TEGRA_UARTB_BASE;
+	debug_uart_platform_data[0].irq = INT_UARTB;
+
+	seaboard_kbc_platform_data.plain_keycode = cros_kbd_keycode;
+	seaboard_kbc_platform_data.fn_keycode = cros_kbd_keycode;
+
+	__tegra_seaboard_init();
+}
+
+
 MACHINE_START(SEABOARD, "seaboard")
 	.boot_params    = 0x00000100,
 	.phys_io        = IO_APB_PHYS,
@@ -587,7 +591,17 @@ MACHINE_START(KAEN, "kaen")
 	.phys_io        = IO_APB_PHYS,
 	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
 	.init_irq       = tegra_init_irq,
-	.init_machine   = tegra_seaboard_init,
+	.init_machine   = tegra_kaen_init,
+	.map_io         = tegra_map_common_io,
+	.timer          = &tegra_timer,
+MACHINE_END
+
+MACHINE_START(WARIO, "wario")
+	.boot_params    = 0x00000100,
+	.phys_io        = IO_APB_PHYS,
+	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
+	.init_irq       = tegra_init_irq,
+	.init_machine   = tegra_wario_init,
 	.map_io         = tegra_map_common_io,
 	.timer          = &tegra_timer,
 MACHINE_END

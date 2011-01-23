@@ -116,18 +116,6 @@ static int seaboard_panel_disable(void)
 	return 0;
 }
 
-static int seaboard_hdmi_enable(void)
-{
-	gpio_set_value(seaboard_hdmi_enb, 1);
-	return 0;
-}
-
-static int seaboard_hdmi_disable(void)
-{
-	gpio_set_value(seaboard_hdmi_enb, 0);
-	return 0;
-}
-
 static struct resource seaboard_disp1_resources[] = {
 	{
 		.name	= "irq",
@@ -144,34 +132,28 @@ static struct resource seaboard_disp1_resources[] = {
 	{
 		.name	= "fbmem",
 		.start	= 0x18012000,
-		.end	= 0x18414000 - 1, /* enough for 1080P 16bpp */
+		.end	= 0x18012000 + 0x402000 - 1, /* enough for 1368*768 16bpp */
 		.flags	= IORESOURCE_MEM,
 	},
 };
 
-static struct resource seaboard_disp2_resources[] = {
+static struct resource wario_disp1_resources[] = {
 	{
 		.name	= "irq",
-		.start	= INT_DISPLAY_B_GENERAL,
-		.end	= INT_DISPLAY_B_GENERAL,
+		.start	= INT_DISPLAY_GENERAL,
+		.end	= INT_DISPLAY_GENERAL,
 		.flags	= IORESOURCE_IRQ,
 	},
 	{
 		.name	= "regs",
-		.start	= TEGRA_DISPLAY2_BASE,
-		.end	= TEGRA_DISPLAY2_BASE + TEGRA_DISPLAY2_SIZE - 1,
+		.start	= TEGRA_DISPLAY_BASE,
+		.end	= TEGRA_DISPLAY_BASE + TEGRA_DISPLAY_SIZE-1,
 		.flags	= IORESOURCE_MEM,
 	},
 	{
 		.name	= "fbmem",
-		.flags	= IORESOURCE_MEM,
-		.start	= 0x18414000,
-		.end	= 0x18BFD000 - 1,
-	},
-	{
-		.name	= "hdmi_regs",
-		.start	= TEGRA_HDMI_BASE,
-		.end	= TEGRA_HDMI_BASE + TEGRA_HDMI_SIZE - 1,
+		.start	= 0x18012000,
+		.end	= 0x18012000 + 0x3e8000 - 1, /* enough for 1280*800 16bpp */
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -192,6 +174,22 @@ static struct tegra_dc_mode seaboard_panel_modes[] = {
 	},
 };
 
+static struct tegra_dc_mode wario_panel_modes[] = {
+	{
+		.pclk = 62200000,
+		.h_ref_to_sync = 16,
+		.v_ref_to_sync = 1,
+		.h_sync_width = 58,
+		.v_sync_width = 40,
+		.h_back_porch = 58,
+		.v_back_porch = 20,
+		.h_active = 1280,
+		.v_active = 800,
+		.h_front_porch = 58,
+		.v_front_porch = 1,
+	},
+};
+
 static struct tegra_fb_data seaboard_fb_data = {
 	.win		= 0,
 	.xres		= 1366,
@@ -199,10 +197,10 @@ static struct tegra_fb_data seaboard_fb_data = {
 	.bits_per_pixel	= 16,
 };
 
-static struct tegra_fb_data seaboard_hdmi_fb_data = {
+static struct tegra_fb_data wario_fb_data = {
 	.win		= 0,
 	.xres		= 1280,
-	.yres		= 720,
+	.yres		= 800,
 	.bits_per_pixel	= 16,
 };
 
@@ -219,30 +217,10 @@ static struct tegra_dc_out seaboard_disp1_out = {
 	.disable	= seaboard_panel_disable,
 };
 
-static struct tegra_dc_out seaboard_disp2_out = {
-	.type		= TEGRA_DC_OUT_HDMI,
-	.flags		= TEGRA_DC_OUT_HOTPLUG_HIGH,
-
-	.dcc_bus	= 1,
-	.hotplug_gpio	= seaboard_hdmi_hpd,
-
-	.align		= TEGRA_DC_ALIGN_MSB,
-	.order		= TEGRA_DC_ORDER_RED_BLUE,
-
-	.enable		= seaboard_hdmi_enable,
-	.disable	= seaboard_hdmi_disable,
-};
-
 static struct tegra_dc_platform_data seaboard_disp1_pdata = {
 	.flags		= TEGRA_DC_FLAG_ENABLED,
 	.default_out	= &seaboard_disp1_out,
 	.fb		= &seaboard_fb_data,
-};
-
-static struct tegra_dc_platform_data seaboard_disp2_pdata = {
-	.flags		= TEGRA_DC_FLAG_ENABLED,
-	.default_out	= &seaboard_disp2_out,
-	.fb		= &seaboard_hdmi_fb_data,
 };
 
 static struct nvhost_device seaboard_disp1_device = {
@@ -252,16 +230,6 @@ static struct nvhost_device seaboard_disp1_device = {
 	.num_resources	= ARRAY_SIZE(seaboard_disp1_resources),
 	.dev = {
 		.platform_data = &seaboard_disp1_pdata,
-	},
-};
-
-static struct nvhost_device seaboard_disp2_device = {
-	.name		= "tegradc",
-	.id		= 1,
-	.resource	= seaboard_disp2_resources,
-	.num_resources	= ARRAY_SIZE(seaboard_disp2_resources),
-	.dev = {
-		.platform_data = &seaboard_disp2_pdata,
 	},
 };
 
@@ -325,6 +293,12 @@ int __init seaboard_panel_init(void)
 	gpio_request(seaboard_hdmi_hpd, "hdmi_hpd");
 	gpio_direction_input(seaboard_hdmi_hpd);
 	tegra_gpio_enable(seaboard_hdmi_hpd);
+
+	if (machine_is_wario()) {
+		seaboard_disp1_out.modes = wario_panel_modes;
+		seaboard_disp1_pdata.fb = &wario_fb_data;
+		seaboard_disp1_device.resource = wario_disp1_resources;
+	}
 
 	err = platform_add_devices(seaboard_gfx_devices,
 				   ARRAY_SIZE(seaboard_gfx_devices));
