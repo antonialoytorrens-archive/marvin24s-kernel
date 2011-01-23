@@ -8,24 +8,30 @@
 #include <linux/err.h>
 #include <linux/i2c.h>
 
+#include <linux/fs.h>
+#include <linux/errno.h>
+
 #include <linux/mfd/nvtegra-ec.h>
 
-struct nvtegra_ec_chip {
+struct ec_dev {
 	struct i2c_client *client;
 	struct device *dev;
-	struct mutex lock;
 	int req_gpio;
+	struct workqueue_struct *work_queue;
+	struct mutex lock;
 	unsigned long id;
-};
 
-static int __nvtegra_ec_read(struct i2c_client *client,
+	struct platform_device debug_dev;
+} *ec;
+
+static int __nvtegra_ec_read(struct ec_dev *ec,
 				int reg, uint8_t *val)
 {
 	int ret;
 
-	ret = i2c_smbus_read_byte_data(client, reg);
+	ret = i2c_smbus_read_byte_data(ec->client, reg);
 	if (ret < 0) {
-		dev_err(&client->dev, "failed reading at 0x%02x\n", reg);
+		dev_err(&ec->client->dev, "failed reading at 0x%02x\n", reg);
 		return ret;
 	}
 
@@ -33,86 +39,79 @@ static int __nvtegra_ec_read(struct i2c_client *client,
 	return 0;
 }
 
-static int __nvtegra_ec_write(struct i2c_client *client,
+static int __nvtegra_ec_write(struct ec_dev *ec,
 				 int reg, uint8_t val)
 {
 	int ret;
 
-	ret = i2c_smbus_write_byte_data(client, reg, val);
+	ret = i2c_smbus_write_byte_data(ec->client, reg, val);
 	if (ret < 0) {
-		dev_err(&client->dev, "failed writing 0x%02x to 0x%02x\n",
+		dev_err(&ec->client->dev, "failed writing 0x%02x to 0x%02x\n",
 				val, reg);
 		return ret;
 	}
 	return 0;
 }
 
-int nvtegra_ec_write(struct device *dev, int reg, uint8_t val)
+int nvtegra_ec_write(struct ec_dev *ec, int reg, uint8_t val)
 {
-	return __nvtegra_ec_write(to_i2c_client(dev), reg, val);
+	int err;
+
+	mutex_lock(&ec->lock);
+	err = __nvtegra_ec_write(ec, reg, val);
+	mutex_unlock(&ec->lock);
+	
+	return err;
 }
 EXPORT_SYMBOL_GPL(nvtegra_ec_write);
 
-int nvtegra_ec_read(struct device *dev, int reg, uint8_t *val)
+int nvtegra_ec_read(struct ec_dev *ec, int reg, uint8_t *val)
 {
-	return __nvtegra_ec_read(to_i2c_client(dev), reg, val);
+	int err;
+
+	mutex_lock(&ec->lock);
+	err = __nvtegra_ec_read(ec, reg, val);
+	mutex_unlock(&ec->lock);
+
+	return err;
 }
 EXPORT_SYMBOL_GPL(nvtegra_ec_read);
-
-static int __remove_subdev(struct device *dev, void *unused)
-{
-	platform_device_unregister(to_platform_device(dev));
-	return 0;
-}
-
-static int nvtegra_ec_remove_subdevs(struct nvtegra_ec_chip *chip)
-{
-	return device_for_each_child(chip->dev, NULL, __remove_subdev);
-}
 
 static int __devinit nvtegra_ec_probe(struct i2c_client *client,
 					const struct i2c_device_id *id)
 {
-	struct nvtegra_ec_platform_data *pdata = client->dev.platform_data;
-/*	struct platform_device *pdev; */
-	struct nvtegra_ec_chip *chip;
-
-	if (!i2c_check_functionality(client->adapter,
-					I2C_FUNC_SMBUS_BYTE_DATA)) {
-		dev_err(&client->dev, "SMBUS Word Data not Supported\n");
-		return -EIO;
-	}
+	struct nvec_platform_data *pdata = client->dev.platform_data;
 
 	if (pdata == NULL) {
 		dev_err(&client->dev, "missing platform data\n");
 		return -ENODEV;
 	}
 
-	chip = kzalloc(sizeof(*chip), GFP_KERNEL);
-	if (!chip)
+	ec = kzalloc(sizeof(struct ec_dev), GFP_KERNEL);
+	if (!ec)
 		return -ENOMEM;
 
-	i2c_set_clientdata(client, chip);
-	chip->client = client;
+	i2c_set_clientdata(client, ec);
 
-	chip->dev = &client->dev;
-	chip->id = id->driver_data;
-	mutex_init(&chip->lock);
+	ec->client = client;
+	ec->dev = &client->dev;
+	ec->id = id->driver_data;
+	ec->req_gpio = pdata->req_gpio;
+
+	mutex_init(&ec->lock);
+
+	printk(KERN_ALERT "nvec: init success (ReqGPIO@0x%02X)\n", ec->req_gpio);
 
 	return 0;
 }
 
 static int __devexit nvtegra_ec_remove(struct i2c_client *client)
 {
-	struct nvtegra_ec_chip *chip = dev_get_drvdata(&client->dev);
-
-	nvtegra_ec_remove_subdevs(chip);
-	kfree(chip);
 	return 0;
 }
 
 static const struct i2c_device_id nvtegra_ec_id[] = {
-	{ "nvec", 1 },
+	{ "nvec", 0 },
 	{ }
 };
 
@@ -142,6 +141,6 @@ static void __exit nvtegra_ec_exit(void)
 }
 module_exit(nvtegra_ec_exit);
 
-MODULE_AUTHOR("Marc Dietrich <marvin24@gmx.de>");
-MODULE_DESCRIPTION("NVidia Compliant EC-SMBus Interface");
+MODULE_AUTHOR("Marc Dietrich");
+MODULE_DESCRIPTION("NVIDIA compliant EC-SMBus interface");
 MODULE_LICENSE("GPL");

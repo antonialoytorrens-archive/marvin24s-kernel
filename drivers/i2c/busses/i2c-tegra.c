@@ -320,6 +320,7 @@ static int tegra_i2c_init(struct tegra_i2c_dev *i2c_dev)
 	if (!i2c_dev->is_dvc) {
 		u32 sl_cfg = i2c_readl(i2c_dev, I2C_SL_CNFG);
 		i2c_writel(i2c_dev, sl_cfg | I2C_SL_CNFG_NEWSL, I2C_SL_CNFG);
+		printk(KERN_ALERT "slave cfg: %d\n", sl_cfg | I2C_SL_CNFG_NEWSL);
 	}
 
 	val = 7 << I2C_FIFO_CONTROL_TX_TRIG_SHIFT |
