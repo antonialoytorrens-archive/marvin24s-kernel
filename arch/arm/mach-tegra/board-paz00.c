@@ -197,13 +197,20 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 
 static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	{
-		I2C_BOARD_INFO("alc5632", 0x36),
+		I2C_BOARD_INFO("alc5632", 0x3c),
+	},
+};
+
+static struct nvec_platform_data __initdata nvec_data[] = {
+	{
+		.req_gpio = TEGRA_GPIO_PV2,
 	},
 };
 
 static struct i2c_board_info __initdata paz00_i2c_bus3_board_info[] = {
 	{
-		I2C_BOARD_INFO("kb926qf", 0x45), /* EC */
+		I2C_BOARD_INFO("nvec", 0x45), /* EC */
+		.platform_data = &nvec_data,
 	},
 };
 
@@ -246,6 +253,7 @@ static void paz00_i2c_init(void)
 
 	i2c_register_board_info(4, paz00_i2c_bus4_board_info,
 				ARRAY_SIZE(paz00_i2c_bus4_board_info));
+
 }
 
 static struct platform_device *paz00_devices[] __initdata = {
