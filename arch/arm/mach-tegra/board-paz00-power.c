@@ -118,7 +118,7 @@ static struct regulator_consumer_supply tps658621_soc_supply[] = {
 	}
 
 static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 625, 2700);    // 1200
-static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 625, 1000);    // 1000
+static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 625, 1100);    // 1000
 static struct regulator_init_data sm2_data = REGULATOR_INIT(sm2, 3000, 4550);   // 3700
 static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3300); // 3300
 static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725, 1500);  // 1100
