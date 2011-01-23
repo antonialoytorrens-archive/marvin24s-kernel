@@ -110,13 +110,6 @@ config MSDOS_PARTITION
 	help
 	  Say Y here.
 
-config NVTEGRA_PARTITION
-	bool "Nvidia Tegra partition table support" if PARTITION_ADVANCED
-	default n
-	help
-	  Add support for undocummented partition table format used by Tegra2
-	  systems.
-
 config BSD_DISKLABEL
 	bool "BSD disklabel (FreeBSD partition tables) support"
 	depends on PARTITION_ADVANCED && MSDOS_PARTITION
@@ -257,3 +250,26 @@ config SYSV68_PARTITION
 	  sysv68).
 	  Otherwise, say N.
 
+config CMDLINE_PARTITION
+	bool "Cmdline partition table support" if PARTITION_ADVANCED
+	default n
+	help
+	  Pass partition table via cmdline
+
+config NVTEGRA_PARTITION
+	bool "Nvidia Tegra partition table support" if PARTITION_ADVANCED
+	default n
+	help
+	  Add support for undocummented partition table format used by Tegra2
+	  systems.
+
+config NVTEGRA_HIDE_PARTS
+	string "Hidden NVidia Tegra partitions"
+	depends on NVTEGRA_PARTITION
+	default ""
+	help
+	  Fill here the list of partitions you want to hide to the kennel.
+	  This is likely used to hide boot configuration partition, 
+	  bootloader, and others which does not contain valid filesystem.
+	  List each partition name (the 3,4 letters identifier) separated 
+	  by commas.
