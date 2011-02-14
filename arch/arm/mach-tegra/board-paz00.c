@@ -197,7 +197,7 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 
 static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	{
-		I2C_BOARD_INFO("alc5632", 0x3c),
+		I2C_BOARD_INFO("alc5632", 0x1e),
 	},
 };
 
