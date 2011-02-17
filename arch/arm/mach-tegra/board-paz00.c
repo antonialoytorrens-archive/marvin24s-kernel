@@ -194,7 +194,6 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
  * no codec exists yet
  * propably requires userspace */
 
-
 static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO("alc5632", 0x1e),
@@ -209,7 +208,7 @@ static struct nvec_platform_data __initdata nvec_data[] = {
 
 static struct i2c_board_info __initdata paz00_i2c_bus3_board_info[] = {
 	{
-		I2C_BOARD_INFO("nvec", 0x45), /* EC */
+		I2C_BOARD_INFO("nvec", 0x45),
 		.platform_data = &nvec_data,
 	},
 };
@@ -236,20 +235,21 @@ static void paz00_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
-	tegra_i2c_device3.dev.platform_data = &paz00_i2c3_platform_data;
+/*	tegra_i2c_device3.dev.platform_data = &paz00_i2c3_platform_data; */
 	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
-	platform_device_register(&tegra_i2c_device3);
+/*	platform_device_register(&tegra_i2c_device3); */
 	platform_device_register(&tegra_i2c_device4);
 
 /* no audio yet */
 	i2c_register_board_info(0, paz00_i2c_bus1_board_info,
 				ARRAY_SIZE(paz00_i2c_bus1_board_info));
 
-	i2c_register_board_info(3, paz00_i2c_bus3_board_info,
-				ARRAY_SIZE(paz00_i2c_bus3_board_info));
+/* NVEC has its own init for now */
+/*	i2c_register_board_info(3, paz00_i2c_bus3_board_info,
+				ARRAY_SIZE(paz00_i2c_bus3_board_info)); */
 
 	i2c_register_board_info(4, paz00_i2c_bus4_board_info,
 				ARRAY_SIZE(paz00_i2c_bus4_board_info));
