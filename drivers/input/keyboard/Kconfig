@@ -466,4 +466,8 @@ config KEYBOARD_W90P910
 	  To compile this driver as a module, choose M here: the
 	  module will be called w90p910_keypad.
 
+config KEYBOARD_NVEC
+	tristate "Keyboard on nVidia EC"
+	depends on MFD_NVTEGRA_EC
+
 endif
