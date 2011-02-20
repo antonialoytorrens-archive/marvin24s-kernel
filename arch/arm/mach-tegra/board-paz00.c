@@ -236,12 +236,16 @@ static void paz00_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
+#ifdef I2C_TEGRA_SLAVE
 	tegra_i2c_device3.dev.platform_data = &paz00_i2c3_platform_data;
+#endif
 	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
+#ifdef I2C_TEGRA_SLAVE
 	platform_device_register(&tegra_i2c_device3);
+#endif	
 	platform_device_register(&tegra_i2c_device4);
 
 /* no audio yet */
