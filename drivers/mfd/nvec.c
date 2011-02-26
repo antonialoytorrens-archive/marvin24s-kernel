@@ -1,3 +1,5 @@
+#define DEBUG
+
 #include "../../../arch/arm/mach-tegra/include/mach/iomap.h"
 #include "../../../arch/arm/mach-tegra/gpio-names.h"
 #include <asm/io.h>
