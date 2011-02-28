@@ -1,5 +1,3 @@
-#define DEBUG
-
 #include "../../../arch/arm/mach-tegra/include/mach/iomap.h"
 #include "../../../arch/arm/mach-tegra/gpio-names.h"
 #include <asm/io.h>
@@ -10,11 +8,13 @@
 #include <linux/slab.h>
 #include <linux/gpio.h>
 #include <linux/serio.h>
+#include <linux/delay.h>
 #include <linux/input.h>
 #include <linux/workqueue.h>
 #include <linux/clk.h>
 #include <mach/clk.h>
 
+//#define DEBUG
 #define I2C_CNFG		(i2c_regs+0x00)
 #define I2C_NEW_MASTER_SFM 	(1<<11)
 
@@ -37,6 +37,8 @@
 static int nvec_gpio = TEGRA_GPIO_PV2;
 static unsigned char rcv_data[256];
 static unsigned char rcv_size;
+static unsigned char resp_data[256];
+static unsigned char resp_size;
 static unsigned char msg_buf[256];
 static int msg_pos=0,msg_size=0;
 static struct completion cmd_done;
@@ -59,32 +61,45 @@ EXPORT_SYMBOL(nvec_add_handler);
 
 //We need a mutex only for send_msg since events are maed in interrupt handler
 static DEFINE_MUTEX(cmd_mutex);
-const char *nvec_send_msg(unsigned char *src, unsigned char src_size, unsigned char *dst_size, int care_resp) {
+static DEFINE_MUTEX(cmd_buf_mutex);
+typedef enum {
+	NOT_REALLY,
+	YES,
+	NOT_AT_ALL,
+} how_care;
+static void (*response_handler)(void *data)=NULL;
+const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care care_resp, void (*rt_handler)(unsigned char *data)) {
 	static char tmp[256];
-	if(care_resp)
-		mutex_lock(&cmd_mutex);
-	if(!src_size)
-		src_size=src[0]+1;
+	int src_size;
+	mutex_lock(&cmd_mutex);
+	if(care_resp==YES)
+		mutex_lock(&cmd_buf_mutex);
+	response_handler=rt_handler;
+	src_size=src[0]+1;
 	memcpy(msg_buf, src, src_size);
 	msg_pos=0;
 	msg_size=src_size;
 	gpio_direction_output(nvec_gpio, 0);
-	if(care_resp) {
+	int i;
+	if(care_resp==NOT_AT_ALL)
+		wait_for_completion_timeout(&cmd_done, 500);
+	else
 		wait_for_completion(&cmd_done);
-		memcpy(tmp, rcv_data, rcv_size);
+	for(i=0;i<rcv_size;++i)
+		printk("%02x ", resp_data[i]);
+	printk("\n");
+	if(care_resp==YES)
+		memcpy(tmp, resp_data, resp_size);
 
-		if(dst_size)
-			*dst_size=rcv_size;
-		enable_irq(INT_I2C3);
-		return rcv_data;
-	} else {
-		return NULL;
-	}
+	if(dst_size)
+		*dst_size=resp_size;
+	mutex_unlock(&cmd_mutex);
+	return tmp;
 }
 EXPORT_SYMBOL(nvec_send_msg);
 
 void nvec_release_msg() {
-	mutex_unlock(&cmd_mutex);
+	mutex_unlock(&cmd_buf_mutex);
 }
 EXPORT_SYMBOL(nvec_release_msg);
 
@@ -101,13 +116,17 @@ static void parse_response(void) {
 	unsigned char status=rcv_data[3];
 	if(status!=0)
 		printk("Reponse failed ! status=%02x\n", status);
-	if(mutex_is_locked(&cmd_mutex)) {
-		complete(&cmd_done);
-		disable_irq_nosync(INT_I2C3);
-	}
+	complete(&cmd_done);
+	if(response_handler)
+		response_handler(rcv_data);
+	memcpy(resp_data, rcv_data, rcv_size);
+	resp_size=rcv_size;
 }
 
 static void parse_msg(void) {
+	//Not an actual message
+	if(rcv_size<2)
+		return;
 	if(rcv_data[0]&(1<<7)) {
 		parse_event();
 	} else {
@@ -118,25 +137,27 @@ static void parse_msg(void) {
 static irqreturn_t i2c_interrupt(int irq, void *dev) {
 	unsigned short status=readw(I2C_SL_STATUS);
 	unsigned short received;
+	int i;
 
+	gpio_direction_output(nvec_gpio, 1);
 	if(!(status&I2C_SL_IRQ)) {
 		printk("Spurious IRQ\n");
 		//Yup, handled. ahum.
 		goto handled;
 	}
-	gpio_direction_output(nvec_gpio, 1);
 	if(status&END_TRANS && !(status&RCVD)) {
 		//Reenable IRQ only when even has been sent
+		//printk("Write sequence ended !\n");
 		parse_msg();
 		return IRQ_HANDLED;
 	} else if(status&RNW) {
 #ifdef DEBUG
 		if(status&RCVD) {
 			//Master wants something from us. New communication
-			printk(KERN_ERR "New read comm!\n");
+			//printk(KERN_ERR "New read comm!\n");
 		} else {
 			//Master wants something from us from a communication we've already started
-			printk(KERN_ERR "Read comm cont !\n");
+			//printk(KERN_ERR "Read comm cont !\n");
 		}
 #endif
 		if(msg_pos<msg_size) {
@@ -150,12 +171,13 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 #endif
 			writew(0x01, I2C_SL_RCVD);
 		}
+		//gpio_direction_output(nvec_gpio, 1);
 		goto handled;
 	} else {
 		received=readw(I2C_SL_RCVD);
 		//Workaround?
-		writew(0, I2C_SL_RCVD);
 		if(status&RCVD) {
+			writew(0, I2C_SL_RCVD);
 			//New transaction
 #ifdef DEBUG
 			printk(KERN_ERR "Received a new transaction destined to %02x (we're %02x)\n", received, 0x8a);
@@ -173,6 +195,8 @@ handled:
 	return IRQ_HANDLED;
 }
 
+void nvec_kbd_init(void);
+void nvec_ps2(void);
 static int __init tegra_nvec_init(void)
 {
 	unsigned char addr=0x8a;
@@ -184,6 +208,7 @@ static int __init tegra_nvec_init(void)
 		printk(KERN_ERR"No such clock\n");
 	else
 		clk_enable(i2c_clk);
+	clk_set_rate(i2c_clk, 400000);
 	i2c_clk=clk_get_sys(NULL, "i2c");
 	if(IS_ERR_OR_NULL(i2c_clk))
 		printk(KERN_ERR"No such clock tegra-i2c.2\n");
@@ -205,6 +230,11 @@ static int __init tegra_nvec_init(void)
 	//Set the gpio to low when we've got something to say
 	gpio_request(nvec_gpio, "nvec gpio");
 	mutex_init(&cmd_mutex);
+	mutex_init(&cmd_buf_mutex);
+	//Ping (=noop)
+	nvec_send_msg("\x02\x07\x02", NULL, NOT_AT_ALL, NULL);
+	nvec_kbd_init();
+	nvec_ps2();
 
 	return 0;
 }

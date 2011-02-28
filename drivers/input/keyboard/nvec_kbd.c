@@ -1,9 +1,15 @@
 #include <linux/slab.h>
 #include <linux/input.h>
+#include <linux/delay.h>
 #include "nvec-keytable.h"
 
 extern void nvec_add_handler(unsigned char type, void (*got_event)(unsigned char *data, unsigned char size));
-extern const char *nvec_send_msg(unsigned char *src, unsigned char src_size, unsigned char *dst_size, int care_resp);
+typedef enum {
+	NOT_REALLY,
+	YES,
+	NOT_AT_ALL,
+} how_care;
+const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care care_resp, void (*rt_handler)(unsigned char *data));
 typedef enum {
 	NVEC_2BYTES,
 	NVEC_3BYTES,
@@ -29,11 +35,11 @@ static int nvec_kbd_event(struct input_dev *dev, unsigned int type, unsigned int
 	if(code!=LED_CAPSL)
 		return -1;
 	buf[3]=!!value;
-	nvec_send_msg(buf, 0, NULL, 0);
+	nvec_send_msg(buf, NULL, NOT_REALLY, NULL);
 	return 0;
 }
 
-static int __init tegra_nvec_init(void)
+int __init nvec_kbd_init(void)
 {
 	int i,j;
 	j=0;
@@ -57,9 +63,14 @@ static int __init tegra_nvec_init(void)
 	input_register_device(idev);
 	nvec_add_handler(0, nvec_event);
 
-	nvec_send_msg("\x02\x05\xf4", 0, NULL, 0);
+	//Get extra events (AC, battery, power button)
+	nvec_send_msg("\x07\x01\x01\x01\xff\xff\xff\xff", NULL, NOT_REALLY, NULL);
+	//Enable keyboard
+	nvec_send_msg("\x02\x05\xf4", NULL, NOT_REALLY, NULL);
+	//Enable..... mouse ?
+	nvec_send_msg("\x03\x06\x01\xf4\x00", NULL, NOT_REALLY, NULL);
+	//Mouse shut up
+	nvec_send_msg("\x02\x06\x04", NULL, NOT_REALLY, NULL);
 
 	return 0;
 }
-
-module_init(tegra_nvec_init);
