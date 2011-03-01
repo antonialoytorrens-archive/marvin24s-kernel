@@ -2,28 +2,32 @@
 #include <linux/input.h>
 #include <linux/delay.h>
 #include "nvec-keytable.h"
+#include <linux/mfd/nvec.h>
 
-extern void nvec_add_handler(unsigned char type, void (*got_event)(unsigned char *data, unsigned char size));
-typedef enum {
-	NOT_REALLY,
-	YES,
-	NOT_AT_ALL,
-} how_care;
-const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care care_resp, void (*rt_handler)(unsigned char *data));
-typedef enum {
-	NVEC_2BYTES,
-	NVEC_3BYTES,
-	NVEC_VAR_SIZE
-} nvec_size;
-static struct input_dev *idev;
 static unsigned char keycodes[ARRAY_SIZE(code_tab_102us)+ARRAY_SIZE(extcode_tab_us102)];
 
-static void nvec_event(unsigned char *data, unsigned char size) {
-	nvec_size _size=(data[0]&(3<<5))>>5;
-	if(_size==NVEC_3BYTES)
-		input_report_key(idev, extcode_tab_us102[(data[2]&0x7f)-0x10], !(data[2]&0x80));
-	else
-		input_report_key(idev, code_tab_102us[(data[1]&0x7f)], !(data[1]&0x80));
+struct nvec_keys {
+	struct input_dev *input;
+	struct notifier_block notifier;
+	struct device *master;
+};
+
+static struct nvec_keys keys_dev;
+
+static int nvec_keys_notifier(struct notifier_block *nb,
+				 unsigned long event_type, 
+		unsigned char *data)
+{
+	if (event_type == NVEC_KB_EVT) {
+		nvec_size _size=(data[0]&(3<<5))>>5;
+		if(_size==NVEC_3BYTES)
+			data++;
+			
+		input_report_key(keys_dev.input, code_tab_102us[(data[1]&0x7f)], !(data[1]&0x80));
+	}
+
+
+	return 0;
 }
 
 static int nvec_kbd_event(struct input_dev *dev, unsigned int type, unsigned int code, int value) {
@@ -42,6 +46,8 @@ static int nvec_kbd_event(struct input_dev *dev, unsigned int type, unsigned int
 int __init nvec_kbd_init(void)
 {
 	int i,j;
+	struct input_dev *idev;
+
 	j=0;
 	for(i=0;i<ARRAY_SIZE(code_tab_102us);++i)
 		keycodes[j++]=code_tab_102us[i];
@@ -61,7 +67,10 @@ int __init nvec_kbd_init(void)
 		set_bit(keycodes[i], idev->keybit);
 	clear_bit(0, idev->keybit);
 	input_register_device(idev);
-	nvec_add_handler(0, nvec_event);
+
+	keys_dev.input = idev;
+	keys_dev.notifier.notifier_call = nvec_keys_notifier;
+	nvec_register_notifier(NULL, &keys_dev.notifier, 0);
 
 	//Get extra events (AC, battery, power button)
 	nvec_send_msg("\x07\x01\x01\x01\xff\xff\xff\xff", NULL, NOT_REALLY, NULL);

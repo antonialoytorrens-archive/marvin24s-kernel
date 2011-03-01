@@ -13,27 +13,12 @@
 #include <linux/workqueue.h>
 #include <linux/clk.h>
 #include <mach/clk.h>
+#include <linux/mfd/nvec.h>
+#include <linux/notifier.h>
 
 //#define DEBUG
-#define I2C_CNFG		(i2c_regs+0x00)
-#define I2C_NEW_MASTER_SFM 	(1<<11)
 
-#define I2C_SL_CNFG		(i2c_regs+0x20)
-#define I2C_SL_NEWL		(1<<2)
-#define I2C_SL_NACK		(1<<1)
-#define I2C_SL_RESP		(1<<0)
-#define I2C_SL_IRQ		(1<<3)
-#define END_TRANS		(1<<4)
-#define RCVD			(1<<2)
-#define RNW			(1<<1)
-
-#define I2C_SL_RCVD		(i2c_regs+0x24)
-#define I2C_SL_STATUS		(i2c_regs+0x28)
-#define I2C_SL_ADDR1		(i2c_regs+0x2c)
-#define I2C_SL_ADDR2		(i2c_regs+0x30)
-#define I2C_SL_DELAY_COUNT	(i2c_regs+0x3c)
-
-
+// TODO: move everything to nvec_chip
 static int nvec_gpio = TEGRA_GPIO_PV2;
 static unsigned char rcv_data[256];
 static unsigned char rcv_size;
@@ -44,29 +29,28 @@ static int msg_pos=0,msg_size=0;
 static struct completion cmd_done;
 static unsigned char *i2c_regs;
 
-typedef struct {
-	unsigned char evt_type;
-	void (*got_event)(unsigned char *data, unsigned char size);
-} nvec_event_handler;
-
-static nvec_event_handler handler_list[10];
-
-void nvec_add_handler(unsigned char type, void (*got_event)(unsigned char *data, unsigned char size)) {
-	int i;
-	for(i=0;handler_list[i].got_event;++i);
-	handler_list[i].got_event=got_event;
-	handler_list[i].evt_type=type;
-}
-EXPORT_SYMBOL(nvec_add_handler);
-
 //We need a mutex only for send_msg since events are maed in interrupt handler
+
+struct nvec_chip {
+	struct atomic_notifier_head notifier_list;
+};
+
+static struct nvec_chip chip;
+
+int nvec_register_notifier(struct device *dev, struct notifier_block *nb,
+				unsigned int events)
+{
+
+	// TODO: drop global vars, move everything to chip
+	// and retrieve chip from device struct
+	return atomic_notifier_chain_register(&chip.notifier_list,
+		 nb);
+
+}
+EXPORT_SYMBOL_GPL(nvec_register_notifier);
+
 static DEFINE_MUTEX(cmd_mutex);
 static DEFINE_MUTEX(cmd_buf_mutex);
-typedef enum {
-	NOT_REALLY,
-	YES,
-	NOT_AT_ALL,
-} how_care;
 static void (*response_handler)(void *data)=NULL;
 const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care care_resp, void (*rt_handler)(unsigned char *data)) {
 	static char tmp[256];
@@ -104,11 +88,11 @@ void nvec_release_msg() {
 EXPORT_SYMBOL(nvec_release_msg);
 
 static void parse_event(void) {
+
 	unsigned char type=rcv_data[0]&0xf;
-	int i;
-	for(i=0;handler_list[i].got_event;++i)
-		if(type==handler_list[i].evt_type)
-			handler_list[i].got_event(rcv_data, rcv_size);
+
+	atomic_notifier_call_chain(&chip.notifier_list, type, rcv_data);
+
 }
 
 
@@ -218,6 +202,8 @@ static int __init tegra_nvec_init(void)
 	i2c_regs=ioremap(TEGRA_I2C3_BASE, TEGRA_I2C3_SIZE);
 	init_completion(&cmd_done);
 	
+	ATOMIC_INIT_NOTIFIER_HEAD(&chip.notifier_list);
+
 	err = request_irq(INT_I2C3, i2c_interrupt, 0, "i2c-slave", NULL);
 	printk("ec: req irq is %d\n", err);
 	writew(addr>>1, I2C_SL_ADDR1);
@@ -235,6 +221,7 @@ static int __init tegra_nvec_init(void)
 	nvec_send_msg("\x02\x07\x02", NULL, NOT_AT_ALL, NULL);
 	nvec_kbd_init();
 	nvec_ps2();
+
 
 	return 0;
 }
