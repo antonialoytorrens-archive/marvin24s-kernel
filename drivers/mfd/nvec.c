@@ -14,6 +14,7 @@
 #include <linux/clk.h>
 #include <mach/clk.h>
 #include <linux/mfd/nvec.h>
+#include <linux/list.h>
 #include <linux/notifier.h>
 
 //#define DEBUG
@@ -33,6 +34,7 @@ static unsigned char *i2c_regs;
 
 struct nvec_chip {
 	struct atomic_notifier_head notifier_list;
+	struct list_head tx_data;
 };
 
 static struct nvec_chip chip;
@@ -52,35 +54,37 @@ EXPORT_SYMBOL_GPL(nvec_register_notifier);
 static DEFINE_MUTEX(cmd_mutex);
 static DEFINE_MUTEX(cmd_buf_mutex);
 static void (*response_handler)(void *data)=NULL;
-const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care care_resp, void (*rt_handler)(unsigned char *data)) {
-	static char tmp[256];
-	int src_size;
-	mutex_lock(&cmd_mutex);
-	if(care_resp==YES)
-		mutex_lock(&cmd_buf_mutex);
-	response_handler=rt_handler;
-	src_size=src[0]+1;
-	memcpy(msg_buf, src, src_size);
-	msg_pos=0;
-	msg_size=src_size;
-	gpio_direction_output(nvec_gpio, 0);
-	int i;
-	if(care_resp==NOT_AT_ALL)
-		wait_for_completion_timeout(&cmd_done, 500);
-	else
-		wait_for_completion(&cmd_done);
-	for(i=0;i<rcv_size;++i)
-		printk("%02x ", resp_data[i]);
-	printk("\n");
-	if(care_resp==YES)
-		memcpy(tmp, resp_data, resp_size);
 
-	if(dst_size)
-		*dst_size=resp_size;
-	mutex_unlock(&cmd_mutex);
-	return tmp;
+void nvec_write_async(unsigned char *data, short size) {
+	struct nvec_msg *msg= kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
+	int empty;
+	msg->data = kzalloc(size, GFP_NOWAIT);
+	msg->data[0] = size;
+	memcpy(msg->data+1, data, size);
+	msg->size = size+1;
+	msg->pos = 0;
+	INIT_LIST_HEAD(&msg->node);
+
+	empty = list_empty(&chip.tx_data);
+
+	printk("nvec send %d bytes ", size);
+	int i;
+	for(i=0;i<=size;i++)
+		printk("%x ",  msg->data[i]);
+	printk(".\n");
+
+	list_add_tail(&msg->node, &chip.tx_data);
+
+	if(1) {// empty) {
+		printk("nvec gpio low\n");
+		gpio_direction_output(nvec_gpio, 0);
+	}
+
+	wait_for_completion_timeout(&cmd_done, 500);
+
 }
-EXPORT_SYMBOL(nvec_send_msg);
+
+EXPORT_SYMBOL(nvec_write_async);
 
 void nvec_release_msg() {
 	mutex_unlock(&cmd_buf_mutex);
@@ -99,7 +103,7 @@ static void parse_event(void) {
 static void parse_response(void) {
 	unsigned char status=rcv_data[3];
 	if(status!=0)
-		printk("Reponse failed ! status=%02x\n", status);
+		printk("nvec Reponse failed ! status=%02x\n", status);
 	complete(&cmd_done);
 	if(response_handler)
 		response_handler(rcv_data);
@@ -122,10 +126,12 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 	unsigned short status=readw(I2C_SL_STATUS);
 	unsigned short received;
 	int i;
+	unsigned char to_send;
+	struct nvec_msg *msg;
 
 	gpio_direction_output(nvec_gpio, 1);
 	if(!(status&I2C_SL_IRQ)) {
-		printk("Spurious IRQ\n");
+		printk("nvec Spurious IRQ\n");
 		//Yup, handled. ahum.
 		goto handled;
 	}
@@ -144,7 +150,33 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 			//printk(KERN_ERR "Read comm cont !\n");
 		}
 #endif
-		if(msg_pos<msg_size) {
+		//if(msg_pos<msg_size) {
+		if(list_empty(&chip.tx_data)) {
+			printk(KERN_ERR "nvec empty tx!\n");
+			to_send = 0x01;
+		} else {
+			msg = list_first_entry(&chip.tx_data,
+				struct nvec_msg, node);	
+			if(msg->pos < msg->size) {
+				to_send = msg->data[msg->pos];
+				msg->pos++;
+			} else {
+				printk(KERN_ERR "nvec crap! %d\n", msg->size);
+				to_send = 0x01;
+			}
+
+			if(msg->pos >= msg->size) {
+				list_del(&msg->node);
+				kfree(msg->data);
+				kfree(msg);
+				//complete(&cmd_done);
+
+			}
+		}
+		writew(to_send, I2C_SL_RCVD);
+		printk("nvec sent %x\n", to_send);
+/*
+	
 #ifdef DEBUG
 			printk(KERN_ERR "Sending %02x\n", msg_buf[msg_pos]);
 #endif
@@ -155,6 +187,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 #endif
 			writew(0x01, I2C_SL_RCVD);
 		}
+*/
 		//gpio_direction_output(nvec_gpio, 1);
 		goto handled;
 	} else {
@@ -203,6 +236,7 @@ static int __init tegra_nvec_init(void)
 	init_completion(&cmd_done);
 	
 	ATOMIC_INIT_NOTIFIER_HEAD(&chip.notifier_list);
+	INIT_LIST_HEAD(&chip.tx_data);
 
 	err = request_irq(INT_I2C3, i2c_interrupt, 0, "i2c-slave", NULL);
 	printk("ec: req irq is %d\n", err);
@@ -218,7 +252,7 @@ static int __init tegra_nvec_init(void)
 	mutex_init(&cmd_mutex);
 	mutex_init(&cmd_buf_mutex);
 	//Ping (=noop)
-	nvec_send_msg("\x02\x07\x02", NULL, NOT_AT_ALL, NULL);
+	nvec_write_async("\x07\x02", 2);
 	nvec_kbd_init();
 	nvec_ps2();
 

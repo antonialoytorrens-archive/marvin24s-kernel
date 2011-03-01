@@ -17,6 +17,14 @@ typedef enum {
 	NVEC_KB_EVT
 } nvec_event;
 
+struct nvec_msg {
+	unsigned char *data;
+	unsigned short size;
+	unsigned short pos;
+	struct list_head node;
+};
+
+extern void nvec_write_async(unsigned char *data, short size);
 
 extern int nvec_register_notifier(struct device *dev,
 		 struct notifier_block *nb, unsigned int events);

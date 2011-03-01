@@ -31,15 +31,15 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 }
 
 static int nvec_kbd_event(struct input_dev *dev, unsigned int type, unsigned int code, int value) {
-	char *buf="\x03\x05\xed\x01";
+	char *buf="\x05\xed\x01";
 	if(type==EV_REP)
 		return 0;
 	if(type!=EV_LED)
 		return -1;
 	if(code!=LED_CAPSL)
 		return -1;
-	buf[3]=!!value;
-	nvec_send_msg(buf, NULL, NOT_REALLY, NULL);
+	buf[2]=!!value;
+	nvec_write_async(buf, 3);
 	return 0;
 }
 
@@ -73,13 +73,13 @@ int __init nvec_kbd_init(void)
 	nvec_register_notifier(NULL, &keys_dev.notifier, 0);
 
 	//Get extra events (AC, battery, power button)
-	nvec_send_msg("\x07\x01\x01\x01\xff\xff\xff\xff", NULL, NOT_REALLY, NULL);
+	nvec_write_async("\x01\x01\x01\xff\xff\xff\xff", 7);
 	//Enable keyboard
-	nvec_send_msg("\x02\x05\xf4", NULL, NOT_REALLY, NULL);
+	nvec_write_async("\x05\xf4", 2);
 	//Enable..... mouse ?
-	nvec_send_msg("\x03\x06\x01\xf4\x00", NULL, NOT_REALLY, NULL);
+	nvec_write_async("\x06\x01\xf4\x00", 3); // wtf?
 	//Mouse shut up
-	nvec_send_msg("\x02\x06\x04", NULL, NOT_REALLY, NULL);
+	nvec_write_async("\x06\x04", 2);
 
 	return 0;
 }
