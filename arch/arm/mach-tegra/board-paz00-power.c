@@ -168,7 +168,7 @@ static struct tps6586x_platform_data tps_platform = {
 
 static struct i2c_board_info __initdata paz00_regulators[] = {
 	{
-		I2C_BOARD_INFO("tps6586x", 0x68), /* 0x34 */
+		I2C_BOARD_INFO("tps6586x", 0x34),
 		.platform_data = &tps_platform,
 	},
 };
