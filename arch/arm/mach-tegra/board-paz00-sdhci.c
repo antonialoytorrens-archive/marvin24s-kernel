@@ -70,17 +70,17 @@ static struct resource sdhci_resource4[] = {
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data1 = {
 	.clk_id = NULL,
 	.force_hs = 1,
-	.cd_gpio = -1,
-	.wp_gpio = -1,
-	.power_gpio = -1,
+	.cd_gpio = TEGRA_GPIO_PV5,
+	.wp_gpio = TEGRA_GPIO_PH1,
+	.power_gpio = TEGRA_GPIO_PT3,
 };
 
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data2 = {
 	.clk_id = NULL,
 	.force_hs = 1,
-	.cd_gpio = TEGRA_GPIO_PV5,
-	.wp_gpio = TEGRA_GPIO_PH1,
-	.power_gpio = TEGRA_GPIO_PT3,
+	.cd_gpio = -1,
+	.wp_gpio = -1,
+	.power_gpio = -1,
 };
 
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data4 = {
@@ -123,13 +123,13 @@ static struct platform_device tegra_sdhci_device4 = {
 
 int __init paz00_sdhci_init(void)
 {
-	gpio_request(tegra_sdhci_platform_data2.power_gpio, "sdhci2_power");
-	gpio_request(tegra_sdhci_platform_data2.cd_gpio, "sdhci2_cd");
-	gpio_request(tegra_sdhci_platform_data2.wp_gpio, "sdhci2_wp");
+	gpio_request(tegra_sdhci_platform_data1.power_gpio, "sdhci2_power");
+	gpio_request(tegra_sdhci_platform_data1.cd_gpio, "sdhci2_cd");
+	gpio_request(tegra_sdhci_platform_data1.wp_gpio, "sdhci2_wp");
 
-	tegra_gpio_enable(tegra_sdhci_platform_data2.power_gpio);
-	tegra_gpio_enable(tegra_sdhci_platform_data2.cd_gpio);
-	tegra_gpio_enable(tegra_sdhci_platform_data2.wp_gpio);
+	tegra_gpio_enable(tegra_sdhci_platform_data1.power_gpio);
+	tegra_gpio_enable(tegra_sdhci_platform_data1.cd_gpio);
+	tegra_gpio_enable(tegra_sdhci_platform_data1.wp_gpio);
 
 	gpio_request(tegra_sdhci_platform_data4.power_gpio, "sdhci4_power");
 	gpio_request(tegra_sdhci_platform_data4.cd_gpio, "sdhci4_cd");
@@ -139,7 +139,7 @@ int __init paz00_sdhci_init(void)
 	tegra_gpio_enable(tegra_sdhci_platform_data4.cd_gpio);
 	tegra_gpio_enable(tegra_sdhci_platform_data4.wp_gpio);
 
-	gpio_direction_output(tegra_sdhci_platform_data2.power_gpio, 1);
+	gpio_direction_output(tegra_sdhci_platform_data1.power_gpio, 1);
 	gpio_direction_output(tegra_sdhci_platform_data4.power_gpio, 1);
 
 	platform_device_register(&tegra_sdhci_device1);
