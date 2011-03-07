@@ -1776,6 +1776,10 @@ enum ieee80211_ampdu_mlme_action {
  *	ieee80211_remain_on_channel_expired(). This callback may sleep.
  * @cancel_remain_on_channel: Requests that an ongoing off-channel period is
  *	aborted before it expires. This callback may sleep.
+ *
+ * @set_ringparam: Set tx and rx ring sizes.
+ *
+ * @get_ringparam: Get tx and rx ring current and maximum sizes.
  */
 struct ieee80211_ops {
 	void (*tx)(struct ieee80211_hw *hw, struct sk_buff *skb);
@@ -1855,6 +1859,9 @@ struct ieee80211_ops {
 				 enum nl80211_channel_type channel_type,
 				 int duration);
 	int (*cancel_remain_on_channel)(struct ieee80211_hw *hw);
+	int (*set_ringparam)(struct ieee80211_hw *hw, u32 tx, u32 rx);
+	void (*get_ringparam)(struct ieee80211_hw *hw,
+			      u32 *tx, u32 *tx_max, u32 *rx, u32 *rx_max);
 };
 
 /**
