@@ -57,6 +57,7 @@ static struct regulator_consumer_supply tps658621_ldo3_supply[] = { /* 3V3 */
 	REGULATOR_SUPPLY("avdd_usb_pll", NULL),
 	REGULATOR_SUPPLY("vddio_nand_3v3", NULL), /* AON? */
 	REGULATOR_SUPPLY("sdio", NULL),
+	REGULATOR_SUPPLY("vmmc", NULL),
 	REGULATOR_SUPPLY("vddio_vi", NULL),
 	REGULATOR_SUPPLY("avdd_lvds", NULL),
 	REGULATOR_SUPPLY("tmon0", NULL),
