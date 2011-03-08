@@ -118,18 +118,6 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 	},
 };
 
-/* PDA power */
-static struct pda_power_pdata pda_power_pdata = {
-};
-
-static struct platform_device pda_power_device = {
-	.name   = "pda_power",
-	.id     = -1,
-	.dev    = {
-		.platform_data  = &pda_power_pdata,
-	},
-};
-
 static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
@@ -264,7 +252,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&pmu_device,
 	&tegra_udc_device,
-	&pda_power_device,
 	&tegra_spi_device1,
 	&tegra_spi_device2,
 	&tegra_spi_device3,
