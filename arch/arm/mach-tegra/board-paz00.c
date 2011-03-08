@@ -350,7 +350,7 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	{ "pll_a_out0",	"pll_a",	11289600,	true},
 	{ "pll_c",	"clk_m",	600000000,	true},
 	{ "pll_c_out1",	"pll_c",	240000000,	true},
-	{ "pll_p_out4", "pll_p",        108000000,      true},
+	{ "pll_p_out4", "pll_p",        24000000,       true},
 	{ "i2c1_i2c",	"pll_p_out3",	72000000,	true},
 	{ "i2c2_i2c",	"pll_p_out3",	72000000,	true},
 	{ "i2c3_i2c",	"pll_p_out3",	72000000,	true},
@@ -382,9 +382,7 @@ static void __init tegra_paz00_init(void)
 	tegra_clk_init_from_table(paz00_clk_init_table);
 
 	paz00_pinmux_init();
-/* disable for now
 	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
-*/
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
 
 	platform_device_register(&tegra_ehci2_device);
