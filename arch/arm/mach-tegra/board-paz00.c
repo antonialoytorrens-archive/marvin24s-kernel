@@ -31,6 +31,7 @@
 #include <linux/tegra_usb.h>
 #include <linux/fsl_devices.h>
 #include <linux/mfd/nvtegra-ec.h>
+#include <linux/gpio.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -261,6 +262,28 @@ static void paz00_i2c_init(void)
 
 }
 
+/* set wifi power gpio */
+static void __init paz00_wifi_init(void)
+{
+	int ret;
+
+	tegra_gpio_enable(PAZ00_WIFI_PWRN);
+
+	ret = gpio_request(PAZ00_WIFI_PWRN, "wlan_pwrn");
+	if (ret) {
+		pr_warning("WIFI: could not request WIFI PWR gpio!\n");
+		return;
+	}
+
+	ret = gpio_direction_output(PAZ00_WIFI_PWRN, 0);
+	if (ret) {
+		pr_warning("WIFI: could not set WIFI PWR gpio direction!\n");
+		return;
+	}
+
+	gpio_set_value(PAZ00_WIFI_PWRN, 0);
+}
+
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&pmu_device,
@@ -396,6 +419,7 @@ static void __init tegra_paz00_init(void)
 	paz00_i2c_init();
 	paz00_power_init();
 	paz00_panel_init();
+	paz00_wifi_init();
 }
 
 MACHINE_START(PAZ00, "paz00")

@@ -23,4 +23,8 @@ int paz00_power_init(void);
 int paz00_panel_init(void);
 int paz00_sdhci_init(void);
 
+#define PAZ00_WIFI_LED		TEGRA_GPIO_PD0
+#define PAZ00_WIFI_RST		TEGRA_GPIO_PD1
+#define PAZ00_WIFI_PWRN		TEGRA_GPIO_PK5
+
 #endif
