@@ -14,7 +14,8 @@ typedef enum {
 } how_care;
 
 typedef enum {
-	NVEC_KB_EVT
+	NVEC_KB_EVT,
+	NVEC_PS2_EVT
 } nvec_event;
 
 struct nvec_msg {
