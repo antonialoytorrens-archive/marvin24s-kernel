@@ -142,12 +142,14 @@ static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
 	.bus_mux_len	= { 1, 1 },
 };
 
+#ifdef CONFIG_I2C_TEGRA_SLAVE
 static struct tegra_i2c_platform_data paz00_i2c3_platform_data = {
 	.adapter_nr	= 3,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 400000, 0 },
 	.slave_addr	= 0x45,
 };
+#endif
 
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.adapter_nr	= 4,
@@ -166,6 +168,7 @@ static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	},
 };
 
+#ifdef CONFIG_I2C_TEGRA_SLAVE
 static struct nvec_platform_data __initdata nvec_data[] = {
 	{
 		.req_gpio = TEGRA_GPIO_PV2,
@@ -178,6 +181,7 @@ static struct i2c_board_info __initdata paz00_i2c_bus3_board_info[] = {
 		.platform_data = &nvec_data,
 	},
 };
+#endif
 
 static struct i2c_board_info __initdata paz00_i2c_bus4_board_info[] = {
 	{
@@ -201,14 +205,14 @@ static void paz00_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
-#ifdef I2C_TEGRA_SLAVE
+#ifdef CONFIG_I2C_TEGRA_SLAVE
 	tegra_i2c_device3.dev.platform_data = &paz00_i2c3_platform_data;
 #endif
 	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
-#ifdef I2C_TEGRA_SLAVE
+#ifdef CONFIG_I2C_TEGRA_SLAVE
 	platform_device_register(&tegra_i2c_device3);
 #endif	
 	platform_device_register(&tegra_i2c_device4);
