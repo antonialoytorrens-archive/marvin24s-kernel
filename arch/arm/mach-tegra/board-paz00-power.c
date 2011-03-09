@@ -143,6 +143,12 @@ static struct regulator_init_data buck_data = REGULATOR_INIT(buck, 1250, 3300);
 		.platform_data = _data,		\
 	}
 
+/* FIXME: do we have rtc alarm irq?
+static struct tps6586x_rtc_platform_data paz00_rtc_data = {
+	.irq	= TEGRA_NR_IRQS + TPS6586X_INT_RTC_ALM1,
+};
+*/
+
 static struct tps6586x_subdev_info tps_devs[] = {
 	TPS_REG(SM_0, &sm0_data),
 	TPS_REG(SM_1, &sm1_data),
@@ -159,6 +165,11 @@ static struct tps6586x_subdev_info tps_devs[] = {
 	TPS_REG(LDO_9, &ldo9_data),
 /*	TPS_REG(SOC, &soc_data),
 	TPS_REG(BUCK, &buck_data), */
+	{
+		.id		= 0,
+		.name		= "tps6586x-rtc",
+/*		.platform_data	= &paz00_rtc_data, */
+	},
 };
 
 static struct tps6586x_platform_data tps_platform = {
