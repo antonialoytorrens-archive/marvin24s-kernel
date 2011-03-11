@@ -402,7 +402,7 @@ static struct machine_desc * __init setup_machine(unsigned int nr)
 		while (1);
 	}
 
-	printk("Machine: %s %d\n", list->name, nr);
+	printk("Machine: %s (ID: %d)\n", list->name, nr);
 
 	return list;
 }

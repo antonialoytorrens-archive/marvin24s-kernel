@@ -389,7 +389,7 @@ static void __init tegra_paz00_init(void)
 	paz00_wifi_init();
 }
 
-MACHINE_START(PAZ00, "paz00")
+MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 	.boot_params  = 0x00000100,
 	.phys_io        = IO_APB_PHYS,
 	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
