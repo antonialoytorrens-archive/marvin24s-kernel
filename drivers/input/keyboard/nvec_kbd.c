@@ -18,12 +18,17 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 				 unsigned long event_type, 
 		unsigned char *data)
 {
+	int code, state;
 	if (event_type == NVEC_KB_EVT) {
 		nvec_size _size=(data[0]&(3<<5))>>5;
 		if(_size==NVEC_3BYTES)
 			data++;
+	
+		code = data[1]&0x7f;
+		state = data[1]&0x80;
 			
-		input_report_key(keys_dev.input, code_tab_102us[(data[1]&0x7f)], !(data[1]&0x80));
+		input_report_key(keys_dev.input, code_tabs[_size][code], !state);
+		input_sync(keys_dev.input);
 	}
 
 
