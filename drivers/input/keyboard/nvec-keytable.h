@@ -151,6 +151,22 @@ static unsigned short code_tab_102us[] = {
 };
 
 static unsigned short extcode_tab_us102[] = {
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
 	0,		// 0xE0 0x10
 	0,
 	0,
@@ -246,3 +262,5 @@ static unsigned short extcode_tab_us102[] = {
 	0,		//VK_LAUNCH_MAIL
 	0,		//VK_LAUNCH_MEDIA_SELECT
 };
+
+static unsigned short* code_tabs[] = {code_tab_102us, extcode_tab_us102 };
