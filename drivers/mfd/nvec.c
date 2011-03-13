@@ -82,35 +82,12 @@ void nvec_release_msg() {
 }
 EXPORT_SYMBOL(nvec_release_msg);
 
-static void parse_event(void) {
-
-	unsigned char type=rcv_data[0]&0xf;
-
-	atomic_notifier_call_chain(&chip.notifier_list, type, rcv_data);
-
-}
-
-
-static void parse_response(void) {
-	unsigned char status=rcv_data[3];
-	if(status!=0)
-		printk(KERN_ERR "nvec Response failed ! status=%02x\n", status);
-	complete(&cmd_done);
-	if(response_handler)
-		response_handler(rcv_data);
-	memcpy(resp_data, rcv_data, rcv_size);
-	resp_size=rcv_size;
-}
-
 static void parse_msg(void) {
 	//Not an actual message
 	if(rcv_size<2)
 		return;
-	if(rcv_data[0]&(1<<7)) {
-		parse_event();
-	} else {
-		parse_response();
-	}
+
+	atomic_notifier_call_chain(&chip.notifier_list, rcv_data[0] & 0x8f, rcv_data);
 }
 
 static irqreturn_t i2c_interrupt(int irq, void *dev) {
