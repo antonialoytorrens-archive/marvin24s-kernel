@@ -17,6 +17,7 @@
 #include <linux/list.h>
 #include <linux/notifier.h>
 #include <linux/workqueue.h>
+#include <linux/platform_device.h>
 
 //#define DEBUG
 
@@ -24,8 +25,6 @@
 static int nvec_gpio = TEGRA_GPIO_PV2;
 static unsigned char rcv_data[256];
 static unsigned char rcv_size;
-static unsigned char resp_data[256];
-static unsigned char resp_size;
 static struct completion cmd_done;
 static unsigned char *i2c_regs;
 
@@ -82,35 +81,12 @@ void nvec_release_msg() {
 }
 EXPORT_SYMBOL(nvec_release_msg);
 
-static void parse_event(void) {
-
-	unsigned char type=rcv_data[0]&0xf;
-
-	atomic_notifier_call_chain(&chip.notifier_list, type, rcv_data);
-
-}
-
-
-static void parse_response(void) {
-	unsigned char status=rcv_data[3];
-	if(status!=0)
-		printk(KERN_ERR "nvec Response failed ! status=%02x\n", status);
-	complete(&cmd_done);
-	if(response_handler)
-		response_handler(rcv_data);
-	memcpy(resp_data, rcv_data, rcv_size);
-	resp_size=rcv_size;
-}
-
 static void parse_msg(void) {
 	//Not an actual message
 	if(rcv_size<2)
 		return;
-	if(rcv_data[0]&(1<<7)) {
-		parse_event();
-	} else {
-		parse_response();
-	}
+
+	atomic_notifier_call_chain(&chip.notifier_list, rcv_data[0] & 0x8f, rcv_data);
 }
 
 static irqreturn_t i2c_interrupt(int irq, void *dev) {
@@ -192,11 +168,11 @@ handled:
 
 void nvec_kbd_init(void);
 void nvec_ps2(void);
-static int __init tegra_nvec_init(void)
+static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
-	unsigned char addr=0x8a;
 	int err;
 	struct clk *i2c_clk;
+	struct nvec_platform_data *pdata = pdev->dev.platform_data;
 
 	i2c_clk=clk_get_sys("tegra-i2c.2", NULL);
 	if(IS_ERR_OR_NULL(i2c_clk))
@@ -219,7 +195,7 @@ static int __init tegra_nvec_init(void)
 
 	err = request_irq(INT_I2C3, i2c_interrupt, 0, "i2c-slave", NULL);
 	printk("ec: req irq is %d\n", err);
-	writew(addr>>1, I2C_SL_ADDR1);
+	writew(pdata->i2c_addr>>1, I2C_SL_ADDR1);
 	writew(0, I2C_SL_ADDR2);
 
 	writew(0x1E, I2C_SL_DELAY_COUNT);
@@ -227,7 +203,7 @@ static int __init tegra_nvec_init(void)
 	writew(I2C_SL_NEWL, I2C_SL_CNFG);
 
 	//Set the gpio to low when we've got something to say
-	gpio_request(nvec_gpio, "nvec gpio");
+	gpio_request(pdata->gpio, "nvec gpio");
 	mutex_init(&cmd_mutex);
 	mutex_init(&cmd_buf_mutex);
 	//Ping (=noop)
@@ -239,4 +215,25 @@ static int __init tegra_nvec_init(void)
 	return 0;
 }
 
+static int __devexit tegra_nvec_remove(struct platform_device *pdev)
+{
+	// TODO: unregister
+	return 0;
+}
+
+static struct platform_driver nvec_device_driver = {
+	.probe = tegra_nvec_probe,
+	.remove = __devexit_p(tegra_nvec_remove),
+	.driver = {
+		.name = "nvec",
+		.owner = THIS_MODULE,
+	}
+};
+
+static int __init tegra_nvec_init(void) 
+{
+	return platform_driver_register(&nvec_device_driver);
+}
+
 module_init(tegra_nvec_init);
+MODULE_ALIAS("platform:nvec");

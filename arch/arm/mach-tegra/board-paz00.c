@@ -30,7 +30,7 @@
 #include <linux/delay.h>
 #include <linux/tegra_usb.h>
 #include <linux/fsl_devices.h>
-#include <linux/mfd/nvtegra-ec.h>
+#include <linux/mfd/nvec.h>
 #include <linux/gpio.h>
 
 #include <asm/mach-types.h>
@@ -71,6 +71,29 @@ static struct platform_device debug_uart = {
 	.id = PLAT8250_DEV_PLATFORM,
 	.dev = {
 		.platform_data = debug_uart_platform_data,
+	},
+};
+
+static struct nvec_subdev paz00_nvec_subdevs[] = {
+	{
+		.name = "nvec-kbd",
+	},
+	{
+		.name = "nvec-ps2",
+	},
+};
+
+static struct nvec_platform_data nvec_mfd_platform_data = {
+	.i2c_addr = 0x8a,
+	.gpio = TEGRA_GPIO_PV2, // FIXME: move to res?
+	.subdevs = paz00_nvec_subdevs,
+	.num_subdevs = ARRAY_SIZE(paz00_nvec_subdevs),
+};
+
+static struct platform_device nvec_mfd = {
+	.name = "nvec",
+	.dev = {
+		.platform_data = &nvec_mfd_platform_data,
 	},
 };
 
@@ -168,7 +191,8 @@ static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	},
 };
 
-#ifdef CONFIG_I2C_TEGRA_SLAVE
+#if 0
+def CONFIG_I2C_TEGRA_SLAVE
 static struct nvec_platform_data __initdata nvec_data[] = {
 	{
 		.req_gpio = TEGRA_GPIO_PV2,
@@ -262,6 +286,7 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device4,
 	&tegra_gart_device,
 	&tegra_i2s_device1,
+	&nvec_mfd,
 };
 
 static void __init tegra_paz00_fixup(struct machine_desc *desc,

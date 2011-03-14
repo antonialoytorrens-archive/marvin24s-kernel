@@ -14,7 +14,9 @@ typedef enum {
 } how_care;
 
 typedef enum {
-	NVEC_KB_EVT,
+	NVEC_KB,
+	NVEC_PS2 = 6,
+	NVEC_KB_EVT = 0x80,
 	NVEC_PS2_EVT
 } nvec_event;
 
@@ -23,6 +25,18 @@ struct nvec_msg {
 	unsigned short size;
 	unsigned short pos;
 	struct list_head node;
+};
+
+struct nvec_subdev {
+	const char *name;
+	void *platform_data;
+};
+
+struct nvec_platform_data {
+	int num_subdevs;
+	int i2c_addr;
+	int gpio;
+	struct nvec_subdev *subdevs;
 };
 
 extern void nvec_write_async(unsigned char *data, short size);
