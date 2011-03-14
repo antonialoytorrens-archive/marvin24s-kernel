@@ -27,6 +27,18 @@ struct nvec_msg {
 	struct list_head node;
 };
 
+struct nvec_subdev {
+	const char *name;
+	void *platform_data;
+};
+
+struct nvec_platform_data {
+	int num_subdevs;
+	int i2c_addr;
+	int gpio;
+	struct nvec_subdev *subdevs;
+};
+
 extern void nvec_write_async(unsigned char *data, short size);
 
 extern int nvec_register_notifier(struct device *dev,
