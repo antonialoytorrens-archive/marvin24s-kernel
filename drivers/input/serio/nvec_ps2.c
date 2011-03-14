@@ -38,11 +38,23 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 				 unsigned long event_type, 
 		unsigned char *data)
 {
-	if (event_type == NVEC_PS2_EVT)
+	int i;
+	switch (event_type) {
+	case NVEC_PS2_EVT:
 		serio_interrupt(ps2_dev.ser_dev, data[2], 0);
+		break;
+	case NVEC_PS2:
+		printk("ps2 response ");
+		for(i=0;i<=(data[1]+1);i++)
+			printk("%02x ", data[i]);
+		printk(".\n");
+		if(data[2] == 1)
+			serio_interrupt(ps2_dev.ser_dev, data[4], 0);
+	}
 
 	return 0;
 }
+
 
 int __init nvec_ps2(void) {
 	struct serio *ser_dev=kzalloc(sizeof(struct serio), GFP_KERNEL);
