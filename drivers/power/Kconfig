@@ -183,4 +183,10 @@ config CHARGER_GPIO
 	  This driver can be build as a module. If so, the module will be
 	  called gpio-charger.
 
+config	NVEC_POWER
+	tristate "NVEC charger and battery"
+	depends on MFD_NVTEGRA_EC
+	help
+	  Say Y to enable battery and charger on Toshiba AC100
+
 endif # POWER_SUPPLY

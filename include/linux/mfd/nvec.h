@@ -14,7 +14,8 @@ typedef enum {
 } how_care;
 
 typedef enum {
-	NVEC_KB,
+	NVEC_SYS=1,
+	NVEC_BAT,
 	NVEC_PS2 = 6,
 	NVEC_KB_EVT = 0x80,
 	NVEC_PS2_EVT
