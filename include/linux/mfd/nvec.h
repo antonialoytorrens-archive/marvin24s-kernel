@@ -31,6 +31,7 @@ struct nvec_msg {
 struct nvec_subdev {
 	const char *name;
 	void *platform_data;
+	int id;
 };
 
 struct nvec_platform_data {
