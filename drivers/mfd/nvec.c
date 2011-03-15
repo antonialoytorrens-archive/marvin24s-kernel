@@ -86,6 +86,11 @@ static void parse_msg(void) {
 	if(rcv_size<2)
 		return;
 
+	if((rcv_data[0] & 1<<7) == 0 && rcv_data[3]) {
+		printk(KERN_ERR "ec responded %x\n", rcv_data[3]);
+		return -EINVAL;
+	}
+
 	atomic_notifier_call_chain(&chip.notifier_list, rcv_data[0] & 0x8f, rcv_data);
 }
 
@@ -171,7 +176,7 @@ void nvec_ps2(void);
 static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev *subdev) {
 	struct platform_device *pdev;
 	
-	pdev =  platform_device_alloc(subdev->name, 0);
+	pdev =  platform_device_alloc(subdev->name, subdev->id);
 	pdev->dev.parent = nvec->dev;
 	pdev->dev.platform_data = subdev->platform_data;
 
