@@ -81,6 +81,14 @@ static struct nvec_subdev paz00_nvec_subdevs[] = {
 	{
 		.name = "nvec-ps2",
 	},
+	{
+		.name = "nvec-power",
+		.id = 0,
+	},
+	{
+		.name = "nvec-power",
+		.id = 1,
+	}
 };
 
 static struct nvec_platform_data nvec_mfd_platform_data = {

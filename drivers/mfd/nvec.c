@@ -34,6 +34,7 @@ struct nvec_chip {
 	struct atomic_notifier_head notifier_list;
 	struct list_head tx_data;
 	struct delayed_work tx_work;
+	struct device *dev;
 };
 
 static struct nvec_chip chip;
@@ -52,7 +53,6 @@ EXPORT_SYMBOL_GPL(nvec_register_notifier);
 
 static DEFINE_MUTEX(cmd_mutex);
 static DEFINE_MUTEX(cmd_buf_mutex);
-static void (*response_handler)(void *data)=NULL;
 
 void nvec_write_async(unsigned char *data, short size) {
 	struct nvec_msg *msg= kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
@@ -85,6 +85,11 @@ static void parse_msg(void) {
 	//Not an actual message
 	if(rcv_size<2)
 		return;
+
+	if((rcv_data[0] & 1<<7) == 0 && rcv_data[3]) {
+		printk(KERN_ERR "ec responded %x\n", rcv_data[3]);
+		return -EINVAL;
+	}
 
 	atomic_notifier_call_chain(&chip.notifier_list, rcv_data[0] & 0x8f, rcv_data);
 }
@@ -168,9 +173,18 @@ handled:
 
 void nvec_kbd_init(void);
 void nvec_ps2(void);
+static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev *subdev) {
+	struct platform_device *pdev;
+	
+	pdev =  platform_device_alloc(subdev->name, subdev->id);
+	pdev->dev.parent = nvec->dev;
+	pdev->dev.platform_data = subdev->platform_data;
+
+	return platform_device_add(pdev);
+}
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
-	int err;
+	int err, i, ret;
 	struct clk *i2c_clk;
 	struct nvec_platform_data *pdata = pdev->dev.platform_data;
 
@@ -192,6 +206,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	ATOMIC_INIT_NOTIFIER_HEAD(&chip.notifier_list);
 	INIT_LIST_HEAD(&chip.tx_data);
 	INIT_DELAYED_WORK(&chip.tx_work, nvec_request_master);
+	chip.dev = &pdev->dev;
 
 	err = request_irq(INT_I2C3, i2c_interrupt, 0, "i2c-slave", NULL);
 	printk("ec: req irq is %d\n", err);
@@ -210,6 +225,11 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec_write_async("\x07\x02", 2);
 	nvec_kbd_init();
 	nvec_ps2();
+
+        /* setup subdevs */
+	for (i = 0; i < pdata->num_subdevs; i++) {
+		ret = nvec_add_subdev(&chip, &pdata->subdevs[i]);
+	}
 
 
 	return 0;
