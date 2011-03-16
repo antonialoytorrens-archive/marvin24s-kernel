@@ -112,6 +112,10 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 		parse_msg();
 		return IRQ_HANDLED;
 	} else if(status&RNW) {
+		// Work around for AP20 New Slave Hw Bug. Give 1us extra.
+		// nvec/smbus/nvec_i2c_transport.c in NV`s crap for reference
+		if(status&RCVD)
+			udelay(3);
 #ifdef DEBUG
 		if(status&RCVD) {
 			//Master wants something from us. New communication
