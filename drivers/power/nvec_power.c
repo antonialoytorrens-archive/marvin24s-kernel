@@ -88,11 +88,11 @@ static enum power_supply_property nvec_battery_props[] = {
 };
 
 static char *nvec_power_supplied_to[] = {
-	"main-battery",
+	"battery",
 };
 
 static struct power_supply nvec_bat_psy = {
-	.name		= "main-battery",
+	.name		= "battery",
 	.type		= POWER_SUPPLY_TYPE_BATTERY,
 	.properties	= nvec_battery_props,
 	.num_properties	= ARRAY_SIZE(nvec_battery_props),
