@@ -19,7 +19,10 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
-//#define DEBUG
+// #define DEBUG
+
+#define GET_FIRMWARE_VERSION "\x07\x15"
+
 
 // TODO: move everything to nvec_chip
 static int nvec_gpio = TEGRA_GPIO_PV2;
@@ -35,6 +38,7 @@ struct nvec_chip {
 	struct list_head tx_data;
 	struct delayed_work tx_work;
 	struct device *dev;
+	struct notifier_block nvec_status_notifier;
 };
 
 static struct nvec_chip chip;
@@ -50,6 +54,29 @@ int nvec_register_notifier(struct device *dev, struct notifier_block *nb,
 
 }
 EXPORT_SYMBOL_GPL(nvec_register_notifier);
+
+static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_type,
+				unsigned char *data) 
+{
+	unsigned char tmp;
+
+	if(event_type != NVEC_CNTL)
+		return NOTIFY_DONE;
+
+	tmp = data[0];
+	data[0] = data[1];
+	data[1] = tmp;
+
+	if(!strncmp(&data[1], GET_FIRMWARE_VERSION, data[0])) {
+		printk("nvec: version %02x.%02x.%02x / %02x\n", 
+			data[4], data[5], data[6], data[7]);
+		return NOTIFY_OK;
+	}
+	
+	printk("nvec: unhandled event %ld\n", event_type);
+
+	return NOTIFY_OK;
+}
 
 static DEFINE_MUTEX(cmd_mutex);
 static DEFINE_MUTEX(cmd_buf_mutex);
@@ -81,10 +108,10 @@ void nvec_release_msg() {
 }
 EXPORT_SYMBOL(nvec_release_msg);
 
-static void parse_msg(void) {
+static int parse_msg(void) {
 	//Not an actual message
 	if(rcv_size<2)
-		return;
+		return -EINVAL;
 
 	if((rcv_data[0] & 1<<7) == 0 && rcv_data[3]) {
 		printk(KERN_ERR "ec responded %x\n", rcv_data[3]);
@@ -92,6 +119,8 @@ static void parse_msg(void) {
 	}
 
 	atomic_notifier_call_chain(&chip.notifier_list, rcv_data[0] & 0x8f, rcv_data);
+	
+	return 0;
 }
 
 static irqreturn_t i2c_interrupt(int irq, void *dev) {
@@ -109,7 +138,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 	if(status&END_TRANS && !(status&RCVD)) {
 		//Reenable IRQ only when even has been sent
 		//printk("Write sequence ended !\n");
-		parse_msg();
+                parse_msg();
 		return IRQ_HANDLED;
 	} else if(status&RNW) {
 		// Work around for AP20 New Slave Hw Bug. Give 1us extra.
@@ -177,6 +206,7 @@ handled:
 
 void nvec_kbd_init(void);
 void nvec_ps2(void);
+
 static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev *subdev) {
 	struct platform_device *pdev;
 	
@@ -186,6 +216,7 @@ static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev 
 
 	return platform_device_add(pdev);
 }
+
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
 	int err, i, ret;
@@ -235,6 +266,11 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		ret = nvec_add_subdev(&chip, &pdata->subdevs[i]);
 	}
 
+	chip.nvec_status_notifier.notifier_call = nvec_status_notifier;
+	nvec_register_notifier(NULL, &chip.nvec_status_notifier, 0);
+	
+	/* Get Firmware Version */
+	nvec_write_async(GET_FIRMWARE_VERSION, 2);
 
 	return 0;
 }

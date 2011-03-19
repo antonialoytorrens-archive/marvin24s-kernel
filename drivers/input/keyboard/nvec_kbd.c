@@ -29,10 +29,11 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 			
 		input_report_key(keys_dev.input, code_tabs[_size][code], !state);
 		input_sync(keys_dev.input);
+
+		return NOTIFY_STOP;
 	}
 
-
-	return 0;
+	return NOTIFY_DONE;
 }
 
 static int nvec_kbd_event(struct input_dev *dev, unsigned int type, unsigned int code, int value) {

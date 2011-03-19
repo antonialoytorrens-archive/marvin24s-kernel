@@ -36,15 +36,15 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
 	struct nvec_power *power = container_of(nb, struct nvec_power, notifier);
 	
         if (event_type != NVEC_BAT)
-		return 0;
+		return NOTIFY_DONE;
 
 	switch(data[2]) {
 	case 0:
 		power->cap = data[5];
-		break;
+		return NOTIFY_STOP;
 	}
 
-	return 0;
+	return NOTIFY_OK;
 }
 
 static int nvec_power_get_property(struct power_supply *psy,

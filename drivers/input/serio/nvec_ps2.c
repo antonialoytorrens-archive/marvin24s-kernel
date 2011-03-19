@@ -39,20 +39,23 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 		unsigned char *data)
 {
 	int i;
+
 	switch (event_type) {
-	case NVEC_PS2_EVT:
-		serio_interrupt(ps2_dev.ser_dev, data[2], 0);
-		break;
-	case NVEC_PS2:
-		printk("ps2 response ");
-		for(i=0;i<=(data[1]+1);i++)
-			printk("%02x ", data[i]);
-		printk(".\n");
-		if(data[2] == 1)
-			serio_interrupt(ps2_dev.ser_dev, data[4], 0);
+		case NVEC_PS2_EVT:
+			serio_interrupt(ps2_dev.ser_dev, data[2], 0);
+			return NOTIFY_STOP;
+
+		case NVEC_PS2:
+			printk("ps2 response ");
+			for(i=0;i<=(data[1]+1);i++)
+				printk("%02x ", data[i]);
+			printk(".\n");
+			if(data[2] == 1)
+				serio_interrupt(ps2_dev.ser_dev, data[4], 0);
+			return NOTIFY_STOP;
 	}
 
-	return 0;
+	return NOTIFY_DONE;
 }
 
 
