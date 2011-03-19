@@ -422,35 +422,30 @@ static void __init tegra_paz00_init(void)
 	paz00_wifi_init();
 }
 
+/* for newer bootloaders */
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
-	.boot_params  = 0x00000100,
-	.phys_io        = IO_APB_PHYS,
-	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
+	.boot_params	= 0x00000100,
+	.phys_io	= IO_APB_PHYS,
+	.io_pg_offst	= ((IO_APB_VIRT) >> 18) & 0xfffc,
 	.fixup		= tegra_paz00_fixup,
-	.init_irq       = tegra_init_irq,
-	.init_machine   = tegra_paz00_init,
-	.map_io         = tegra_map_common_io,
-	.timer          = &tegra_timer,
+	.init_irq	= tegra_init_irq,
+	.init_machine	= tegra_paz00_init,
+	.map_io		= tegra_map_common_io,
+	.timer		= &tegra_timer,
 MACHINE_END
 
+/* for android 2.1 bootloader */
 MACHINE_START(TEGRA_LEGACY, "tegra_legacy")
-	.boot_params  = 0x00000100,
-	.phys_io        = IO_APB_PHYS,
-	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
+	.boot_params	= 0x00000100,
+	.phys_io	= IO_APB_PHYS,
+	.io_pg_offst	= ((IO_APB_VIRT) >> 18) & 0xfffc,
 	.fixup		= tegra_paz00_fixup,
-	.init_irq       = tegra_init_irq,
-	.init_machine   = tegra_paz00_init,
-	.map_io         = tegra_map_common_io,
-	.timer          = &tegra_timer,
+	.init_irq	= tegra_init_irq,
+	.init_machine	= tegra_paz00_init,
+	.map_io		= tegra_map_common_io,
+	.timer		= &tegra_timer,
 MACHINE_END
 
+/* this is need for some unknown reason */
 MACHINE_START(HARMONY, "harmony")
-	.boot_params  = 0x00000100,
-	.phys_io        = IO_APB_PHYS,
-	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
-	.fixup		= tegra_paz00_fixup,
-	.init_irq       = tegra_init_irq,
-	.init_machine   = tegra_paz00_init,
-	.map_io         = tegra_map_common_io,
-	.timer          = &tegra_timer,
 MACHINE_END
