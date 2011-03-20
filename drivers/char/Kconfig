@@ -1129,11 +1129,5 @@ config RAMOOPS
 	  This enables panic and oops messages to be logged to a circular
 	  buffer in RAM where it can be read back at some later point.
 
-config NVTEGRA_DEV
-	bool "EC device communctation driver"
-	depends on MFD_NVTEGRA_EC
-	default n
-	help
-	  ** TODO **
-
 endmenu
+

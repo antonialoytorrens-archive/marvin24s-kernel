@@ -29,7 +29,6 @@ struct tegra_i2c_platform_data {
 	int bus_mux_len[TEGRA_I2C_MAX_BUS];
 	unsigned long bus_clk_rate[TEGRA_I2C_MAX_BUS];
 	bool is_dvc;
-	int slave_addr;
 };
 
 #endif /* _LINUX_I2C_TEGRA_H */

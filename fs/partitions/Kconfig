@@ -270,7 +270,7 @@ config NVTEGRA_HIDE_PARTS
 	default ""
 	help
 	  Fill here the list of partitions you want to hide to the kennel.
-	  This is likely used to hide boot configuration partition, 
+	  This is likely used to hide boot configuration partition,
 	  bootloader, and others which does not contain valid filesystem.
-	  List each partition name (the 3,4 letters identifier) separated 
+	  List each partition name (the 3,4 letters identifier) separated
 	  by commas.

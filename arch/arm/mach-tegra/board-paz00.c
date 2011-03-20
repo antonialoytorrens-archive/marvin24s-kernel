@@ -38,8 +38,6 @@
 #include <asm/mach/time.h>
 #include <asm/setup.h>
 
-#include <mach/audio.h>
-#include <mach/i2s.h>
 #include <mach/iomap.h>
 #include <mach/irqs.h>
 #include <mach/clk.h>
@@ -173,15 +171,6 @@ static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
 	.bus_mux_len	= { 1, 1 },
 };
 
-#ifdef CONFIG_I2C_TEGRA_SLAVE
-static struct tegra_i2c_platform_data paz00_i2c3_platform_data = {
-	.adapter_nr	= 3,
-	.bus_count	= 1,
-	.bus_clk_rate	= { 400000, 0 },
-	.slave_addr	= 0x45,
-};
-#endif
-
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
@@ -191,29 +180,14 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 
 /* FIXME: Audio codec on PAZ00 is alc5632
  * no codec exists yet
- * propably requires userspace */
+ * propably requires userspace 
 
 static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO("alc5632", 0x1e),
 	},
 };
-
-#if 0
-def CONFIG_I2C_TEGRA_SLAVE
-static struct nvec_platform_data __initdata nvec_data[] = {
-	{
-		.req_gpio = TEGRA_GPIO_PV2,
-	},
-};
-
-static struct i2c_board_info __initdata paz00_i2c_bus3_board_info[] = {
-	{
-		I2C_BOARD_INFO("nvec", 0x45),
-		.platform_data = &nvec_data,
-	},
-};
-#endif
+*/
 
 static struct i2c_board_info __initdata paz00_i2c_bus4_board_info[] = {
 	{
@@ -221,42 +195,20 @@ static struct i2c_board_info __initdata paz00_i2c_bus4_board_info[] = {
 	},
 };
 
-static struct tegra_audio_platform_data tegra_audio_pdata = {
-	.i2s_master	= false,
-	.dsp_master	= false,
-	.dma_on		= true,  /* use dma by default */
-	.i2s_clk_rate	= 240000000,
-	.dap_clk	= "clk_dev1",
-	.audio_sync_clk = "audio_2x",
-	.mode		= I2S_BIT_FORMAT_I2S,
-	.fifo_fmt	= I2S_FIFO_16_LSB,
-	.bit_size	= I2S_BIT_SIZE_16,
-};
-
 static void paz00_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
-#ifdef CONFIG_I2C_TEGRA_SLAVE
-	tegra_i2c_device3.dev.platform_data = &paz00_i2c3_platform_data;
-#endif
 	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
-#ifdef CONFIG_I2C_TEGRA_SLAVE
-	platform_device_register(&tegra_i2c_device3);
-#endif	
 	platform_device_register(&tegra_i2c_device4);
 
-/* no audio yet */
+/* no audio yet
 	i2c_register_board_info(0, paz00_i2c_bus1_board_info,
 				ARRAY_SIZE(paz00_i2c_bus1_board_info));
-
-/* NVEC has its own init for now */
-/*	i2c_register_board_info(3, paz00_i2c_bus3_board_info,
-				ARRAY_SIZE(paz00_i2c_bus3_board_info)); */
-
+*/
 	i2c_register_board_info(4, paz00_i2c_bus4_board_info,
 				ARRAY_SIZE(paz00_i2c_bus4_board_info));
 
@@ -293,7 +245,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device3,
 	&tegra_spi_device4,
 	&tegra_gart_device,
-	&tegra_i2s_device1,
 	&nvec_mfd,
 };
 
@@ -410,8 +361,6 @@ static void __init tegra_paz00_init(void)
 
 	platform_device_register(&tegra_ehci2_device);
 	platform_device_register(&tegra_ehci3_device);
-
-	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata;
 
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
