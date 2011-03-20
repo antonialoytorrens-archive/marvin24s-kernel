@@ -56,20 +56,20 @@ int nvec_register_notifier(struct device *dev, struct notifier_block *nb,
 EXPORT_SYMBOL_GPL(nvec_register_notifier);
 
 static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_type,
-				unsigned char *data) 
+				void *data)
 {
-	unsigned char tmp;
+	unsigned char tmp, *msg = (unsigned char *)data;
 
 	if(event_type != NVEC_CNTL)
 		return NOTIFY_DONE;
 
-	tmp = data[0];
-	data[0] = data[1];
-	data[1] = tmp;
+	tmp = msg[0];
+	msg[0] = msg[1];
+	msg[1] = tmp;
 
-	if(!strncmp(&data[1], GET_FIRMWARE_VERSION, data[0])) {
-		printk("nvec: version %02x.%02x.%02x / %02x\n", 
-			data[4], data[5], data[6], data[7]);
+	if(!strncmp(&msg[1], GET_FIRMWARE_VERSION, sizeof(GET_FIRMWARE_VERSION))) {
+		printk("nvec: ec firmware version %02x.%02x.%02x / %02x\n",
+			msg[4], msg[5], msg[6], msg[7]);
 		return NOTIFY_OK;
 	}
 	
@@ -103,9 +103,11 @@ static void nvec_request_master(struct work_struct *work) {
 	}
 }
 
-void nvec_release_msg() {
+void nvec_release_msg(void)
+{
 	mutex_unlock(&cmd_buf_mutex);
 }
+
 EXPORT_SYMBOL(nvec_release_msg);
 
 static int parse_msg(void) {
@@ -207,9 +209,10 @@ handled:
 void nvec_kbd_init(void);
 void nvec_ps2(void);
 
-static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev *subdev) {
+static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev *subdev)
+{
 	struct platform_device *pdev;
-	
+
 	pdev =  platform_device_alloc(subdev->name, subdev->id);
 	pdev->dev.parent = nvec->dev;
 	pdev->dev.platform_data = subdev->platform_data;
@@ -258,6 +261,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	mutex_init(&cmd_buf_mutex);
 	//Ping (=noop)
 	nvec_write_async("\x07\x02", 2);
+
 	nvec_kbd_init();
 	nvec_ps2();
 

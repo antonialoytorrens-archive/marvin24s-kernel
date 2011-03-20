@@ -2,7 +2,12 @@
 #include <linux/serio.h>
 #include <linux/mfd/nvec.h>
 
-struct nvec_ps2 {
+#define START_STREAMING	"\x06\x03\x01"
+#define STOP_STREAMING	"\x06\x04"
+#define SEND_COMMAND	"\x06\x01\xf4\x01"
+
+struct nvec_ps2
+{
 	struct serio *ser_dev;
 	struct notifier_block notifier;
 	struct device *master;
@@ -10,13 +15,15 @@ struct nvec_ps2 {
 
 static struct nvec_ps2 ps2_dev;
 
-static int ps2_startstreaming(struct serio *ser_dev) {
-	nvec_write_async("\x06\x03\x01", 3);
+static int ps2_startstreaming(struct serio *ser_dev)
+{
+	nvec_write_async(START_STREAMING, sizeof(START_STREAMING));
 	return 0;
 }
 
-static void ps2_stopstreaming(struct serio *ser_dev) {
-	nvec_write_async("\x06\x04", 2);
+static void ps2_stopstreaming(struct serio *ser_dev)
+{
+	nvec_write_async(STOP_STREAMING, sizeof(STOP_STREAMING));
 }
 
 /* is this really needed?
@@ -25,33 +32,36 @@ static void nvec_resp_handler(unsigned char *data) {
 }
 */
 
-static int ps2_sendcommand(struct serio *ser_dev, unsigned char cmd) {
-	unsigned char *buf="\x06\x01\xf4\x01";
-	buf[2]=cmd;
+static int ps2_sendcommand(struct serio *ser_dev, unsigned char cmd)
+{
+	unsigned char *buf = SEND_COMMAND;
+
+	buf[2] = cmd;
 	printk(KERN_ERR "Sending ps2 cmd %02x\n", cmd);
-	nvec_write_async(buf, 4);
+	nvec_write_async(buf, sizeof(SEND_COMMAND));
 	//ret=nvec_send_msg(buf, &size, NOT_AT_ALL, nvec_resp_handler);
 	return 0;
 }
 
 static int nvec_ps2_notifier(struct notifier_block *nb,
-				 unsigned long event_type, 
-		unsigned char *data)
+				unsigned long event_type, void *data)
 {
 	int i;
+	unsigned char *msg = (unsigned char *)data;
 
 	switch (event_type) {
 		case NVEC_PS2_EVT:
-			serio_interrupt(ps2_dev.ser_dev, data[2], 0);
+			serio_interrupt(ps2_dev.ser_dev, msg[2], 0);
 			return NOTIFY_STOP;
 
 		case NVEC_PS2:
 			printk("ps2 response ");
-			for(i=0;i<=(data[1]+1);i++)
-				printk("%02x ", data[i]);
+			for(i = 0; i <= (msg[1]+1); i++)
+				printk("%02x ", msg[i]);
 			printk(".\n");
-			if(data[2] == 1)
-				serio_interrupt(ps2_dev.ser_dev, data[4], 0);
+			if(msg[2] == 1)
+				serio_interrupt(ps2_dev.ser_dev, msg[4], 0);
+
 			return NOTIFY_STOP;
 	}
 
@@ -59,12 +69,15 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 }
 
 
-int __init nvec_ps2(void) {
-	struct serio *ser_dev=kzalloc(sizeof(struct serio), GFP_KERNEL);
+int __init nvec_ps2(void)
+{
+	struct serio *ser_dev = kzalloc(sizeof(struct serio), GFP_KERNEL);
+
 	ser_dev->id.type=SERIO_8042;
 	ser_dev->write=ps2_sendcommand;
 	ser_dev->open=ps2_startstreaming;
 	ser_dev->close=ps2_stopstreaming;
+
 	strlcpy(ser_dev->name, "NVEC PS2", sizeof(ser_dev->name));
 	strlcpy(ser_dev->phys, "NVEC I2C slave", sizeof(ser_dev->phys));
 
