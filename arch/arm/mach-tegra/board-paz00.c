@@ -240,6 +240,8 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&pmu_device,
 	&tegra_udc_device,
+	&tegra_ehci2_device,
+	&tegra_ehci3_device,
 	&tegra_spi_device1,
 	&tegra_spi_device2,
 	&tegra_spi_device3,
@@ -356,11 +358,9 @@ static void __init tegra_paz00_init(void)
 	tegra_clk_init_from_table(paz00_clk_init_table);
 
 	paz00_pinmux_init();
+
 	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
-
-	platform_device_register(&tegra_ehci2_device);
-	platform_device_register(&tegra_ehci3_device);
 
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
