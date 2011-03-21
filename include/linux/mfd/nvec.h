@@ -42,15 +42,28 @@ struct nvec_platform_data {
 	struct nvec_subdev *subdevs;
 };
 
-extern void nvec_write_async(unsigned char *data, short size);
+struct nvec_chip {
+	struct atomic_notifier_head notifier_list;
+	struct list_head tx_data;
+	struct delayed_work tx_work;
+	struct device *dev;
+	struct notifier_block nvec_status_notifier;
+	unsigned char *i2c_regs;
+	int gpio;
+};
 
-extern int nvec_register_notifier(struct device *dev,
+extern void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size);
+
+extern int nvec_register_notifier(struct nvec_chip *nvec,
 		 struct notifier_block *nb, unsigned int events);
 
 extern int nvec_unregister_notifier(struct device *dev,
 		struct notifier_block *nb, unsigned int events);
 
 const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care care_resp, void (*rt_handler)(unsigned char *data));
+
+extern int nvec_ps2(struct nvec_chip *nvec);
+extern int nvec_kbd_init(struct nvec_chip *nvec);
 
 #define I2C_CNFG		(i2c_regs+0x00)
 #define I2C_NEW_MASTER_SFM 	(1<<11)

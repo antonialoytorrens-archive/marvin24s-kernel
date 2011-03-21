@@ -10,20 +10,20 @@ struct nvec_ps2
 {
 	struct serio *ser_dev;
 	struct notifier_block notifier;
-	struct device *master;
+	struct nvec_chip *nvec;
 };
 
 static struct nvec_ps2 ps2_dev;
 
 static int ps2_startstreaming(struct serio *ser_dev)
 {
-	nvec_write_async(START_STREAMING, sizeof(START_STREAMING));
+	nvec_write_async(ps2_dev.nvec, START_STREAMING, sizeof(START_STREAMING));
 	return 0;
 }
 
 static void ps2_stopstreaming(struct serio *ser_dev)
 {
-	nvec_write_async(STOP_STREAMING, sizeof(STOP_STREAMING));
+	nvec_write_async(ps2_dev.nvec, STOP_STREAMING, sizeof(STOP_STREAMING));
 }
 
 /* is this really needed?
@@ -38,7 +38,7 @@ static int ps2_sendcommand(struct serio *ser_dev, unsigned char cmd)
 
 	buf[2] = cmd;
 	printk(KERN_ERR "Sending ps2 cmd %02x\n", cmd);
-	nvec_write_async(buf, sizeof(SEND_COMMAND));
+	nvec_write_async(ps2_dev.nvec, buf, sizeof(SEND_COMMAND));
 	//ret=nvec_send_msg(buf, &size, NOT_AT_ALL, nvec_resp_handler);
 	return 0;
 }
@@ -69,7 +69,7 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 }
 
 
-int __init nvec_ps2(void)
+int __init nvec_ps2(struct nvec_chip *nvec)
 {
 	struct serio *ser_dev = kzalloc(sizeof(struct serio), GFP_KERNEL);
 
@@ -83,7 +83,8 @@ int __init nvec_ps2(void)
 
 	ps2_dev.ser_dev = ser_dev;
 	ps2_dev.notifier.notifier_call = nvec_ps2_notifier;
-	nvec_register_notifier(NULL, &ps2_dev.notifier, 0);
+	ps2_dev.nvec = nvec;
+	nvec_register_notifier(nvec, &ps2_dev.notifier, 0);
 
 	serio_register_port(ser_dev);
 	return 0;

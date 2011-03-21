@@ -12,7 +12,7 @@ static unsigned char keycodes[ARRAY_SIZE(code_tab_102us)
 struct nvec_keys {
 	struct input_dev *input;
 	struct notifier_block notifier;
-	struct device *master;
+	struct nvec_chip *nvec;
 };
 
 static struct nvec_keys keys_dev;
@@ -44,6 +44,7 @@ static int nvec_kbd_event(struct input_dev *dev, unsigned int type,
 				unsigned int code, int value)
 {
 	unsigned char *buf = ACK_KBD_EVENT;
+	struct nvec_chip *nvec = keys_dev.nvec;
 
 	if(type==EV_REP)
 		return 0;
@@ -55,12 +56,12 @@ static int nvec_kbd_event(struct input_dev *dev, unsigned int type,
 		return -1;
 
 	buf[2] = !!value;
-	nvec_write_async(buf, sizeof(ACK_KBD_EVENT));
+	nvec_write_async(nvec, buf, sizeof(ACK_KBD_EVENT));
 
 	return 0;
 }
 
-int __init nvec_kbd_init(void)
+int __init nvec_kbd_init(struct nvec_chip *nvec)
 {
 	int i, j, err;
 	struct input_dev *idev;
@@ -93,16 +94,17 @@ int __init nvec_kbd_init(void)
 
 	keys_dev.input = idev;
 	keys_dev.notifier.notifier_call = nvec_keys_notifier;
-	nvec_register_notifier(NULL, &keys_dev.notifier, 0);
+	keys_dev.nvec = nvec;
+	nvec_register_notifier(nvec, &keys_dev.notifier, 0);
 
 	//Get extra events (AC, battery, power button)
-	nvec_write_async("\x01\x01\x01\xff\xff\xff\xff", 7);
+	nvec_write_async(nvec, "\x01\x01\x01\xff\xff\xff\xff", 7);
 	//Enable keyboard
-	nvec_write_async("\x05\xf4", 2);
+	nvec_write_async(nvec, "\x05\xf4", 2);
 	//Enable..... mouse ?
-	nvec_write_async("\x06\x01\xf4\x00", 3); // wtf?
+	nvec_write_async(nvec, "\x06\x01\xf4\x00", 3); // wtf?
 	//Mouse shut up
-	nvec_write_async("\x06\x04", 2);
+	nvec_write_async(nvec, "\x06\x04", 2);
 
 	return 0;
 
