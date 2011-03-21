@@ -87,5 +87,9 @@ int __init nvec_ps2(struct nvec_chip *nvec)
 	nvec_register_notifier(nvec, &ps2_dev.notifier, 0);
 
 	serio_register_port(ser_dev);
+
+	/* Enable..... mouse ? */
+	nvec_write_async(nvec, "\x06\x01\xf4\x00", 3); // wtf?
+
 	return 0;
 }

@@ -43,13 +43,15 @@ struct nvec_platform_data {
 };
 
 struct nvec_chip {
+	struct device *dev;
+	int gpio;
 	struct atomic_notifier_head notifier_list;
 	struct list_head tx_data;
-	struct delayed_work tx_work;
-	struct device *dev;
 	struct notifier_block nvec_status_notifier;
+	struct delayed_work tx_work;
 	unsigned char *i2c_regs;
-	int gpio;
+	unsigned char rcv_data[256];
+	unsigned char rcv_size;
 };
 
 extern void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size);

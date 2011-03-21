@@ -1,5 +1,7 @@
-#include "../../../arch/arm/mach-tegra/include/mach/iomap.h"
-#include "../../../arch/arm/mach-tegra/gpio-names.h"
+//#include "../../../arch/arm/mach-tegra/include/mach/iomap.h"
+//#include "../../../arch/arm/mach-tegra/gpio-names.h"
+#include "mach/iomap.h"
+//#include "../../../arch/arm/mach-tegra/gpio-names.h"
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <linux/completion.h>
@@ -19,29 +21,13 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
-// #define DEBUG
+#define DEBUG
 
 #define GET_FIRMWARE_VERSION "\x07\x15"
 
+static DEFINE_MUTEX(cmd_mutex);
+static DEFINE_MUTEX(cmd_buf_mutex);
 
-// TODO: move everything to nvec_chip
-static unsigned char rcv_data[256];
-static unsigned char rcv_size;
-
-//We need a mutex only for send_msg since events are maed in interrupt handler
-
-/*struct nvec_chip {
-	struct atomic_notifier_head notifier_list;
-	struct list_head tx_data;
-	struct delayed_work tx_work;
-	struct device *dev;
-	struct notifier_block nvec_status_notifier;
-	unsigned char *i2c_regs;
-	int gpio;
-};
-
-static struct nvec_chip chip;
-*/
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 				unsigned int events)
 {
@@ -71,19 +57,16 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 			msg[4], msg[5], msg[6], msg[7]);
 		return NOTIFY_OK;
 	}
-	
+
 	printk("nvec: unhandled event %ld\n", event_type);
 
 	return NOTIFY_OK;
 }
 
-static DEFINE_MUTEX(cmd_mutex);
-static DEFINE_MUTEX(cmd_buf_mutex);
-
 void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 {
 	struct nvec_msg *msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
-	
+
 	msg->data = kzalloc(size, GFP_NOWAIT);
 	msg->data[0] = size;
 	memcpy(msg->data + 1, data, size);
@@ -95,7 +78,6 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 	gpio_direction_output(nvec->gpio, 0);
 
 }
-
 EXPORT_SYMBOL(nvec_write_async);
 
 static void nvec_request_master(struct work_struct *work)
@@ -111,21 +93,20 @@ void nvec_release_msg(void)
 {
 	mutex_unlock(&cmd_buf_mutex);
 }
-
 EXPORT_SYMBOL(nvec_release_msg);
 
 static int parse_msg(struct nvec_chip *nvec) {
 	//Not an actual message
-	if(rcv_size<2)
+	if(nvec->rcv_size < 2)
 		return -EINVAL;
 
-	if((rcv_data[0] & 1<<7) == 0 && rcv_data[3]) {
-		printk(KERN_ERR "ec responded %x\n", rcv_data[3]);
+	if((nvec->rcv_data[0] & 1<<7) == 0 && nvec->rcv_data[3]) {
+		dev_err(nvec->dev, "ec responded %x\n", nvec->rcv_data[3]);
 		return -EINVAL;
 	}
 
-	atomic_notifier_call_chain(&nvec->notifier_list, rcv_data[0] & 0x8f, rcv_data);
-	
+	atomic_notifier_call_chain(&nvec->notifier_list, nvec->rcv_data[0] & 0x8f, nvec->rcv_data);
+
 	return 0;
 }
 
@@ -136,38 +117,36 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 	struct nvec_msg *msg;
 	struct nvec_chip *nvec = (struct nvec_chip *)dev;
 	unsigned char *i2c_regs = nvec->i2c_regs;
-	
-	
+
 	status = readw(I2C_SL_STATUS);
 
 	gpio_direction_output(nvec->gpio, 1);
-	if(!(status&I2C_SL_IRQ)) {
-		printk(KERN_WARNING "nvec Spurious IRQ\n");
+	if(!(status & I2C_SL_IRQ)) {
+		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
 		//Yup, handled. ahum.
 		goto handled;
 	}
-	if(status&END_TRANS && !(status&RCVD)) {
+	if(status & END_TRANS && !(status & RCVD)) {
 		//Reenable IRQ only when even has been sent
 		//printk("Write sequence ended !\n");
                 parse_msg(nvec);
 		return IRQ_HANDLED;
-	} else if(status&RNW) {
+	} else if(status & RNW) {
 		// Work around for AP20 New Slave Hw Bug. Give 1us extra.
 		// nvec/smbus/nvec_i2c_transport.c in NV`s crap for reference
-		if(status&RCVD)
+		if(status & RCVD)
 			udelay(3);
-#ifdef DEBUG
-		if(status&RCVD) {
+
+		if(status & RCVD) {
 			//Master wants something from us. New communication
-			//printk(KERN_ERR "New read comm!\n");
+			dev_dbg(nvec->dev, "New read comm!\n");
 		} else {
 			//Master wants something from us from a communication we've already started
-			//printk(KERN_ERR "Read comm cont !\n");
+			dev_dbg(nvec->dev, "Read comm cont !\n");
 		}
-#endif
 		//if(msg_pos<msg_size) {
 		if(list_empty(&nvec->tx_data)) {
-			printk(KERN_ERR "nvec empty tx!\n");
+			dev_err(nvec->dev, "nvec empty tx!\n");
 			to_send = 0x01;
 		} else {
 			msg = list_first_entry(&nvec->tx_data,
@@ -176,7 +155,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 				to_send = msg->data[msg->pos];
 				msg->pos++;
 			} else {
-				printk(KERN_ERR "nvec crap! %d\n", msg->size);
+				dev_err(nvec->dev, "nvec crap! %d\n", msg->size);
 				to_send = 0x01;
 			}
 
@@ -189,27 +168,23 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 		}
 		writew(to_send, I2C_SL_RCVD);
 
-#ifdef DEBUG
-		printk("nvec sent %x\n", to_send);
-#endif
+		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
+
 		goto handled;
 	} else {
-		received=readw(I2C_SL_RCVD);
+		received = readw(I2C_SL_RCVD);
 		//Workaround?
-		if(status&RCVD) {
+		if(status & RCVD) {
 			writew(0, I2C_SL_RCVD);
 			//New transaction
-#ifdef DEBUG
-			printk(KERN_ERR "Received a new transaction destined to %02x (we're %02x)\n", received, 0x8a);
-#endif
-			rcv_size=0;
+			dev_dbg(nvec->dev, "Received a new transaction destined to %02x (we're %02x)\n", received, 0x8a);
+			nvec->rcv_size = 0;
 			goto handled;
 		}
-#ifdef DEBUG
-		printk(KERN_ERR "Got %02x from Master !\n", received);
-#endif
-		rcv_data[rcv_size]=received;
-		rcv_size++;
+		dev_dbg(nvec->dev, "Got %02x from Master !\n", received);
+
+		nvec->rcv_data[nvec->rcv_size] = received;
+		nvec->rcv_size++;
 	}
 handled:
 	return IRQ_HANDLED;
@@ -285,13 +260,18 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	//Set the gpio to low when we've got something to say
 	gpio_request(nvec->gpio, "nvec gpio");
+
 	mutex_init(&cmd_mutex);
 	mutex_init(&cmd_buf_mutex);
+
 	//Ping (=noop)
 	nvec_write_async(nvec, "\x07\x02", 2);
 
 	nvec_kbd_init(nvec);
 	nvec_ps2(nvec);
+
+	/* Get extra events (AC, battery, power button) */
+	nvec_write_async(nvec, "\x01\x01\x01\xff\xff\xff\xff", 7);
 
         /* setup subdevs */
 	for (i = 0; i < pdata->num_subdevs; i++) {
@@ -300,7 +280,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
-	
+
 	/* Get Firmware Version */
 	nvec_write_async(nvec, GET_FIRMWARE_VERSION, sizeof(GET_FIRMWARE_VERSION));
 
