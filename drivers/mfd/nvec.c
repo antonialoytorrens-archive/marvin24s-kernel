@@ -1,7 +1,3 @@
-//#include "../../../arch/arm/mach-tegra/include/mach/iomap.h"
-//#include "../../../arch/arm/mach-tegra/gpio-names.h"
-#include "mach/iomap.h"
-//#include "../../../arch/arm/mach-tegra/gpio-names.h"
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <linux/completion.h>
@@ -14,6 +10,7 @@
 #include <linux/input.h>
 #include <linux/workqueue.h>
 #include <linux/clk.h>
+#include <mach/iomap.h>
 #include <mach/clk.h>
 #include <linux/mfd/nvec.h>
 #include <linux/list.h>
@@ -23,20 +20,14 @@
 
 #define DEBUG
 
-#define GET_FIRMWARE_VERSION "\x07\x15"
-
-static DEFINE_MUTEX(cmd_mutex);
-static DEFINE_MUTEX(cmd_buf_mutex);
+#define EC_GET_FIRMWARE_VERSION "\x07\x15"
+#define EC_PING "\x07\x02"
+#define EC_INIT "\x01\x01\x01\xff\xff\xff\xff"
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 				unsigned int events)
 {
-
-	// TODO: drop global vars, move everything to chip
-	// and retrieve chip from device struct
-	return atomic_notifier_chain_register(&nvec->notifier_list,
-		 nb);
-
+	return atomic_notifier_chain_register(&nvec->notifier_list, nb);
 }
 EXPORT_SYMBOL_GPL(nvec_register_notifier);
 
@@ -52,7 +43,8 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 	msg[0] = msg[1];
 	msg[1] = tmp;
 
-	if(!strncmp(&msg[1], GET_FIRMWARE_VERSION, sizeof(GET_FIRMWARE_VERSION))) {
+	if(!strncmp(&msg[1], EC_GET_FIRMWARE_VERSION, 
+			sizeof(EC_GET_FIRMWARE_VERSION))) {
 		printk("nvec: ec firmware version %02x.%02x.%02x / %02x\n",
 			msg[4], msg[5], msg[6], msg[7]);
 		return NOTIFY_OK;
@@ -88,12 +80,6 @@ static void nvec_request_master(struct work_struct *work)
 		gpio_direction_output(nvec->gpio, 0);
 	}
 }
-
-void nvec_release_msg(void)
-{
-	mutex_unlock(&cmd_buf_mutex);
-}
-EXPORT_SYMBOL(nvec_release_msg);
 
 static int parse_msg(struct nvec_chip *nvec) {
 	//Not an actual message
@@ -227,7 +213,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	clk_enable(i2c_clk);
 	clk_set_rate(i2c_clk, 400000);
 
-/*	
+/*
 	i2c_clk=clk_get_sys(NULL, "i2c");
 	if(IS_ERR_OR_NULL(i2c_clk))
 		printk(KERN_ERR"No such clock tegra-i2c.2\n");
@@ -261,17 +247,17 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	//Set the gpio to low when we've got something to say
 	gpio_request(nvec->gpio, "nvec gpio");
 
-	mutex_init(&cmd_mutex);
-	mutex_init(&cmd_buf_mutex);
+	//mutex_init(&cmd_mutex);
+	//mutex_init(&cmd_buf_mutex);
 
 	//Ping (=noop)
-	nvec_write_async(nvec, "\x07\x02", 2);
+	nvec_write_async(nvec, EC_PING, sizeof(EC_PING));
+
+	/* Get extra events (AC, battery, power button) */
+	nvec_write_async(nvec, EC_INIT, sizeof(EC_INIT));
 
 	nvec_kbd_init(nvec);
 	nvec_ps2(nvec);
-
-	/* Get extra events (AC, battery, power button) */
-	nvec_write_async(nvec, "\x01\x01\x01\xff\xff\xff\xff", 7);
 
         /* setup subdevs */
 	for (i = 0; i < pdata->num_subdevs; i++) {
@@ -282,7 +268,8 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
 
 	/* Get Firmware Version */
-	nvec_write_async(nvec, GET_FIRMWARE_VERSION, sizeof(GET_FIRMWARE_VERSION));
+	nvec_write_async(nvec, EC_GET_FIRMWARE_VERSION,
+			sizeof(EC_GET_FIRMWARE_VERSION));
 
 	return 0;
 
