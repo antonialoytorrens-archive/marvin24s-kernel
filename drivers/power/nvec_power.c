@@ -9,6 +9,7 @@
 struct nvec_power {
 	struct notifier_block notifier;
 	struct delayed_work pooler;
+	struct nvec_chip *nvec;
 	int on;
 	int cap;
 };
@@ -111,10 +112,11 @@ static struct power_supply nvec_psy = {
 
 static void nvec_power_pool(struct work_struct *work)
 {
-	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work.work);
+	struct nvec_power *power = container_of(work, struct nvec_power,
+		 pooler.work);
 
-	nvec_write_async(nvec, "\x01\x00", 2);
-	nvec_write_async(nvec, "\x02\x00", 2);
+	nvec_write_async(power->nvec, "\x01\x00", 2);
+	nvec_write_async(power->nvec, "\x02\x00", 2);
 
 	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(1000));
 };
@@ -126,6 +128,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
 
 	dev_set_drvdata(&pdev->dev, power);
+	power->nvec = nvec;
 
 	switch (pdev->id) {
 	case 0:
