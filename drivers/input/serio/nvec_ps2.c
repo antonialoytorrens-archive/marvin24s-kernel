@@ -3,9 +3,9 @@
 #include <linux/mfd/nvec.h>
 #include <linux/delay.h>
 
-#define START_STREAMING	"\x06\x03\x01"
-#define STOP_STREAMING	"\x06\x04"
-#define SEND_COMMAND	"\x06\x01\xf4\x01"
+#define START_STREAMING	{'\x06','\x03','\x01'}
+#define STOP_STREAMING	{'\x06','\x04'}
+#define SEND_COMMAND	{'\x06','\x01','\xf4','\x01'}
 
 struct nvec_ps2
 {
@@ -18,13 +18,15 @@ static struct nvec_ps2 ps2_dev;
 
 static int ps2_startstreaming(struct serio *ser_dev)
 {
-	nvec_write_async(ps2_dev.nvec, START_STREAMING, sizeof(START_STREAMING));
+	unsigned char buf[] = START_STREAMING;
+	nvec_write_async(ps2_dev.nvec, buf, sizeof(buf));
 	return 0;
 }
 
 static void ps2_stopstreaming(struct serio *ser_dev)
 {
-	nvec_write_async(ps2_dev.nvec, STOP_STREAMING, sizeof(STOP_STREAMING));
+	unsigned char buf[] = STOP_STREAMING;
+	nvec_write_async(ps2_dev.nvec, buf, sizeof(buf));
 }
 
 /* is this really needed?
@@ -35,11 +37,11 @@ static void nvec_resp_handler(unsigned char *data) {
 
 static int ps2_sendcommand(struct serio *ser_dev, unsigned char cmd)
 {
-	unsigned char *buf = SEND_COMMAND;
+	unsigned char buf[] = SEND_COMMAND;
 
-	buf[2] = cmd;
+	buf[2] = cmd & 0xff;
 	printk(KERN_ERR "Sending ps2 cmd %02x\n", cmd);
-	nvec_write_async(ps2_dev.nvec, buf, sizeof(SEND_COMMAND));
+	nvec_write_async(ps2_dev.nvec, buf, sizeof(buf));
 	//ret=nvec_send_msg(buf, &size, NOT_AT_ALL, nvec_resp_handler);
 	return 0;
 }

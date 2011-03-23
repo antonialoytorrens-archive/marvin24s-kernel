@@ -1,4 +1,4 @@
-#define DEBUG
+//#define DEBUG
 
 #include <asm/io.h>
 #include <asm/irq.h>
@@ -20,8 +20,8 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
-#define EC_PING			"\x04\x00\x01"
-#define EC_GET_FIRMWARE_VERSION	"\x07\x15"
+static unsigned char EC_PING[] =			{'\x04','\x00','\x01'};
+static unsigned char EC_GET_FIRMWARE_VERSION[] =	{'\x07','\x15'};
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 				unsigned int events)
@@ -44,8 +44,9 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 	msg[0] = msg[1];
 	msg[1] = tmp;
 
-	if(!strncmp(&msg[1], EC_GET_FIRMWARE_VERSION, 
-			sizeof(EC_GET_FIRMWARE_VERSION))) {
+	if(!strncmp(&msg[1],
+		    EC_GET_FIRMWARE_VERSION,
+				sizeof(EC_GET_FIRMWARE_VERSION))) {
 		printk("nvec: ec firmware version %02x.%02x.%02x / %02x\n",
 			msg[4], msg[5], msg[6], msg[7]);
 		return NOTIFY_OK;
@@ -129,10 +130,10 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 
 		if(status & RCVD) {
 			//Master wants something from us. New communication
-			dev_dbg(nvec->dev, "New read comm!\n");
+//			dev_dbg(nvec->dev, "New read comm!\n");
 		} else {
 			//Master wants something from us from a communication we've already started
-			dev_dbg(nvec->dev, "Read comm cont !\n");
+//			dev_dbg(nvec->dev, "Read comm cont !\n");
 		}
 		//if(msg_pos<msg_size) {
 		if(list_empty(&nvec->tx_data)) {
@@ -198,7 +199,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	struct nvec_platform_data *pdata = pdev->dev.platform_data;
 	struct nvec_chip *nvec;
 	unsigned char *i2c_regs;
-
 
 	nvec = kzalloc(sizeof(struct nvec_chip), GFP_KERNEL);
 	if(nvec == NULL) {
@@ -267,7 +267,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	/* Get Firmware Version */
 	nvec_write_async(nvec, EC_GET_FIRMWARE_VERSION,
-			sizeof(EC_GET_FIRMWARE_VERSION));
+		sizeof(EC_GET_FIRMWARE_VERSION));
 
 	return 0;
 

@@ -4,7 +4,7 @@
 #include "nvec-keytable.h"
 #include <linux/mfd/nvec.h>
 
-#define ACK_KBD_EVENT "\x05\xed\x01"
+#define ACK_KBD_EVENT {'\x05','\xed','\x01'}
 
 static unsigned char keycodes[ARRAY_SIZE(code_tab_102us)
 			+ ARRAY_SIZE(extcode_tab_us102)];
@@ -43,7 +43,7 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 static int nvec_kbd_event(struct input_dev *dev, unsigned int type,
 				unsigned int code, int value)
 {
-	unsigned char *buf = ACK_KBD_EVENT;
+	unsigned char buf[] = ACK_KBD_EVENT;
 	struct nvec_chip *nvec = keys_dev.nvec;
 
 	if(type==EV_REP)
@@ -56,7 +56,7 @@ static int nvec_kbd_event(struct input_dev *dev, unsigned int type,
 		return -1;
 
 	buf[2] = !!value;
-	nvec_write_async(nvec, buf, sizeof(ACK_KBD_EVENT));
+	nvec_write_async(nvec, buf, sizeof(buf));
 
 	return 0;
 }
