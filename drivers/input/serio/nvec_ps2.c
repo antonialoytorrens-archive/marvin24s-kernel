@@ -1,6 +1,7 @@
 #include <linux/slab.h>
 #include <linux/serio.h>
 #include <linux/mfd/nvec.h>
+#include <linux/delay.h>
 
 #define START_STREAMING	"\x06\x03\x01"
 #define STOP_STREAMING	"\x06\x04"
@@ -59,8 +60,11 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 			for(i = 0; i <= (msg[1]+1); i++)
 				printk("%02x ", msg[i]);
 			printk(".\n");
-			if(msg[2] == 1)
-				serio_interrupt(ps2_dev.ser_dev, msg[4], 0);
+			if (msg[2] == 1)
+				for(i = 0; i < (msg[1] - 2); i++)
+					serio_interrupt(ps2_dev.ser_dev, msg[i+4], 0);
+			else
+				printk("nvec_ps2: unhandled mouse event.\n");
 
 			return NOTIFY_STOP;
 	}
@@ -88,8 +92,8 @@ int __init nvec_ps2(struct nvec_chip *nvec)
 
 	serio_register_port(ser_dev);
 
-	/* Enable..... mouse ? */
-	nvec_write_async(nvec, "\x06\x01\xf4\x00", 3); // wtf?
+	/* mouse reset */
+	nvec_write_async(nvec, "\x06\x01\xff\x03", 4);
 
 	return 0;
 }

@@ -97,12 +97,12 @@ int __init nvec_kbd_init(struct nvec_chip *nvec)
 	keys_dev.nvec = nvec;
 	nvec_register_notifier(nvec, &keys_dev.notifier, 0);
 
-	//Enable keyboard
+	/* Enable keyboard */
 	nvec_write_async(nvec, "\x05\xf4", 2);
-	//Enable..... mouse ?
-	nvec_write_async(nvec, "\x06\x01\xf4\x00", 3); // wtf?
-	//Mouse shut up
-//	nvec_write_async(nvec, "\x06\x04", 2);
+
+	/* keyboard reset? */
+	nvec_write_async(nvec, "\x05\x03\x01\x01", 4);
+	nvec_write_async(nvec, "\x05\x04\x01", 3);
 
 	return 0;
 

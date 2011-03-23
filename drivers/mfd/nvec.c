@@ -1,3 +1,5 @@
+#define DEBUG
+
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <linux/completion.h>
@@ -18,11 +20,8 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
-#define DEBUG
-
-#define EC_GET_FIRMWARE_VERSION "\x07\x15"
-#define EC_PING "\x07\x02"
-#define EC_INIT "\x01\x01\x01\xff\xff\xff\xff"
+#define EC_PING			 "\x04\x00\x01"
+#define EC_GET_FIRMWARE_VERSION	"\x07\x15"
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 				unsigned int events)
@@ -35,10 +34,12 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 				void *data)
 {
 	unsigned char tmp, *msg = (unsigned char *)data;
+	int i;
 
 	if(event_type != NVEC_CNTL)
 		return NOTIFY_DONE;
 
+/* 1st byte is ctrl, 2nd is len => swap it */
 	tmp = msg[0];
 	msg[0] = msg[1];
 	msg[1] = tmp;
@@ -50,7 +51,10 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 		return NOTIFY_OK;
 	}
 
-	printk("nvec: unhandled event %ld\n", event_type);
+	printk("nvec: unhandled event %ld, payload: ", event_type);
+	for (i = 0; i < msg[0]; i++)
+		printk("%0x ", msg[i+2]);
+	printk("\n");
 
 	return NOTIFY_OK;
 }
@@ -244,17 +248,11 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	writew(I2C_NEW_MASTER_SFM, I2C_CNFG);
 	writew(I2C_SL_NEWL, I2C_SL_CNFG);
 
-	//Set the gpio to low when we've got something to say
+	/* Set the gpio to low when we've got something to say */
 	gpio_request(nvec->gpio, "nvec gpio");
 
-	//mutex_init(&cmd_mutex);
-	//mutex_init(&cmd_buf_mutex);
-
-	//Ping (=noop)
+	/* Ping (=noop) */
 	nvec_write_async(nvec, EC_PING, sizeof(EC_PING));
-
-	/* Get extra events (AC, battery, power button) */
-	nvec_write_async(nvec, EC_INIT, sizeof(EC_INIT));
 
 	nvec_kbd_init(nvec);
 	nvec_ps2(nvec);
