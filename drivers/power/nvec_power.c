@@ -8,39 +8,39 @@
 
 struct nvec_power {
 	struct notifier_block notifier;
+	struct delayed_work pooler;
 	int on;
 	int cap;
-  	struct delayed_work pooler;
 };
 
 static int nvec_power_notifier(struct notifier_block *nb,
-				 unsigned long event_type, 
-		unsigned char *data)
+				 unsigned long event_type, void *data)
 {
 	struct nvec_power *power = container_of(nb, struct nvec_power, notifier);
-	
+	unsigned char *msg = (unsigned char *)data;
+
 	if (event_type != NVEC_SYS)
 		return 0;
 
-	if(data[2] == 0) {
-		power->on = data[4];
+	if(msg[2] == 0) {
+		power->on = msg[4];
 	}
 
         return 0;
 }
 
 static int nvec_power_bat_notifier(struct notifier_block *nb,
-				 unsigned long event_type, 
-		unsigned char *data)
+				 unsigned long event_type, void *data)
 {
 	struct nvec_power *power = container_of(nb, struct nvec_power, notifier);
-	
+	unsigned char *msg = (unsigned char *)data;
+
         if (event_type != NVEC_BAT)
 		return NOTIFY_DONE;
 
-	switch(data[2]) {
+	switch(msg[2]) {
 	case 0:
-		power->cap = data[5];
+		power->cap = msg[5];
 		return NOTIFY_STOP;
 	}
 
@@ -109,9 +109,12 @@ static struct power_supply nvec_psy = {
 	.get_property = nvec_power_get_property,
 };
 
-static void nvec_power_pool(struct work_struct *work) {
-	nvec_write_async("\x01\x00", 2);
-	nvec_write_async("\x02\x00", 2);
+static void nvec_power_pool(struct work_struct *work)
+{
+	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work.work);
+
+	nvec_write_async(nvec, "\x01\x00", 2);
+	nvec_write_async(nvec, "\x02\x00", 2);
 
 	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(1000));
 };
@@ -120,6 +123,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 {
 	struct power_supply *psy;
 	struct nvec_power *power = kzalloc(sizeof(struct nvec_power), GFP_NOWAIT);
+	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
 
 	dev_set_drvdata(&pdev->dev, power);
 
@@ -142,8 +146,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-		
-        nvec_register_notifier(NULL, &power->notifier, NVEC_SYS);
+	nvec_register_notifier(nvec, &power->notifier, NVEC_SYS);
 	return power_supply_register(&pdev->dev, psy);
 }
 
@@ -158,7 +161,7 @@ static struct platform_driver nvec_power_driver = {
 
 static int __init nvec_power_init(void) 
 {
-	return platform_driver_register(&nvec_power_driver);	
+	return platform_driver_register(&nvec_power_driver);
 }
 
 module_init(nvec_power_init);

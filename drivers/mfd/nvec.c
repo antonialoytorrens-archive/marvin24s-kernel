@@ -20,7 +20,7 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
-#define EC_PING			 "\x04\x00\x01"
+#define EC_PING			"\x04\x00\x01"
 #define EC_GET_FIRMWARE_VERSION	"\x07\x15"
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
@@ -184,7 +184,7 @@ static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev 
 {
 	struct platform_device *pdev;
 
-	pdev =  platform_device_alloc(subdev->name, subdev->id);
+	pdev = platform_device_alloc(subdev->name, subdev->id);
 	pdev->dev.parent = nvec->dev;
 	pdev->dev.platform_data = subdev->platform_data;
 
