@@ -53,113 +53,6 @@
 #define TPS6586X_SMODE1		0x47
 #define TPS6586X_SMODE2		0x48
 
-/* charger setup */
-#define TPS6586x_R49_CHG1	0x49
-#define TPS6586x_R4A_CHG2	0x4A
-#define TPS6586x_R4B_CHG3	0x4B
-
-/* power path setup */
-#define TPS6586x_R4C_PPATH2	0x4C
-
-/* sequencing */
-#define TPS6586x_R4D_PGFLTMSK1	0x4D
-#define TPS6586x_R4E_PGFLTMSK2	0x4E
-
-/* peripheral control */
-#define TPS6586x_R50_RGB1FLASH	0x50
-#define TPS6586x_R51_RGB1RED	0x51
-#define TPS6586x_R52_RGB1GREEN	0x52
-#define TPS6586x_R53_RGB1BLUE	0x53
-#define TPS6586x_R54_RGB2RED	0x54
-#define TPS6586x_R55_RGB2GREEN	0x55
-#define TPS6586x_R56_RGB2BLUE	0x56
-#define TPS6586x_R57_SM3_SET0	0x57
-#define TPS6586x_R58_SM3_SET1	0x58
-#define TPS6586x_R59_LED_PWM	0x59
-#define TPS6586x_R5A_DIG_PWM	0x5A
-#define TPS6586x_R5B_PWM	0x5B
-#define TPS6586x_R5C_DIG_PWM1	0x5C
-#define TPS6586x_R5D_GPIOSET1	0x5D
-#define TPS6586x_R5E_GPIOSET2	0x5E
-
-/* ADC0 engine setup */
-#define TPS6586x_R60_ADCANLG	0x60
-
-/* ADC0 engine data */
-#define TPS6586x_R61_ADC0_SET	0x61
-#define TPS6586x_R62_ADC0_WAIT	0x62
-#define TPS6586x_R94_ADC0_SUM2	0x94
-#define TPS6586x_R95_ADC0_SUM1	0x95
-#define TPS6586x_R9A_ADC0_INT	0x9A
-
-/* interrupt control */
-#define TPS6586x_RB0_INT_MASK1	0xB0
-#define TPS6586x_RB1_INT_MASK2	0xB1
-#define TPS6586x_RB2_INT_MASK3	0xB2
-#define TPS6586x_RB3_INT_MASK4	0xB3
-#define TPS6586x_RB4_INT_MASK5	0xB4
-#define TPS6586x_RB5_INT_ACK1	0xB5
-#define TPS6586x_RB6_INT_ACK2	0xB6
-#define TPS6586x_RB7_INT_ACK3	0xB7
-#define TPS6586x_RB8_INT_ACK4	0xB8
-
-/* system status */
-#define TPS6586x_RB9_STAT1	0xB9
-#define TPS6586x_RBA_STAT2	0xBA
-#define TPS6586x_RBB_STAT3	0xBB
-#define TPS6586x_RBC_STAT4	0xBC
-
-/* RTC */
-#define TPS6586x_RC0_RTC_CTRL		0xC0
-#define TPS6586x_RC1_RTC_ALARM1_HI	0xC1
-#define TPS6586x_RC2_RTC_ALARM1_MID	0xC2
-#define TPS6586x_RC3_RTC_ALARM1_LO	0xC3
-#define TPS6586x_RC4_RTC_ALARM2_HI	0xC4
-#define TPS6586x_RC5_RTC_ALARM2_LO	0xC5
-#define TPS6586x_RC6_RTC_COUNT4		0xC6
-#define TPS6586x_RC7_RTC_COUNT3		0xC7
-#define TPS6586x_RC8_RTC_COUNT2		0xC8
-#define TPS6586x_RC9_RTC_COUNT1		0xC9
-#define TPS6586x_RCA_RTC_COUNT0		0xCA
-
-/*** GPIO register bit shifts/masks ***/
-/* GPIO1 */
-#define TPS6586x_R5D_GPIOSET1_GPIO1_MODE_SHIFT	0x0
-#define TPS6586x_R5D_GPIOSET1_GPIO1_MODE_MASK	0x3
-#define TPS6586x_R5E_GPIOSET2_GPIO1_OUT_SHIFT	0x0
-#define TPS6586x_R5E_GPIOSET2_GPIO1_OUT_MASK	0x1
-#define TPS6586x_R5E_GPIOSET2_GPIO1_INV_SHIFT	0x4
-#define TPS6586x_R5E_GPIOSET2_GPIO1_INV_MASK	0x1
-
-/* GPIO2 */
-#define TPS6586x_R5D_GPIOSET1_GPIO2_MODE_SHIFT	0x2
-#define TPS6586x_R5D_GPIOSET1_GPIO2_MODE_MASK	0x3
-#define TPS6586x_R5E_GPIOSET2_GPIO2_OUT_SHIFT	0x1
-#define TPS6586x_R5E_GPIOSET2_GPIO2_OUT_MASK	0x1
-#define TPS6586x_R5E_GPIOSET2_GPIO2_INV_SHIFT	0x5
-#define TPS6586x_R5E_GPIOSET2_GPIO2_INV_MASK	0x1
-
-/* GPIO3 */
-#define TPS6586x_R5D_GPIOSET1_GPIO3_MODE_SHIFT	0x4
-#define TPS6586x_R5D_GPIOSET1_GPIO3_MODE_MASK	0x3
-#define TPS6586x_R5E_GPIOSET2_GPIO3_OUT_SHIFT	0x2
-#define TPS6586x_R5E_GPIOSET2_GPIO3_OUT_MASK	0x1
-#define TPS6586x_R5E_GPIOSET2_GPIO3_INV_SHIFT	0x6
-#define TPS6586x_R5E_GPIOSET2_GPIO3_INV_MASK	0x1
-
-/* GPIO4 */
-#define TPS6586x_R5D_GPIOSET1_GPIO4_MODE_SHIFT	0x6
-#define TPS6586x_R5D_GPIOSET1_GPIO4_MODE_MASK	0x3
-#define TPS6586x_R5E_GPIOSET2_GPIO4_OUT_SHIFT	0x3
-#define TPS6586x_R5E_GPIOSET2_GPIO4_OUT_MASK	0x1
-#define TPS6586x_R5E_GPIOSET2_GPIO4_INV_SHIFT	0x7
-#define TPS6586x_R5E_GPIOSET2_GPIO4_INV_MASK	0x1
-
-#define TPS6586x_R5D_GPIO_MODE_NOT_CONFIG	0x0
-#define TPS6586x_R5D_GPIO_MODE_OUTPUT		0x1
-#define TPS6586x_R5D_GPIO_MODE_INPUT_ADC	0x2
-#define TPS6586x_R5D_GPIO_MODE_INPUT_LDO	0x3
-
 struct tps6586x_regulator {
 	struct regulator_desc desc;
 
@@ -338,7 +231,7 @@ static int tps6586x_dvm_voltages[] = {
 };
 
 #define TPS6586X_REGULATOR(_id, vdata, _ops, vreg, shift, nbits,	\
-			   ereg0, ebit0, ereg1, ebit1)	\
+			   ereg0, ebit0, ereg1, ebit1)			\
 	.desc	= {							\
 		.name	= "REG-" #_id,					\
 		.ops	= &tps6586x_regulator_##_ops,			\
@@ -356,23 +249,23 @@ static int tps6586x_dvm_voltages[] = {
 	.enable_bit[1]	= (ebit1),					\
 	.voltages	= tps6586x_##vdata##_voltages,
 
-#define TPS6586X_REGULATOR_DVM_GOREG(goreg, gobit)	\
-	.go_reg = TPS6586X_##goreg, \
+#define TPS6586X_REGULATOR_DVM_GOREG(goreg, gobit)			\
+	.go_reg = TPS6586X_##goreg,					\
 	.go_bit = (gobit),
 
 #define TPS6586X_LDO(_id, vdata, vreg, shift, nbits,			\
 		     ereg0, ebit0, ereg1, ebit1)			\
-{	\
+{									\
 	TPS6586X_REGULATOR(_id, vdata, ldo_ops, vreg, shift, nbits,	\
 			   ereg0, ebit0, ereg1, ebit1)			\
 }
 
 #define TPS6586X_DVM(_id, vdata, vreg, shift, nbits,			\
 		     ereg0, ebit0, ereg1, ebit1, goreg, gobit)		\
-{	\
+{									\
 	TPS6586X_REGULATOR(_id, vdata, dvm_ops, vreg, shift, nbits,	\
 			   ereg0, ebit0, ereg1, ebit1)			\
-	TPS6586X_REGULATOR_DVM_GOREG(goreg, gobit)		\
+	TPS6586X_REGULATOR_DVM_GOREG(goreg, gobit)			\
 }
 
 static struct tps6586x_regulator tps6586x_regulator[] = {

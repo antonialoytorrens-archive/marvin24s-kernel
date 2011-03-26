@@ -30,6 +30,9 @@
 
 #define ACM_TIMEOUT 1*HZ
 
+#define DISABLE_3D_POWERGATING
+#define DISABLE_MPE_POWERGATING
+
 void nvhost_module_busy(struct nvhost_module *mod)
 {
 	mutex_lock(&mod->lock);
@@ -96,6 +99,12 @@ static const char *get_module_clk_id(const char *module, int index)
 {
 	if (index == 1 && strcmp(module, "gr2d") == 0)
 		return "epp";
+	else if (index == 2 && strcmp(module, "gr2d") == 0)
+		return "emc";
+	else if (index == 1 && strcmp(module, "gr3d") == 0)
+		return "emc";
+	else if (index == 1 && strcmp(module, "mpe") == 0)
+		return "emc";
 	else if (index == 0)
 		return module;
 	return NULL;
@@ -139,6 +148,34 @@ int nvhost_module_init(struct nvhost_module *mod, const char *name,
 	mod->parent = parent;
 	mod->powered = false;
 	mod->powergate_id = get_module_powergate_id(name);
+
+#ifdef DISABLE_3D_POWERGATING
+	/*
+	 * It is possible for the 3d block to generate an invalid memory
+	 * request during the power up sequence in some cases.  Workaround
+	 * is to disable 3d block power gating.
+	 */
+	if (mod->powergate_id == TEGRA_POWERGATE_3D) {
+		tegra_powergate_sequence_power_up(mod->powergate_id,
+			mod->clk[0]);
+		clk_disable(mod->clk[0]);
+		mod->powergate_id = -1;
+	}
+#endif
+
+#ifdef DISABLE_MPE_POWERGATING
+	/*
+	 * Disable power gating for MPE as it seems to cause issues with
+	 * camera record stress tests when run in loop.
+	 */
+	if (mod->powergate_id == TEGRA_POWERGATE_MPE) {
+		tegra_powergate_sequence_power_up(mod->powergate_id,
+			mod->clk[0]);
+		clk_disable(mod->clk[0]);
+		mod->powergate_id = -1;
+	}
+#endif
+
 	mutex_init(&mod->lock);
 	init_waitqueue_head(&mod->idle);
 	INIT_DELAYED_WORK(&mod->powerdown, powerdown_handler);

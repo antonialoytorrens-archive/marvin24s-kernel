@@ -25,7 +25,7 @@
 #include <linux/err.h>
 
 #include "board-paz00.h"
-#include "gpio-names.h"
+//#include "gpio-names.h"
 
 static struct regulator_consumer_supply tps658621_sm0_supply[] = {
 	REGULATOR_SUPPLY("vdd_core", NULL),
@@ -147,14 +147,14 @@ static struct regulator_init_data buck_data = REGULATOR_INIT(buck, 1250, 3300);
 static struct tps6586x_rtc_platform_data paz00_rtc_data = {
 /*	.irq	= TEGRA_NR_IRQS + TPS6586X_INT_RTC_ALM1, */
 	.irq	= -1,
-	.start	= {
+/*	.start	= {
 			.year	= 2009,
 			.month	= 1,
 			.day	= 1,
 			.hour	= 0,
 			.min	= 0,
 			.sec	= 0,
-		},
+		}, */
 };
 
 static struct tps6586x_subdev_info tps_devs[] = {

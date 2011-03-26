@@ -40,6 +40,7 @@
 #define PERIPH_MANUAL_RESET	(1 << 12)
 #define PLL_ALT_MISC_REG	(1 << 13)
 #define PLLU			(1 << 14)
+#define PERIPH_SOURCE_CLK_4BIT	(1 << 15)
 #define ENABLE_ON_INIT		(1 << 28)
 
 struct clk;
@@ -77,7 +78,7 @@ enum clk_state {
 struct clk {
 	/* node for master clocks list */
 	struct list_head	node;		/* node for list of all clocks */
-	struct list_head	dvfs;		/* list of dvfs dependencies */
+	struct dvfs 		*dvfs;
 	struct clk_lookup	lookup;
 
 #ifdef CONFIG_DEBUG_FS
@@ -89,7 +90,7 @@ struct clk {
 	unsigned long		dvfs_rate;
 	unsigned long		rate;
 	unsigned long		max_rate;
-	bool			is_dvfs;
+	unsigned long		min_rate;
 	bool			auto_dvfs;
 	bool			cansleep;
 	u32			flags;
@@ -104,6 +105,8 @@ struct clk {
 	const struct clk_mux_sel	*inputs;
 	u32				reg;
 	u32				reg_shift;
+
+	struct list_head		shared_bus_list;
 
 	union {
 		struct {
@@ -127,10 +130,6 @@ struct clk {
 			struct clk			*main;
 			struct clk			*backup;
 		} cpu;
-		struct {
-			struct list_head		list;
-			unsigned long			min_rate;
-		} shared_bus;
 		struct {
 			struct list_head		node;
 			bool				enabled;
@@ -162,9 +161,8 @@ struct clk *tegra_get_clock_by_name(const char *name);
 unsigned long clk_measure_input_freq(void);
 int clk_reparent(struct clk *c, struct clk *parent);
 void tegra_clk_init_from_table(struct tegra_clk_init_table *table);
-void tegra_clk_set_dvfs_rates(void);
 void clk_set_cansleep(struct clk *c);
 unsigned long clk_get_rate_locked(struct clk *c);
-int tegra_dvfs_set_rate_locked(struct clk *c, unsigned long rate);
+void tegra2_sdmmc_tap_delay(struct clk *c, int delay);
 
 #endif

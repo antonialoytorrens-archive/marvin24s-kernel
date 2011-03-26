@@ -17,14 +17,20 @@
  */
 #include <linux/i2c.h>
 #include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
 #include <linux/mfd/tps6586x.h>
 #include <linux/gpio.h>
 #include <linux/power/gpio-charger.h>
 #include <linux/platform_device.h>
+#include <linux/io.h>
+#include <mach/iomap.h>
 #include <linux/err.h>
 
 #include "board-seaboard.h"
 #include "gpio-names.h"
+
+#define PMC_CTRL		0x0
+#define PMC_CTRL_INTR_LOW	(1 << 17)
 
 static struct regulator_consumer_supply tps658621_sm0_supply[] = {
 	REGULATOR_SUPPLY("vdd_core", NULL),
@@ -72,6 +78,28 @@ static struct regulator_consumer_supply tps658621_ldo9_supply[] = {
 	REGULATOR_SUPPLY("avdd_amp", NULL),
 };
 
+static struct regulator_consumer_supply wwan_pwr_consumer_supply[] = {
+	REGULATOR_SUPPLY("vcc_modem3v", NULL),
+};
+
+struct regulator_init_data wwan_pwr_initdata = {
+	.consumer_supplies = wwan_pwr_consumer_supply,
+	.num_consumer_supplies = 1,
+	.constraints = {
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+};
+
+static struct fixed_voltage_config wwan_pwr = {
+	.supply_name		= "si4825",
+	.microvolts		= 3300000, /* 3.3V */
+	.gpio			= TPS_GPIO_WWAN_PWR,
+	.startup_delay		= 0,
+	.enable_high		= 1,
+	.enabled_at_boot	= 1,
+	.init_data		= &wwan_pwr_initdata,
+};
+
 #define REGULATOR_INIT(_id, _minmv, _maxmv)				\
 	{								\
 		.constraints = {					\
@@ -101,10 +129,21 @@ static struct regulator_init_data ldo7_data = REGULATOR_INIT(ldo7, 1250, 3300);
 static struct regulator_init_data ldo8_data = REGULATOR_INIT(ldo8, 1250, 3300);
 static struct regulator_init_data ldo9_data = REGULATOR_INIT(ldo9, 1250, 3300);
 
+static struct tps6586x_rtc_platform_data rtc_data = {
+	.irq = TEGRA_NR_IRQS + TPS6586X_INT_RTC_ALM1,
+};
+
 #define TPS_REG(_id, _data)			\
 	{					\
 		.id = TPS6586X_ID_##_id,	\
 		.name = "tps6586x-regulator",	\
+		.platform_data = _data,		\
+	}
+
+#define TPS_GPIO_FIXED_REG(_id, _data)		\
+	{					\
+		.id = _id,			\
+		.name = "reg-fixed-voltage",	\
 		.platform_data = _data,		\
 	}
 
@@ -122,23 +161,39 @@ static struct tps6586x_subdev_info tps_devs[] = {
 	TPS_REG(LDO_7, &ldo7_data),
 	TPS_REG(LDO_8, &ldo8_data),
 	TPS_REG(LDO_9, &ldo9_data),
+	TPS_GPIO_FIXED_REG(0, &wwan_pwr),
+	{
+		.id	= 0,
+		.name	= "tps6586x-rtc",
+		.platform_data	= &rtc_data,
+	},
 };
 
 static struct tps6586x_platform_data tps_platform = {
+	.irq_base = TEGRA_NR_IRQS,
 	.num_subdevs = ARRAY_SIZE(tps_devs),
 	.subdevs = tps_devs,
-	.gpio_base = TEGRA_NR_GPIOS,
+	.gpio_base = TPS_GPIO_BASE,
 };
 
 static struct i2c_board_info __initdata seaboard_regulators[] = {
 	{
 		I2C_BOARD_INFO("tps6586x", 0x34),
-		.platform_data = &tps_platform,
+		.irq		= INT_EXTERNAL_PMU,
+		.platform_data	= &tps_platform,
 	},
 };
 
 int __init seaboard_regulator_init(void)
 {
+	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
+	u32 pmc_ctrl;
+
+	/* configure the power management controller to trigger PMU
+	 * interrupts when low */
+	pmc_ctrl = readl(pmc + PMC_CTRL);
+	writel(pmc_ctrl | PMC_CTRL_INTR_LOW, pmc + PMC_CTRL);
+
 	i2c_register_board_info(4, seaboard_regulators, 1);
 	return 0;
 }
@@ -182,6 +237,7 @@ int __init seaboard_ac_power_init(void)
 	int err;
 
 	tegra_gpio_enable(TEGRA_GPIO_AC_ONLINE);
+	tegra_gpio_enable(TEGRA_GPIO_DISABLE_CHARGER);
 
 	err = gpio_request(TEGRA_GPIO_AC_ONLINE, "ac online");
 	if (err < 0) {
@@ -189,6 +245,14 @@ int __init seaboard_ac_power_init(void)
 	} else {
 		gpio_direction_input(TEGRA_GPIO_AC_ONLINE);
 		gpio_free(TEGRA_GPIO_AC_ONLINE);
+	}
+
+	err = gpio_request(TEGRA_GPIO_DISABLE_CHARGER, "disable charger");
+	if (err < 0) {
+		pr_err("could not acquire charger disable\n");
+	} else {
+		gpio_direction_output(TEGRA_GPIO_DISABLE_CHARGER, 0);
+		gpio_free(TEGRA_GPIO_DISABLE_CHARGER);
 	}
 
 	err = platform_device_register(&seaboard_ac_power_device);

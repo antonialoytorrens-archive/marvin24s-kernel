@@ -14,226 +14,71 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <typedefs.h>
-#include <bcmendian.h>
-#include <linuxver.h>
-#include <bcmdefs.h>
-#include <osl.h>
-#include <bcmutils.h>
 #include <linux/delay.h>
+#include <linux/fs.h>
 #ifdef mips
 #include <asm/paccess.h>
 #endif				/* mips */
+#include <linux/module.h>
+#include <linux/pci.h>
+#include <linux/netdevice.h>
+#include <linux/sched.h>
+#include <bcmdefs.h>
+#include <osl.h>
+#include <bcmutils.h>
 #include <pcicfg.h>
 
-#include <linux/fs.h>
-
-#define PCI_CFG_RETRY 		10
 
 #define OS_HANDLE_MAGIC		0x1234abcd	/* Magic # to recognise osh */
 #define BCM_MEM_FILENAME_LEN 	24	/* Mem. filename length */
 
-#if defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF)
-#define MAX_STATIC_BUF_NUM 16
-#define STATIC_BUF_SIZE	(PAGE_SIZE*2)
-#define STATIC_BUF_TOTAL_LEN (MAX_STATIC_BUF_NUM*STATIC_BUF_SIZE)
-typedef struct bcm_static_buf {
-	struct semaphore static_sem;
-	unsigned char *buf_ptr;
-	unsigned char buf_use[MAX_STATIC_BUF_NUM];
-} bcm_static_buf_t;
-
-static bcm_static_buf_t *bcm_static_buf;
-
-#define MAX_STATIC_PKT_NUM 8
-typedef struct bcm_static_pkt {
-	struct sk_buff *skb_4k[MAX_STATIC_PKT_NUM];
-	struct sk_buff *skb_8k[MAX_STATIC_PKT_NUM];
-	struct semaphore osl_pkt_sem;
-	unsigned char pkt_use[MAX_STATIC_PKT_NUM * 2];
-} bcm_static_pkt_t;
-static bcm_static_pkt_t *bcm_static_skb;
-#endif				/* DHD_USE_STATIC_BUF */
-
-struct osl_info {
-	osl_pubinfo_t pub;
-	uint magic;
-	void *pdev;
-	uint malloced;
-	uint failed;
-	uint bustype;
-};
-
 /* Global ASSERT type flag */
 u32 g_assert_type;
 
-#ifdef BRCM_FULLMAC
-static s16 linuxbcmerrormap[] = { 0,	/* 0 */
-	-EINVAL,		/* BCME_ERROR */
-	-EINVAL,		/* BCME_BADARG */
-	-EINVAL,		/* BCME_BADOPTION */
-	-EINVAL,		/* BCME_NOTUP */
-	-EINVAL,		/* BCME_NOTDOWN */
-	-EINVAL,		/* BCME_NOTAP */
-	-EINVAL,		/* BCME_NOTSTA */
-	-EINVAL,		/* BCME_BADKEYIDX */
-	-EINVAL,		/* BCME_RADIOOFF */
-	-EINVAL,		/* BCME_NOTBANDLOCKED */
-	-EINVAL,		/* BCME_NOCLK */
-	-EINVAL,		/* BCME_BADRATESET */
-	-EINVAL,		/* BCME_BADBAND */
-	-E2BIG,			/* BCME_BUFTOOSHORT */
-	-E2BIG,			/* BCME_BUFTOOLONG */
-	-EBUSY,			/* BCME_BUSY */
-	-EINVAL,		/* BCME_NOTASSOCIATED */
-	-EINVAL,		/* BCME_BADSSIDLEN */
-	-EINVAL,		/* BCME_OUTOFRANGECHAN */
-	-EINVAL,		/* BCME_BADCHAN */
-	-EFAULT,		/* BCME_BADADDR */
-	-ENOMEM,		/* BCME_NORESOURCE */
-	-EOPNOTSUPP,		/* BCME_UNSUPPORTED */
-	-EMSGSIZE,		/* BCME_BADLENGTH */
-	-EINVAL,		/* BCME_NOTREADY */
-	-EPERM,			/* BCME_NOTPERMITTED */
-	-ENOMEM,		/* BCME_NOMEM */
-	-EINVAL,		/* BCME_ASSOCIATED */
-	-ERANGE,		/* BCME_RANGE */
-	-EINVAL,		/* BCME_NOTFOUND */
-	-EINVAL,		/* BCME_WME_NOT_ENABLED */
-	-EINVAL,		/* BCME_TSPEC_NOTFOUND */
-	-EINVAL,		/* BCME_ACM_NOTSUPPORTED */
-	-EINVAL,		/* BCME_NOT_WME_ASSOCIATION */
-	-EIO,			/* BCME_SDIO_ERROR */
-	-ENODEV,		/* BCME_DONGLE_DOWN */
-	-EINVAL,		/* BCME_VERSION */
-	-EIO,			/* BCME_TXFAIL */
-	-EIO,			/* BCME_RXFAIL */
-	-EINVAL,		/* BCME_NODEVICE */
-	-EINVAL,		/* BCME_NMODE_DISABLED */
-	-ENODATA,		/* BCME_NONRESIDENT */
-
-/* When an new error code is added to bcmutils.h, add os
- * spcecific error translation here as well
- */
-/* check if BCME_LAST changed since the last time this function was updated */
-#if BCME_LAST != -42
-#error "You need to add a OS error translation in the linuxbcmerrormap \
-	for new error code defined in bcmutils.h"
-#endif
-};
-
-/* translate bcmerrors into linux errors */
-int osl_error(int bcmerror)
+struct osl_info *osl_attach(void *pdev, uint bustype)
 {
-	if (bcmerror > 0)
-		bcmerror = 0;
-	else if (bcmerror < BCME_LAST)
-		bcmerror = BCME_ERROR;
+	struct osl_info *osh;
 
-	/* Array bounds covered by ASSERT in osl_attach */
-	return linuxbcmerrormap[-bcmerror];
-}
-#endif /* BRCM_FULLMAC */
-
-osl_t *osl_attach(void *pdev, uint bustype, bool pkttag)
-{
-	osl_t *osh;
-
-	osh = kmalloc(sizeof(osl_t), GFP_ATOMIC);
+	osh = kmalloc(sizeof(struct osl_info), GFP_ATOMIC);
 	ASSERT(osh);
 
-	bzero(osh, sizeof(osl_t));
-
-#ifdef BRCM_FULLMAC
-	/* Check that error map has the right number of entries in it */
-	ASSERT(ABS(BCME_LAST) == (ARRAY_SIZE(linuxbcmerrormap) - 1));
-#endif /* BRCM_FULLMAC */
+	memset(osh, 0, sizeof(struct osl_info));
 
 	osh->magic = OS_HANDLE_MAGIC;
-	osh->malloced = 0;
-	osh->failed = 0;
 	osh->pdev = pdev;
-	osh->pub.pkttag = pkttag;
 	osh->bustype = bustype;
 
 	switch (bustype) {
 	case PCI_BUS:
 	case SI_BUS:
 	case PCMCIA_BUS:
-		osh->pub.mmbus = true;
+		osh->mmbus = true;
 		break;
 	case JTAG_BUS:
 	case SDIO_BUS:
 	case USB_BUS:
 	case SPI_BUS:
 	case RPC_BUS:
-		osh->pub.mmbus = false;
+		osh->mmbus = false;
 		break;
 	default:
 		ASSERT(false);
 		break;
 	}
 
-#if defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF)
-	if (!bcm_static_buf) {
-		bcm_static_buf = (bcm_static_buf_t *) dhd_os_prealloc(3,
-					STATIC_BUF_SIZE + STATIC_BUF_TOTAL_LEN);
-		if (!bcm_static_buf) {
-			printk(KERN_ERR "can not alloc static buf!\n");
-		} else
-			printk(KERN_ERR "alloc static buf at %x!\n",
-			       (unsigned int)bcm_static_buf);
-
-		init_MUTEX(&bcm_static_buf->static_sem);
-
-		bcm_static_buf->buf_ptr =
-		    (unsigned char *)bcm_static_buf + STATIC_BUF_SIZE;
-
-	}
-
-	if (!bcm_static_skb) {
-		int i;
-		void *skb_buff_ptr = 0;
-		bcm_static_skb =
-		    (bcm_static_pkt_t *) ((char *)bcm_static_buf + 2048);
-		skb_buff_ptr = dhd_os_prealloc(4, 0);
-
-		bcopy(skb_buff_ptr, bcm_static_skb,
-		      sizeof(struct sk_buff *) * 16);
-		for (i = 0; i < MAX_STATIC_PKT_NUM * 2; i++)
-			bcm_static_skb->pkt_use[i] = 0;
-
-		init_MUTEX(&bcm_static_skb->osl_pkt_sem);
-	}
-#endif /* defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF) */
-
-#if defined(BCMDBG) && !defined(BRCM_FULLMAC)
-	if (pkttag) {
-		struct sk_buff *skb;
-		ASSERT(OSL_PKTTAG_SZ <= sizeof(skb->cb));
-	}
-#endif
 	return osh;
 }
 
-void osl_detach(osl_t *osh)
+void osl_detach(struct osl_info *osh)
 {
 	if (osh == NULL)
 		return;
 
-#if defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF)
-	if (bcm_static_buf)
-		bcm_static_buf = 0;
-
-	if (bcm_static_skb)
-		bcm_static_skb = 0;
-#endif
 	ASSERT(osh->magic == OS_HANDLE_MAGIC);
 	kfree(osh);
 }
 
-/* Return a new packet. zero out pkttag */
-void *BCMFASTPATH osl_pktget(osl_t *osh, uint len)
+struct sk_buff *BCMFASTPATH pkt_buf_get_skb(struct osl_info *osh, uint len)
 {
 	struct sk_buff *skb;
 
@@ -242,23 +87,19 @@ void *BCMFASTPATH osl_pktget(osl_t *osh, uint len)
 		skb_put(skb, len);
 		skb->priority = 0;
 
-		osh->pub.pktalloced++;
+		osh->pktalloced++;
 	}
 
-	return (void *)skb;
+	return skb;
 }
 
 /* Free the driver packet. Free the tag if present */
-void BCMFASTPATH osl_pktfree(osl_t *osh, void *p, bool send)
+void BCMFASTPATH pkt_buf_free_skb(struct osl_info *osh, struct sk_buff *skb, bool send)
 {
-	struct sk_buff *skb, *nskb;
+	struct sk_buff *nskb;
 	int nest = 0;
 
-	skb = (struct sk_buff *)p;
 	ASSERT(skb);
-
-	if (send && osh->pub.tx_fn)
-		osh->pub.tx_fn(osh->pub.tx_ctx, p, 0);
 
 	/* perversion: we use skb->next to chain multi-skb packets */
 	while (skb) {
@@ -276,130 +117,14 @@ void BCMFASTPATH osl_pktfree(osl_t *osh, void *p, bool send)
 			 */
 			dev_kfree_skb(skb);
 
-		osh->pub.pktalloced--;
+		osh->pktalloced--;
 		nest++;
 		skb = nskb;
 	}
 }
 
-#if defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF)
-void *osl_pktget_static(osl_t *osh, uint len)
-{
-	int i = 0;
-	struct sk_buff *skb;
-
-	if (len > (PAGE_SIZE * 2)) {
-		printk(KERN_ERR "Do we really need this big skb??\n");
-		return osl_pktget(osh, len);
-	}
-
-	down(&bcm_static_skb->osl_pkt_sem);
-	if (len <= PAGE_SIZE) {
-		for (i = 0; i < MAX_STATIC_PKT_NUM; i++) {
-			if (bcm_static_skb->pkt_use[i] == 0)
-				break;
-		}
-
-		if (i != MAX_STATIC_PKT_NUM) {
-			bcm_static_skb->pkt_use[i] = 1;
-			up(&bcm_static_skb->osl_pkt_sem);
-
-			skb = bcm_static_skb->skb_4k[i];
-			skb->tail = skb->data + len;
-			skb->len = len;
-
-			return skb;
-		}
-	}
-
-	for (i = 0; i < MAX_STATIC_PKT_NUM; i++) {
-		if (bcm_static_skb->pkt_use[i + MAX_STATIC_PKT_NUM] == 0)
-			break;
-	}
-
-	if (i != MAX_STATIC_PKT_NUM) {
-		bcm_static_skb->pkt_use[i + MAX_STATIC_PKT_NUM] = 1;
-		up(&bcm_static_skb->osl_pkt_sem);
-		skb = bcm_static_skb->skb_8k[i];
-		skb->tail = skb->data + len;
-		skb->len = len;
-
-		return skb;
-	}
-
-	up(&bcm_static_skb->osl_pkt_sem);
-	printk(KERN_ERR "all static pkt in use!\n");
-	return osl_pktget(osh, len);
-}
-
-void osl_pktfree_static(osl_t *osh, void *p, bool send)
-{
-	int i;
-
-	for (i = 0; i < MAX_STATIC_PKT_NUM * 2; i++) {
-		if (p == bcm_static_skb->skb_4k[i]) {
-			down(&bcm_static_skb->osl_pkt_sem);
-			bcm_static_skb->pkt_use[i] = 0;
-			up(&bcm_static_skb->osl_pkt_sem);
-
-			return;
-		}
-	}
-	return osl_pktfree(osh, p, send);
-}
-#endif /* defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF) */
-
-u32 osl_pci_read_config(osl_t *osh, uint offset, uint size)
-{
-	uint val = 0;
-	uint retry = PCI_CFG_RETRY;
-
-	ASSERT((osh && (osh->magic == OS_HANDLE_MAGIC)));
-
-	/* only 4byte access supported */
-	ASSERT(size == 4);
-
-	do {
-		pci_read_config_dword(osh->pdev, offset, &val);
-		if (val != 0xffffffff)
-			break;
-	} while (retry--);
-
-#ifdef BCMDBG
-	if (retry < PCI_CFG_RETRY)
-		printk("PCI CONFIG READ access to %d required %d retries\n",
-		       offset, (PCI_CFG_RETRY - retry));
-#endif				/* BCMDBG */
-
-	return val;
-}
-
-void osl_pci_write_config(osl_t *osh, uint offset, uint size, uint val)
-{
-	uint retry = PCI_CFG_RETRY;
-
-	ASSERT((osh && (osh->magic == OS_HANDLE_MAGIC)));
-
-	/* only 4byte access supported */
-	ASSERT(size == 4);
-
-	do {
-		pci_write_config_dword(osh->pdev, offset, val);
-		if (offset != PCI_BAR0_WIN)
-			break;
-		if (osl_pci_read_config(osh, offset, size) == val)
-			break;
-	} while (retry--);
-
-#if defined(BCMDBG) && !defined(BRCM_FULLMAC)
-	if (retry < PCI_CFG_RETRY)
-		printk("PCI CONFIG WRITE access to %d required %d retries\n",
-		       offset, (PCI_CFG_RETRY - retry));
-#endif				/* BCMDBG */
-}
-
 /* return bus # for the pci device pointed by osh->pdev */
-uint osl_pci_bus(osl_t *osh)
+uint osl_pci_bus(struct osl_info *osh)
 {
 	ASSERT(osh && (osh->magic == OS_HANDLE_MAGIC) && osh->pdev);
 
@@ -407,126 +132,37 @@ uint osl_pci_bus(osl_t *osh)
 }
 
 /* return slot # for the pci device pointed by osh->pdev */
-uint osl_pci_slot(osl_t *osh)
+uint osl_pci_slot(struct osl_info *osh)
 {
 	ASSERT(osh && (osh->magic == OS_HANDLE_MAGIC) && osh->pdev);
 
 	return PCI_SLOT(((struct pci_dev *)osh->pdev)->devfn);
 }
 
-void *osl_malloc(osl_t *osh, uint size)
-{
-	void *addr;
-
-	/* only ASSERT if osh is defined */
-	if (osh)
-		ASSERT(osh->magic == OS_HANDLE_MAGIC);
-
-#if defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF)
-		if (bcm_static_buf) {
-			int i = 0;
-			if ((size >= PAGE_SIZE) && (size <= STATIC_BUF_SIZE)) {
-				down(&bcm_static_buf->static_sem);
-				for (i = 0; i < MAX_STATIC_BUF_NUM; i++) {
-					if (bcm_static_buf->buf_use[i] == 0)
-						break;
-				}
-				if (i == MAX_STATIC_BUF_NUM) {
-					up(&bcm_static_buf->static_sem);
-					printk(KERN_ERR "all static buff in use!\n");
-					goto original;
-				}
-				bcm_static_buf->buf_use[i] = 1;
-				up(&bcm_static_buf->static_sem);
-
-				bzero(bcm_static_buf->buf_ptr + STATIC_BUF_SIZE * i,
-					  size);
-				if (osh)
-					osh->malloced += size;
-
-				return (void *)(bcm_static_buf->buf_ptr +
-						 STATIC_BUF_SIZE * i);
-			}
-		}
-	original:
-#endif /* defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF) */
-
-	addr = kmalloc(size, GFP_ATOMIC);
-	if (addr == NULL) {
-		if (osh)
-			osh->failed++;
-		return NULL;
-	}
-	if (osh)
-		osh->malloced += size;
-
-	return addr;
-}
-
-void osl_mfree(osl_t *osh, void *addr, uint size)
-{
-#if defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF)
-	if (bcm_static_buf) {
-		if ((addr > (void *)bcm_static_buf) && ((unsigned char *)addr
-				<= ((unsigned char *)
-				    bcm_static_buf +
-				    STATIC_BUF_TOTAL_LEN))) {
-			int buf_idx = 0;
-			buf_idx =
-			    ((unsigned char *)addr -
-			     bcm_static_buf->buf_ptr) / STATIC_BUF_SIZE;
-			down(&bcm_static_buf->static_sem);
-			bcm_static_buf->buf_use[buf_idx] = 0;
-			up(&bcm_static_buf->static_sem);
-
-			if (osh) {
-				ASSERT(osh->magic == OS_HANDLE_MAGIC);
-				osh->malloced -= size;
-			}
-			return;
-		}
-	}
-#endif /* defined(BRCM_FULLMAC) && defined(DHD_USE_STATIC_BUF) */
-	if (osh) {
-		ASSERT(osh->magic == OS_HANDLE_MAGIC);
-		osh->malloced -= size;
-	}
-	kfree(addr);
-}
-
-uint osl_malloced(osl_t *osh)
-{
-	ASSERT((osh && (osh->magic == OS_HANDLE_MAGIC)));
-	return osh->malloced;
-}
-
-uint osl_dma_consistent_align(void)
-{
-	return PAGE_SIZE;
-}
-
-void *osl_dma_alloc_consistent(osl_t *osh, uint size, u16 align_bits,
+void *osl_dma_alloc_consistent(struct osl_info *osh, uint size, u16 align_bits,
 			       uint *alloced, unsigned long *pap)
 {
 	ASSERT((osh && (osh->magic == OS_HANDLE_MAGIC)));
 
 	if (align_bits) {
 		u16 align = (1 << align_bits);
-		if (!IS_ALIGNED(DMA_CONSISTENT_ALIGN, align))
+		if (!IS_ALIGNED(PAGE_SIZE, align))
 			size += align;
 		*alloced = size;
 	}
 	return pci_alloc_consistent(osh->pdev, size, (dma_addr_t *) pap);
 }
 
-void osl_dma_free_consistent(osl_t *osh, void *va, uint size, unsigned long pa)
+void osl_dma_free_consistent(struct osl_info *osh, void *va, uint size,
+			     unsigned long pa)
 {
 	ASSERT((osh && (osh->magic == OS_HANDLE_MAGIC)));
 
 	pci_free_consistent(osh->pdev, size, va, (dma_addr_t) pa);
 }
 
-uint BCMFASTPATH osl_dma_map(osl_t *osh, void *va, uint size, int direction)
+uint BCMFASTPATH osl_dma_map(struct osl_info *osh, void *va, uint size,
+			     int direction)
 {
 	int dir;
 
@@ -535,7 +171,8 @@ uint BCMFASTPATH osl_dma_map(osl_t *osh, void *va, uint size, int direction)
 	return pci_map_single(osh->pdev, va, size, dir);
 }
 
-void BCMFASTPATH osl_dma_unmap(osl_t *osh, uint pa, uint size, int direction)
+void BCMFASTPATH osl_dma_unmap(struct osl_info *osh, uint pa, uint size,
+			       int direction)
 {
 	int dir;
 
@@ -591,63 +228,3 @@ void osl_assert(char *exp, char *file, int line)
 }
 #endif				/* defined(BCMDBG_ASSERT) */
 
-void osl_delay(uint usec)
-{
-	uint d;
-
-	while (usec > 0) {
-		d = min(usec, (uint)1000);
-		udelay(d);
-		usec -= d;
-	}
-}
-
-#if defined(BCMSDIO) && !defined(BRCM_FULLMAC)
-u8 osl_readb(osl_t *osh, volatile u8 *r)
-{
-	osl_rreg_fn_t rreg = ((osl_pubinfo_t *) osh)->rreg_fn;
-	void *ctx = ((osl_pubinfo_t *) osh)->reg_ctx;
-
-	return (u8) ((rreg) (ctx, (void *)r, sizeof(u8)));
-}
-
-u16 osl_readw(osl_t *osh, volatile u16 *r)
-{
-	osl_rreg_fn_t rreg = ((osl_pubinfo_t *) osh)->rreg_fn;
-	void *ctx = ((osl_pubinfo_t *) osh)->reg_ctx;
-
-	return (u16) ((rreg) (ctx, (void *)r, sizeof(u16)));
-}
-
-u32 osl_readl(osl_t *osh, volatile u32 *r)
-{
-	osl_rreg_fn_t rreg = ((osl_pubinfo_t *) osh)->rreg_fn;
-	void *ctx = ((osl_pubinfo_t *) osh)->reg_ctx;
-
-	return (u32) ((rreg) (ctx, (void *)r, sizeof(u32)));
-}
-
-void osl_writeb(osl_t *osh, volatile u8 *r, u8 v)
-{
-	osl_wreg_fn_t wreg = ((osl_pubinfo_t *) osh)->wreg_fn;
-	void *ctx = ((osl_pubinfo_t *) osh)->reg_ctx;
-
-	((wreg) (ctx, (void *)r, v, sizeof(u8)));
-}
-
-void osl_writew(osl_t *osh, volatile u16 *r, u16 v)
-{
-	osl_wreg_fn_t wreg = ((osl_pubinfo_t *) osh)->wreg_fn;
-	void *ctx = ((osl_pubinfo_t *) osh)->reg_ctx;
-
-	((wreg) (ctx, (void *)r, v, sizeof(u16)));
-}
-
-void osl_writel(osl_t *osh, volatile u32 *r, u32 v)
-{
-	osl_wreg_fn_t wreg = ((osl_pubinfo_t *) osh)->wreg_fn;
-	void *ctx = ((osl_pubinfo_t *) osh)->reg_ctx;
-
-	((wreg) (ctx, (void *)r, v, sizeof(u32)));
-}
-#endif	/* BCMSDIO */

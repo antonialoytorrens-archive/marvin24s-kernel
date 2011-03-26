@@ -15,13 +15,14 @@
  */
 /* ****************** BCMSDH Interface Functions *************************** */
 
-#include <typedefs.h>
+#include <linux/types.h>
+#include <linux/netdevice.h>
+#include <bcmdefs.h>
 #include <bcmdevs.h>
-#include <bcmendian.h>
+#include <osl.h>
 #include <bcmutils.h>
 #include <hndsoc.h>
 #include <siutils.h>
-#include <osl.h>
 
 #include <bcmsdh.h>		/* BRCM API for SDIO
 			 clients (such as wl, dhd) */
@@ -37,7 +38,7 @@ struct bcmsdh_info {
 	bool init_success;	/* underlying driver successfully attached */
 	void *sdioh;		/* handler for sdioh */
 	u32 vendevid;	/* Target Vendor and Device ID on SD bus */
-	osl_t *osh;
+	struct osl_info *osh;
 	bool regfail;		/* Save status of last
 				 reg_read/reg_write call */
 	u32 sbwad;		/* Save backplane window address */
@@ -54,17 +55,16 @@ void bcmsdh_enable_hw_oob_intr(bcmsdh_info_t *sdh, bool enable)
 }
 #endif
 
-bcmsdh_info_t *bcmsdh_attach(osl_t *osh, void *cfghdl, void **regsva, uint irq)
+bcmsdh_info_t *bcmsdh_attach(struct osl_info *osh, void *cfghdl,
+				void **regsva, uint irq)
 {
 	bcmsdh_info_t *bcmsdh;
 
-	bcmsdh = (bcmsdh_info_t *) MALLOC(osh, sizeof(bcmsdh_info_t));
+	bcmsdh = kzalloc(sizeof(bcmsdh_info_t), GFP_ATOMIC);
 	if (bcmsdh == NULL) {
-		BCMSDH_ERROR(("bcmsdh_attach: out of memory, "
-			"malloced %d bytes\n", MALLOCED(osh)));
+		BCMSDH_ERROR(("bcmsdh_attach: out of memory"));
 		return NULL;
 	}
-	bzero((char *)bcmsdh, sizeof(bcmsdh_info_t));
 
 	/* save the handler locally */
 	l_bcmsdh = bcmsdh;
@@ -85,7 +85,7 @@ bcmsdh_info_t *bcmsdh_attach(osl_t *osh, void *cfghdl, void **regsva, uint irq)
 	return bcmsdh;
 }
 
-int bcmsdh_detach(osl_t *osh, void *sdh)
+int bcmsdh_detach(struct osl_info *osh, void *sdh)
 {
 	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *) sdh;
 
@@ -94,7 +94,7 @@ int bcmsdh_detach(osl_t *osh, void *sdh)
 			sdioh_detach(osh, bcmsdh->sdioh);
 			bcmsdh->sdioh = NULL;
 		}
-		MFREE(osh, bcmsdh, sizeof(bcmsdh_info_t));
+		kfree(bcmsdh);
 	}
 
 	l_bcmsdh = NULL;
@@ -198,7 +198,7 @@ u8 bcmsdh_cfg_read(void *sdh, uint fnc_num, u32 addr, int *err)
 #ifdef SDIOH_API_ACCESS_RETRY_LIMIT
 	do {
 		if (retry)	/* wait for 1 ms till bus get settled down */
-			OSL_DELAY(1000);
+			udelay(1000);
 #endif
 		status =
 		    sdioh_cfg_read(bcmsdh->sdioh, fnc_num, addr,
@@ -233,7 +233,7 @@ bcmsdh_cfg_write(void *sdh, uint fnc_num, u32 addr, u8 data, int *err)
 #ifdef SDIOH_API_ACCESS_RETRY_LIMIT
 	do {
 		if (retry)	/* wait for 1 ms till bus get settled down */
-			OSL_DELAY(1000);
+			udelay(1000);
 #endif
 		status =
 		    sdioh_cfg_write(bcmsdh->sdioh, fnc_num, addr,
@@ -318,19 +318,19 @@ int bcmsdh_cis_read(void *sdh, uint func, u8 * cis, uint length)
 	if (ascii) {
 		/* Move binary bits to tmp and format them
 			 into the provided buffer. */
-		tmp_buf = (u8 *) MALLOC(bcmsdh->osh, length);
+		tmp_buf = kmalloc(length, GFP_ATOMIC);
 		if (tmp_buf == NULL) {
 			BCMSDH_ERROR(("%s: out of memory\n", __func__));
 			return BCME_NOMEM;
 		}
-		bcopy(cis, tmp_buf, length);
+		memcpy(tmp_buf, cis, length);
 		for (tmp_ptr = tmp_buf, ptr = cis; ptr < (cis + length - 4);
 		     tmp_ptr++) {
 			ptr += sprintf((char *)ptr, "%.2x ", *tmp_ptr & 0xff);
 			if ((((tmp_ptr - tmp_buf) + 1) & 0xf) == 0)
 				ptr += sprintf((char *)ptr, "\n");
 		}
-		MFREE(bcmsdh->osh, tmp_buf, length);
+		kfree(tmp_buf);
 	}
 
 	return SDIOH_API_SUCCESS(status) ? 0 : BCME_ERROR;
@@ -452,7 +452,7 @@ bool bcmsdh_regfail(void *sdh)
 
 int
 bcmsdh_recv_buf(void *sdh, u32 addr, uint fn, uint flags,
-		u8 *buf, uint nbytes, void *pkt,
+		u8 *buf, uint nbytes, struct sk_buff *pkt,
 		bcmsdh_cmplt_fn_t complete, void *handle)
 {
 	bcmsdh_info_t *bcmsdh = (bcmsdh_info_t *) sdh;

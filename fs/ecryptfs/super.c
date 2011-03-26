@@ -28,7 +28,6 @@
 #include <linux/key.h>
 #include <linux/slab.h>
 #include <linux/seq_file.h>
-#include <linux/smp_lock.h>
 #include <linux/file.h>
 #include <linux/crypto.h>
 #include "ecryptfs_kernel.h"
@@ -56,7 +55,6 @@ static struct inode *ecryptfs_alloc_inode(struct super_block *sb)
 	if (unlikely(!inode_info))
 		goto out;
 	ecryptfs_init_crypt_stat(&inode_info->crypt_stat);
-	mutex_init(&inode_info->lower_file_mutex);
 	inode_info->lower_file = NULL;
 	inode = &inode_info->vfs_inode;
 out:
@@ -180,6 +178,8 @@ static int ecryptfs_show_options(struct seq_file *m, struct vfsmount *mnt)
 		seq_printf(m, ",ecryptfs_encrypted_view");
 	if (mount_crypt_stat->flags & ECRYPTFS_UNLINK_SIGS)
 		seq_printf(m, ",ecryptfs_unlink_sigs");
+	if (mount_crypt_stat->flags & ECRYPTFS_GLOBAL_MOUNT_AUTH_TOK_ONLY)
+		seq_printf(m, ",ecryptfs_mount_auth_tok_only");
 
 	return 0;
 }
@@ -187,7 +187,7 @@ static int ecryptfs_show_options(struct seq_file *m, struct vfsmount *mnt)
 const struct super_operations ecryptfs_sops = {
 	.alloc_inode = ecryptfs_alloc_inode,
 	.destroy_inode = ecryptfs_destroy_inode,
-	.drop_inode = generic_delete_inode,
+	.drop_inode = generic_drop_inode,
 	.statfs = ecryptfs_statfs,
 	.remount_fs = NULL,
 	.evict_inode = ecryptfs_evict_inode,

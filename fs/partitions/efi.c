@@ -634,11 +634,8 @@ int efi_partition(struct parsed_partitions *state)
 			state->parts[i + 1].flags = ADDPART_FLAG_RAID;
 
 		info = &state->parts[i + 1].info;
-		/* The EFI specification diverges from RFC 4122 with respect to
-		 * the packed storage of its UUIDs.  efi_guid_unparse unpacks to
-		 * a common ASCII representation, which allows part_pack_uuid to
-		 * pack it in the standard big endian layout for use by the rest
-		 * of the kernel.
+		/* Instead of doing a manual swap to big endian, reuse the
+		 * common ASCII hex format as the interim.
 		 */
 		efi_guid_unparse(&ptes[i].unique_partition_guid, unparsed_guid);
 		part_pack_uuid(unparsed_guid, info->uuid);

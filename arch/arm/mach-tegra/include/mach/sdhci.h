@@ -1,5 +1,5 @@
 /*
- * include/asm-arm/arch-tegra/sdhci.h
+ * include/asm-arm/arch-tegra/include/mach/sdhci.h
  *
  * Copyright (C) 2009 Palm, Inc.
  * Author: Yvonne Yip <y@palm.com>
@@ -20,15 +20,10 @@
 #include <linux/mmc/host.h>
 
 struct tegra_sdhci_platform_data {
-	const char *clk_id;
-	int force_hs;
-	int support_8bit;
 	int cd_gpio;
 	int wp_gpio;
 	int power_gpio;
-
-	void (*board_probe)(int id, struct mmc_host *);
-	void (*board_remove)(int id, struct mmc_host *);
+	int is_8bit;
 };
 
 #endif

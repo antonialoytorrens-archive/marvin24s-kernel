@@ -21,13 +21,13 @@
 #include <mach/io.h>
 #include <mach/iomap.h>
 
-	.macro  addruart,rx, tmp
-        mrc     p15, 0, \rx, c1, c0
-        tst     \rx, #1                 @ MMU enabled?
-        ldreq   \rx, =IO_APB_PHYS       @ physical
-        ldrne   \rx, =IO_APB_VIRT        @ virtual
-	ldr	\tmp, =(TEGRA_DEBUG_UART_BASE & 0xFFFF)
-        orr     \rx, \rx, \tmp
+	.macro  addruart, rp, rv
+	ldr	\rp, =IO_APB_PHYS	@ physical
+	ldr	\rv, =IO_APB_VIRT	@ virtual
+	orr	\rp, \rp, #(TEGRA_DEBUG_UART_BASE & 0xFF00)
+	orr	\rp, \rp, #(TEGRA_DEBUG_UART_BASE & 0x00FF)
+	orr	\rv, \rv, #(TEGRA_DEBUG_UART_BASE & 0xFF00)
+	orr	\rv, \rv, #(TEGRA_DEBUG_UART_BASE & 0x00FF)
 	.endm
 
 #define UART_SHIFT	2

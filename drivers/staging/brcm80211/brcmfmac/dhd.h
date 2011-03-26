@@ -33,9 +33,6 @@
 #include <linux/ethtool.h>
 #include <asm/uaccess.h>
 #include <asm/unaligned.h>
-#if defined(CONFIG_HAS_WAKELOCK)
-#include <linux/wakelock.h>
-#endif			/* defined (CONFIG_HAS_WAKELOCK) */
 /* The kernel threading is sdio-specific */
 
 #include <wlioctl.h>
@@ -52,34 +49,10 @@ enum dhd_bus_state {
 	DHD_BUS_DATA		/* Ready for frame transfers */
 };
 
-enum dhd_bus_wake_state {
-	WAKE_LOCK_OFF,
-	WAKE_LOCK_PRIV,
-	WAKE_LOCK_DPC,
-	WAKE_LOCK_IOCTL,
-	WAKE_LOCK_DOWNLOAD,
-	WAKE_LOCK_TMOUT,
-	WAKE_LOCK_WATCHDOG,
-	WAKE_LOCK_LINK_DOWN_TMOUT,
-	WAKE_LOCK_PNO_FIND_TMOUT,
-	WAKE_LOCK_SOFTAP_SET,
-	WAKE_LOCK_SOFTAP_STOP,
-	WAKE_LOCK_SOFTAP_START,
-	WAKE_LOCK_MAX
-};
-enum dhd_prealloc_index {
-	DHD_PREALLOC_PROT = 0,
-	DHD_PREALLOC_RXBUF,
-	DHD_PREALLOC_DATABUF,
-	DHD_PREALLOC_OSL_BUF
-};
-#ifdef DHD_USE_STATIC_BUF
-extern void *dhd_os_prealloc(int section, unsigned long size);
-#endif
 /* Common structure for module and instance linkage */
 typedef struct dhd_pub {
 	/* Linkage ponters */
-	osl_t *osh;		/* OSL handle */
+	struct osl_info *osh;		/* OSL handle */
 	struct dhd_bus *bus;	/* Bus module handle */
 	struct dhd_prot *prot;	/* Protocol module handle */
 	struct dhd_info *info;	/* Info module handle */
@@ -97,8 +70,8 @@ typedef struct dhd_pub {
 	/* Dongle media info */
 	bool iswl;		/* Dongle-resident driver is wl */
 	unsigned long drv_version;	/* Version of dongle-resident driver */
-	struct ether_addr mac;	/* MAC address obtained from dongle */
-	dngl_stats_t dstats;	/* Stats for dongle-based data */
+	u8 mac[ETH_ALEN];			/* MAC address obtained from dongle */
+	dngl_stats_t dstats;		/* Stats for dongle-based data */
 
 	/* Additional stats for the bus level */
 	unsigned long tx_packets;	/* Data packets sent to dongle */
@@ -147,9 +120,6 @@ typedef struct dhd_pub {
 	u8 country_code[WLC_CNTRY_BUF_SZ];
 	char eventmask[WL_EVENTING_MASK_LEN];
 
-#if defined(CONFIG_HAS_WAKELOCK)
-	struct wake_lock wakelock[WAKE_LOCK_MAX];
-#endif		/*  defined (CONFIG_HAS_WAKELOCK) */
 } dhd_pub_t;
 
 #if defined(CONFIG_PM_SLEEP)
@@ -188,7 +158,7 @@ typedef struct dhd_pub {
 #define SPINWAIT_SLEEP(a, exp, us)  do { \
 		uint countdown = (us) + 9; \
 		while ((exp) && (countdown >= 10)) { \
-			OSL_DELAY(10);  \
+			udelay(10);  \
 			countdown -= 10;  \
 		} \
 	} while (0)
@@ -232,41 +202,6 @@ static inline void MUTEX_UNLOCK_WL_SCAN_SET(void)
 {
 }
 
-static inline void WAKE_LOCK_INIT(dhd_pub_t *dhdp, int index, char *y)
-{
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_lock_init(&dhdp->wakelock[index], WAKE_LOCK_SUSPEND, y);
-#endif	/* defined (CONFIG_HAS_WAKELOCK) */
-}
-
-static inline void WAKE_LOCK(dhd_pub_t *dhdp, int index)
-{
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_lock(&dhdp->wakelock[index]);
-#endif	/* defined (CONFIG_HAS_WAKELOCK) */
-}
-
-static inline void WAKE_UNLOCK(dhd_pub_t *dhdp, int index)
-{
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_unlock(&dhdp->wakelock[index]);
-#endif	/* defined (CONFIG_HAS_WAKELOCK) */
-}
-
-static inline void WAKE_LOCK_TIMEOUT(dhd_pub_t *dhdp, int index, long time)
-{
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_lock_timeout(&dhdp->wakelock[index], time);
-#endif	/* defined (CONFIG_HAS_WAKELOCK) */
-}
-
-static inline void WAKE_LOCK_DESTROY(dhd_pub_t *dhdp, int index)
-{
-#if defined(CONFIG_HAS_WAKELOCK)
-	wake_lock_destroy(&dhdp->wakelock[index]);
-#endif /* defined (CONFIG_HAS_WAKELOCK) */
-}
-
 typedef struct dhd_if_event {
 	u8 ifidx;
 	u8 action;
@@ -279,15 +214,16 @@ typedef struct dhd_if_event {
  */
 
 /* To allow osl_attach/detach calls from os-independent modules */
-osl_t *dhd_osl_attach(void *pdev, uint bustype);
-void dhd_osl_detach(osl_t *osh);
+struct osl_info *dhd_osl_attach(void *pdev, uint bustype);
+void dhd_osl_detach(struct osl_info *osh);
 
 /* Indication from bus module regarding presence/insertion of dongle.
  * Return dhd_pub_t pointer, used as handle to OS module in later calls.
  * Returned structure should have bus and prot pointers filled in.
  * bus_hdrlen specifies required headroom for bus module header.
  */
-extern dhd_pub_t *dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen);
+extern dhd_pub_t *dhd_attach(struct osl_info *osh, struct dhd_bus *bus,
+				uint bus_hdrlen);
 extern int dhd_net_attach(dhd_pub_t *dhdp, int idx);
 
 /* Indication from bus module regarding removal/absence of dongle */
@@ -296,10 +232,12 @@ extern void dhd_detach(dhd_pub_t *dhdp);
 /* Indication from bus module to change flow-control state */
 extern void dhd_txflowcontrol(dhd_pub_t *dhdp, int ifidx, bool on);
 
-extern bool dhd_prec_enq(dhd_pub_t *dhdp, struct pktq *q, void *pkt, int prec);
+extern bool dhd_prec_enq(dhd_pub_t *dhdp, struct pktq *q,
+			 struct sk_buff *pkt, int prec);
 
 /* Receive frame for delivery to OS.  Callee disposes of rxp. */
-extern void dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *rxp, int numpkt);
+extern void dhd_rx_frame(dhd_pub_t *dhdp, int ifidx,
+			 struct sk_buff *rxp, int numpkt);
 
 /* Return pointer to interface name */
 extern char *dhd_ifname(dhd_pub_t *dhdp, int idx);
@@ -308,7 +246,7 @@ extern char *dhd_ifname(dhd_pub_t *dhdp, int idx);
 extern void dhd_sched_dpc(dhd_pub_t *dhdp);
 
 /* Notify tx completion */
-extern void dhd_txcomplete(dhd_pub_t *dhdp, void *txp, bool success);
+extern void dhd_txcomplete(dhd_pub_t *dhdp, struct sk_buff *txp, bool success);
 
 /* Query ioctl */
 extern int dhdcdc_query_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf,
@@ -363,7 +301,6 @@ extern int dhd_ifname2idx(struct dhd_info *dhd, char *name);
 extern u8 *dhd_bssidx2bssid(dhd_pub_t *dhd, int idx);
 extern int wl_host_event(struct dhd_info *dhd, int *idx, void *pktdata,
 			 wl_event_msg_t *, void **data_ptr);
-extern void wl_event_to_host_order(wl_event_msg_t *evt);
 
 extern void dhd_common_init(void);
 
@@ -379,7 +316,7 @@ extern void dhd_vif_sendup(struct dhd_info *dhd, int ifidx, unsigned char * cp,
 			   int len);
 
 /* Send packet to dongle via data channel */
-extern int dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, void *pkt);
+extern int dhd_sendpkt(dhd_pub_t *dhdp, int ifidx, struct sk_buff *pkt);
 
 /* Send event to host */
 extern void dhd_sendup_event(dhd_pub_t *dhdp, wl_event_msg_t *event,
@@ -388,14 +325,12 @@ extern int dhd_bus_devreset(dhd_pub_t *dhdp, u8 flag);
 extern uint dhd_bus_status(dhd_pub_t *dhdp);
 extern int dhd_bus_start(dhd_pub_t *dhdp);
 
-extern void print_buf(void *pbuf, int len, int bytes_per_line);
-
-typedef enum cust_gpio_modes {
+enum cust_gpio_modes {
 	WLAN_RESET_ON,
 	WLAN_RESET_OFF,
 	WLAN_POWER_ON,
 	WLAN_POWER_OFF
-} cust_gpio_modes_t;
+};
 /*
  * Insmod parameters for debug/test
  */

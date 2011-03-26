@@ -139,8 +139,8 @@ struct blk_scsi_cmd_filter {
 struct disk_part_tbl {
 	struct rcu_head rcu_head;
 	int len;
-	struct hd_struct *last_lookup;
-	struct hd_struct *part[];
+	struct hd_struct __rcu *last_lookup;
+	struct hd_struct __rcu *part[];
 };
 
 struct gendisk {
@@ -159,7 +159,7 @@ struct gendisk {
 	 * non-critical accesses use RCU.  Always access through
 	 * helpers.
 	 */
-	struct disk_part_tbl *part_tbl;
+	struct disk_part_tbl __rcu *part_tbl;
 	struct hd_struct part0;
 
 	const struct block_device_operations *fops;
@@ -209,14 +209,9 @@ static inline void part_pack_uuid(const u8 *uuid_str, u8 *to)
 	}
 }
 
-/* Expects a 36 + 1 byte char array. */
 static inline char *part_unpack_uuid(const u8 *uuid, char *out)
 {
-	sprintf(out, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-"
-		     "%02x%02x%02x%02x%02x%02x",
-		uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5],
-		uuid[6], uuid[7], uuid[8], uuid[9], uuid[10], uuid[11],
-		uuid[12], uuid[13], uuid[14], uuid[15]);
+	sprintf(out, "%pU", uuid);
 	return out;
 }
 

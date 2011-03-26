@@ -14,13 +14,12 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <typedefs.h>
-#include <bcmdefs.h>
+#include <linux/slab.h>
 #include <linux/string.h>
+#include <bcmdefs.h>
 #include <osl.h>
 #include <bcmutils.h>
 #include <siutils.h>
-#include <bcmendian.h>
 #include <bcmnvram.h>
 #include <sbchipc.h>
 #include <bcmsrom.h>
@@ -49,7 +48,7 @@ static char *findvar(char *vars, char *lim, const char *name);
 /* copy flash to ram */
 static void get_flash_nvram(si_t *sih, struct nvram_header *nvh)
 {
-	osl_t *osh;
+	struct osl_info *osh;
 	uint nvs, bufsz;
 	vars_t *new;
 
@@ -58,7 +57,7 @@ static void get_flash_nvram(si_t *sih, struct nvram_header *nvh)
 	nvs = R_REG(osh, &nvh->len) - sizeof(struct nvram_header);
 	bufsz = nvs + VARS_T_OH;
 
-	new = (vars_t *) MALLOC(osh, bufsz);
+	new = kmalloc(bufsz, GFP_ATOMIC);
 	if (new == NULL) {
 		NVR_MSG(("Out of memory for flash vars\n"));
 		return;
@@ -70,7 +69,7 @@ static void get_flash_nvram(si_t *sih, struct nvram_header *nvh)
 	new->next = vars;
 	vars = new;
 
-	bcopy((char *)(&nvh[1]), new->vars, nvs);
+	memcpy(new->vars, &nvh[1], nvs);
 
 	NVR_MSG(("%s: flash nvram @ %p, copied %d bytes to %p\n", __func__,
 		 nvh, nvs, new->vars));
@@ -93,7 +92,7 @@ int nvram_append(void *si, char *varlst, uint varsz)
 	uint bufsz = VARS_T_OH;
 	vars_t *new;
 
-	new = MALLOC(si_osh((si_t *) si), bufsz);
+	new = kmalloc(bufsz, GFP_ATOMIC);
 	if (new == NULL)
 		return BCME_NOMEM;
 
@@ -115,11 +114,11 @@ void nvram_exit(void *si)
 	this = vars;
 
 	if (this)
-		MFREE(si_osh(sih), this->vars, this->size);
+		kfree(this->vars);
 
 	while (this) {
 		next = this->next;
-		MFREE(si_osh(sih), this, this->bufsz);
+		kfree(this);
 		this = next;
 	}
 	vars = NULL;
@@ -133,7 +132,7 @@ static char *findvar(char *vars, char *lim, const char *name)
 	len = strlen(name);
 
 	for (s = vars; (s < lim) && *s;) {
-		if ((bcmp(s, name, len) == 0) && (s[len] == '='))
+		if ((memcmp(s, name, len) == 0) && (s[len] == '='))
 			return &s[len + 1];
 
 		while (*s++)
@@ -195,7 +194,7 @@ int nvram_getall(char *buf, int count)
 			len = strlen(from) + 1;
 			if (resid < (acc + len))
 				return BCME_BUFTOOSHORT;
-			bcopy(from, to, len);
+			memcpy(to, from, len);
 			acc += len;
 			from += len;
 			to += len;

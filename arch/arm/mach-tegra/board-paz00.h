@@ -18,13 +18,35 @@
 #ifndef _MACH_TEGRA_BOARD_PAZ00_H
 #define _MACH_TEGRA_BOARD_PAZ00_H
 
+#include "gpio-names.h"
+
 void paz00_pinmux_init(void);
 int paz00_power_init(void);
 int paz00_panel_init(void);
 int paz00_sdhci_init(void);
 
+/* WIFI */
 #define PAZ00_WIFI_LED		TEGRA_GPIO_PD0
 #define PAZ00_WIFI_RST		TEGRA_GPIO_PD1
 #define PAZ00_WIFI_PWRN		TEGRA_GPIO_PK5
+#define PAZ00_NVEC_REQ		TEGRA_GPIO_PV2
+#define PAZ00_ULPI_RST		TEGRA_GPIO_PV0
+
+/* MMC */
+#define PAZ00_SD1_CD		TEGRA_GPIO_PV5
+#define PAZ00_SD1_WP		TEGRA_GPIO_PH1
+#define PAZ00_SD1_POWER		TEGRA_GPIO_PT3
+
+#define PAZ00_SD4_CD		TEGRA_GPIO_PH2
+#define PAZ00_SD4_WP		TEGRA_GPIO_PH3
+#define PAZ00_SD4_POWER		TEGRA_GPIO_PI6
+
+/* Panel */
+#define PAZ00_BACKLIGHT		TEGRA_GPIO_PU4
+#define PAZ00_BACKLIGHT_VDD	TEGRA_GPIO_PW0
+#define PAZ00_BACKLIGHT_PWM	TEGRA_GPIO_PU3
+#define PAZ00_LVDS_SHUTDOWN	TEGRA_GPIO_PM6
+#define PAZ00_EN_VDD_PNL	TEGRA_GPIO_PA4
+#define PAZ00_HDMI_HPD		TEGRA_GPIO_PN7
 
 #endif

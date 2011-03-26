@@ -14,12 +14,13 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <typedefs.h>
+#include <linux/types.h>
+#include <linux/netdevice.h>
+#include <bcmdefs.h>
 #include <osl.h>
 
 #include <bcmutils.h>
 #include <bcmcdc.h>
-#include <bcmendian.h>
 
 #include <dngl_stats.h>
 #include <dhd.h>
@@ -63,7 +64,7 @@ typedef struct dhd_prot {
 static int dhdcdc_msg(dhd_pub_t *dhd)
 {
 	dhd_prot_t *prot = dhd->prot;
-	int len = ltoh32(prot->msg.len) + sizeof(cdc_ioctl_t);
+	int len = le32_to_cpu(prot->msg.len) + sizeof(cdc_ioctl_t);
 
 	DHD_TRACE(("%s: Enter\n", __func__));
 
@@ -91,7 +92,7 @@ static int dhdcdc_cmplt(dhd_pub_t *dhd, u32 id, u32 len)
 				  len + sizeof(cdc_ioctl_t));
 		if (ret < 0)
 			break;
-	} while (CDC_IOC_ID(ltoh32(prot->msg.flags)) != id);
+	} while (CDC_IOC_ID(le32_to_cpu(prot->msg.flags)) != id);
 
 	return ret;
 }
@@ -122,11 +123,11 @@ dhdcdc_query_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len)
 
 	memset(msg, 0, sizeof(cdc_ioctl_t));
 
-	msg->cmd = htol32(cmd);
-	msg->len = htol32(len);
+	msg->cmd = cpu_to_le32(cmd);
+	msg->len = cpu_to_le32(len);
 	msg->flags = (++prot->reqid << CDCF_IOC_ID_SHIFT);
 	CDC_SET_IF_IDX(msg, ifidx);
-	msg->flags = htol32(msg->flags);
+	msg->flags = cpu_to_le32(msg->flags);
 
 	if (buf)
 		memcpy(prot->buf, buf, len);
@@ -144,7 +145,7 @@ retry:
 	if (ret < 0)
 		goto done;
 
-	flags = ltoh32(msg->flags);
+	flags = le32_to_cpu(msg->flags);
 	id = (flags & CDCF_IOC_ID_MASK) >> CDCF_IOC_ID_SHIFT;
 
 	if ((id < prot->reqid) && (++retries < RETRIES))
@@ -168,7 +169,7 @@ retry:
 
 	/* Check the ERROR flag */
 	if (flags & CDCF_IOC_ERROR) {
-		ret = ltoh32(msg->status);
+		ret = le32_to_cpu(msg->status);
 		/* Cache error from dongle */
 		dhd->dongle_error = ret;
 	}
@@ -189,11 +190,11 @@ int dhdcdc_set_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len)
 
 	memset(msg, 0, sizeof(cdc_ioctl_t));
 
-	msg->cmd = htol32(cmd);
-	msg->len = htol32(len);
+	msg->cmd = cpu_to_le32(cmd);
+	msg->len = cpu_to_le32(len);
 	msg->flags = (++prot->reqid << CDCF_IOC_ID_SHIFT) | CDCF_IOC_SET;
 	CDC_SET_IF_IDX(msg, ifidx);
-	msg->flags = htol32(msg->flags);
+	msg->flags = cpu_to_le32(msg->flags);
 
 	if (buf)
 		memcpy(prot->buf, buf, len);
@@ -206,7 +207,7 @@ int dhdcdc_set_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len)
 	if (ret < 0)
 		goto done;
 
-	flags = ltoh32(msg->flags);
+	flags = le32_to_cpu(msg->flags);
 	id = (flags & CDCF_IOC_ID_MASK) >> CDCF_IOC_ID_SHIFT;
 
 	if (id != prot->reqid) {
@@ -218,7 +219,7 @@ int dhdcdc_set_ioctl(dhd_pub_t *dhd, int ifidx, uint cmd, void *buf, uint len)
 
 	/* Check the ERROR flag */
 	if (flags & CDCF_IOC_ERROR) {
-		ret = ltoh32(msg->status);
+		ret = le32_to_cpu(msg->status);
 		/* Cache error from dongle */
 		dhd->dongle_error = ret;
 	}
@@ -274,8 +275,8 @@ dhd_prot_ioctl(dhd_pub_t *dhd, int ifidx, wl_ioctl_t *ioc, void *buf, int len)
 		ret = 0;
 	else {
 		cdc_ioctl_t *msg = &prot->msg;
-		ioc->needed = ltoh32(msg->len);	/* len == needed when set/query
-						 fails from dongle */
+		/* len == needed when set/query fails from dongle */
+		ioc->needed = le32_to_cpu(msg->len);
 	}
 
 	/* Intercept the wme_dp ioctl here */
@@ -284,8 +285,8 @@ dhd_prot_ioctl(dhd_pub_t *dhd, int ifidx, wl_ioctl_t *ioc, void *buf, int len)
 
 		slen = strlen("wme_dp") + 1;
 		if (len >= (int)(slen + sizeof(int)))
-			bcopy(((char *)buf + slen), &val, sizeof(int));
-		dhd->wme_dp = (u8) ltoh32(val);
+			memcpy(&val, (char *)buf + slen, sizeof(int));
+		dhd->wme_dp = (u8) le32_to_cpu(val);
 	}
 
 	prot->pending = false;
@@ -295,6 +296,15 @@ done:
 
 	return ret;
 }
+
+#define PKTSUMNEEDED(skb) \
+		(((struct sk_buff *)(skb))->ip_summed == CHECKSUM_PARTIAL)
+#define PKTSETSUMGOOD(skb, x) \
+		(((struct sk_buff *)(skb))->ip_summed = \
+		((x) ? CHECKSUM_UNNECESSARY : CHECKSUM_NONE))
+
+/* PKTSETSUMNEEDED and PKTSUMGOOD are not possible because
+	skb->ip_summed is overloaded */
 
 int
 dhd_prot_iovar_op(dhd_pub_t *dhdp, const char *name,
@@ -308,7 +318,7 @@ void dhd_prot_dump(dhd_pub_t *dhdp, struct bcmstrbuf *strbuf)
 	bcm_bprintf(strbuf, "Protocol CDC: reqid %d\n", dhdp->prot->reqid);
 }
 
-void dhd_prot_hdrpush(dhd_pub_t *dhd, int ifidx, void *pktbuf)
+void dhd_prot_hdrpush(dhd_pub_t *dhd, int ifidx, struct sk_buff *pktbuf)
 {
 #ifdef BDC
 	struct bdc_header *h;
@@ -319,42 +329,22 @@ void dhd_prot_hdrpush(dhd_pub_t *dhd, int ifidx, void *pktbuf)
 #ifdef BDC
 	/* Push BDC header used to convey priority for buses that don't */
 
-	PKTPUSH(pktbuf, BDC_HEADER_LEN);
+	skb_push(pktbuf, BDC_HEADER_LEN);
 
-	h = (struct bdc_header *)PKTDATA(pktbuf);
+	h = (struct bdc_header *)(pktbuf->data);
 
 	h->flags = (BDC_PROTO_VER << BDC_FLAG_VER_SHIFT);
 	if (PKTSUMNEEDED(pktbuf))
 		h->flags |= BDC_FLAG_SUM_NEEDED;
 
-	h->priority = (PKTPRIO(pktbuf) & BDC_PRIORITY_MASK);
+	h->priority = (pktbuf->priority & BDC_PRIORITY_MASK);
 	h->flags2 = 0;
 	h->rssi = 0;
 #endif				/* BDC */
 	BDC_SET_IF_IDX(h, ifidx);
 }
 
-bool dhd_proto_fcinfo(dhd_pub_t *dhd, void *pktbuf, u8 * fcbits)
-{
-#ifdef BDC
-	struct bdc_header *h;
-
-	if (PKTLEN(pktbuf) < BDC_HEADER_LEN) {
-		DHD_ERROR(("%s: rx data too short (%d < %d)\n",
-			   __func__, PKTLEN(pktbuf), BDC_HEADER_LEN));
-		return BCME_ERROR;
-	}
-
-	h = (struct bdc_header *)PKTDATA(pktbuf);
-
-	*fcbits = h->priority >> BDC_PRIORITY_FC_SHIFT;
-	if ((h->flags2 & BDC_FLAG2_FC_FLAG) == BDC_FLAG2_FC_FLAG)
-		return true;
-#endif
-	return false;
-}
-
-int dhd_prot_hdrpull(dhd_pub_t *dhd, int *ifidx, void *pktbuf)
+int dhd_prot_hdrpull(dhd_pub_t *dhd, int *ifidx, struct sk_buff *pktbuf)
 {
 #ifdef BDC
 	struct bdc_header *h;
@@ -365,13 +355,13 @@ int dhd_prot_hdrpull(dhd_pub_t *dhd, int *ifidx, void *pktbuf)
 #ifdef BDC
 	/* Pop BDC header used to convey priority for buses that don't */
 
-	if (PKTLEN(pktbuf) < BDC_HEADER_LEN) {
+	if (pktbuf->len < BDC_HEADER_LEN) {
 		DHD_ERROR(("%s: rx data too short (%d < %d)\n", __func__,
-			   PKTLEN(pktbuf), BDC_HEADER_LEN));
+			   pktbuf->len, BDC_HEADER_LEN));
 		return BCME_ERROR;
 	}
 
-	h = (struct bdc_header *)PKTDATA(pktbuf);
+	h = (struct bdc_header *)(pktbuf->data);
 
 	*ifidx = BDC_GET_IF_IDX(h);
 	if (*ifidx >= DHD_MAX_IFS) {
@@ -394,9 +384,9 @@ int dhd_prot_hdrpull(dhd_pub_t *dhd, int *ifidx, void *pktbuf)
 		PKTSETSUMGOOD(pktbuf, true);
 	}
 
-	PKTSETPRIO(pktbuf, (h->priority & BDC_PRIORITY_MASK));
+	pktbuf->priority = h->priority & BDC_PRIORITY_MASK;
 
-	PKTPULL(pktbuf, BDC_HEADER_LEN);
+	skb_pull(pktbuf, BDC_HEADER_LEN);
 #endif				/* BDC */
 
 	return 0;
@@ -406,24 +396,14 @@ int dhd_prot_attach(dhd_pub_t *dhd)
 {
 	dhd_prot_t *cdc;
 
-#ifndef DHD_USE_STATIC_BUF
-	cdc = (dhd_prot_t *) MALLOC(dhd->osh, sizeof(dhd_prot_t));
+	cdc = kzalloc(sizeof(dhd_prot_t), GFP_ATOMIC);
 	if (!cdc) {
 		DHD_ERROR(("%s: kmalloc failed\n", __func__));
 		goto fail;
 	}
-#else
-	cdc = (dhd_prot_t *) dhd_os_prealloc(DHD_PREALLOC_PROT,
-						sizeof(dhd_prot_t));
-	if (!cdc) {
-		DHD_ERROR(("%s: kmalloc failed\n", __func__));
-		goto fail;
-	}
-#endif				/* DHD_USE_STATIC_BUF */
-	memset(cdc, 0, sizeof(dhd_prot_t));
 
 	/* ensure that the msg buf directly follows the cdc msg struct */
-	if ((uintptr) (&cdc->msg + 1) != (uintptr) cdc->buf) {
+	if ((unsigned long)(&cdc->msg + 1) != (unsigned long)cdc->buf) {
 		DHD_ERROR(("dhd_prot_t is not correctly defined\n"));
 		goto fail;
 	}
@@ -436,19 +416,15 @@ int dhd_prot_attach(dhd_pub_t *dhd)
 	return 0;
 
 fail:
-#ifndef DHD_USE_STATIC_BUF
 	if (cdc != NULL)
-		MFREE(dhd->osh, cdc, sizeof(dhd_prot_t));
-#endif
+		kfree(cdc);
 	return BCME_NOMEM;
 }
 
 /* ~NOTE~ What if another thread is waiting on the semaphore?  Holding it? */
 void dhd_prot_detach(dhd_pub_t *dhd)
 {
-#ifndef DHD_USE_STATIC_BUF
-	MFREE(dhd->osh, dhd->prot, sizeof(dhd_prot_t));
-#endif
+	kfree(dhd->prot);
 	dhd->prot = NULL;
 }
 
@@ -480,7 +456,7 @@ int dhd_prot_init(dhd_pub_t *dhd)
 		dhd_os_proto_unblock(dhd);
 		return ret;
 	}
-	memcpy(dhd->mac.octet, buf, ETHER_ADDR_LEN);
+	memcpy(dhd->mac, buf, ETH_ALEN);
 
 	dhd_os_proto_unblock(dhd);
 

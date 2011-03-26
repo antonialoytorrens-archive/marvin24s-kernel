@@ -40,8 +40,6 @@
 #include <mach/pinmux.h>
 #include <mach/iomap.h>
 #include <mach/io.h>
-#include <mach/i2s.h>
-#include <mach/audio.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 
@@ -137,18 +135,6 @@ static struct tegra_i2c_platform_data ventana_dvc_platform_data = {
 	.is_dvc		= true,
 };
 
-static struct tegra_audio_platform_data tegra_audio_pdata = {
-	.i2s_master	= false,
-	.dsp_master	= false,
-	.dma_on		= true,  /* use dma by default */
-	.i2s_clk_rate	= 240000000,
-	.dap_clk	= "clk_dev1",
-	.audio_sync_clk = "audio_2x",
-	.mode		= I2S_BIT_FORMAT_I2S,
-	.fifo_fmt	= I2S_FIFO_16_LSB,
-	.bit_size	= I2S_BIT_SIZE_16,
-};
-
 static void ventana_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &ventana_i2c1_platform_data;
@@ -176,10 +162,10 @@ static void ventana_i2c_init(void)
 	}
 
 static struct gpio_keys_button ventana_keys[] = {
-	[0] = GPIO_KEY(KEY_MENU, PQ0, 0),
+	[0] = GPIO_KEY(KEY_MENU, PQ3, 0),
 	[1] = GPIO_KEY(KEY_HOME, PQ1, 0),
 	[2] = GPIO_KEY(KEY_BACK, PQ2, 0),
-	[3] = GPIO_KEY(KEY_VOLUMEUP, PQ3, 0),
+	[3] = GPIO_KEY(KEY_VOLUMEUP, PQ5, 0),
 	[4] = GPIO_KEY(KEY_VOLUMEDOWN, PQ4, 0),
 	[5] = GPIO_KEY(KEY_POWER, PV2, 1),
 };
@@ -203,8 +189,9 @@ static struct platform_device *ventana_devices[] __initdata = {
 	&pmu_device,
 	&tegra_udc_device,
 	&tegra_gart_device,
+	&tegra_aes_device,
 	&ventana_keys_device,
-	&tegra_i2s_device1,
+	&tegra_pcm_device,
 };
 
 static void ventana_keys_init(void)
@@ -249,12 +236,11 @@ static void __init ventana_wlan_init(void)
 
 static void __init tegra_ventana_init(void)
 {
+	ventana_pinmux_init();
+
 	tegra_common_init();
 
 	tegra_clk_init_from_table(ventana_clk_init_table);
-	ventana_pinmux_init();
-
-	tegra_i2s_device1.dev.platform_data = &tegra_audio_pdata;
 
 	platform_add_devices(ventana_devices, ARRAY_SIZE(ventana_devices));
 	ventana_sdhci_init();
@@ -268,8 +254,6 @@ static void __init tegra_ventana_init(void)
 
 MACHINE_START(VENTANA, "ventana")
 	.boot_params    = 0x00000100,
-	.phys_io        = IO_APB_PHYS,
-	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
 	.init_irq       = tegra_init_irq,
 	.init_machine   = tegra_ventana_init,
 	.map_io         = tegra_map_common_io,

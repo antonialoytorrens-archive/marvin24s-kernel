@@ -14,12 +14,13 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <typedefs.h>
-#include <bcmdefs.h>
-#include <osl.h>
+#include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
-#include <linuxver.h>
+#include <bcmdefs.h>
+#include <osl.h>
+#include <linux/module.h>
+#include <linux/pci.h>
 #include <bcmutils.h>
 #include <siutils.h>
 #include <hndsoc.h>
@@ -27,8 +28,8 @@
 #include <pcicfg.h>
 #include <bcmdevs.h>
 
-#define BCM47162_DMP() ((CHIPID(sih->chip) == BCM47162_CHIP_ID) && \
-		(CHIPREV(sih->chiprev) == 0) && \
+#define BCM47162_DMP() ((sih->chip == BCM47162_CHIP_ID) && \
+		(sih->chiprev == 0) && \
 		(sii->coreid[sii->curidx] == MIPS74K_CORE_ID))
 
 /* EROM parsing */
@@ -116,25 +117,23 @@ void ai_scan(si_t *sih, void *regs, uint devid)
 
 	erombase = R_REG(sii->osh, &cc->eromptr);
 
-	switch (BUSTYPE(sih->bustype)) {
+	switch (sih->bustype) {
 	case SI_BUS:
 		eromptr = (u32 *) REG_MAP(erombase, SI_CORE_SIZE);
 		break;
 
 	case PCI_BUS:
 		/* Set wrappers address */
-		sii->curwrap = (void *)((uintptr) regs + SI_CORE_SIZE);
+		sii->curwrap = (void *)((unsigned long)regs + SI_CORE_SIZE);
 
 		/* Now point the window at the erom */
-		OSL_PCI_WRITE_CONFIG(sii->osh, PCI_BAR0_WIN, 4, erombase);
+		pci_write_config_dword(sii->osh->pdev, PCI_BAR0_WIN, erombase);
 		eromptr = regs;
 		break;
 
-#ifdef BCMSDIO
 	case SPI_BUS:
 	case SDIO_BUS:
-#endif				/* BCMSDIO */
-		eromptr = (u32 *)erombase;
+		eromptr = (u32 *)(unsigned long)erombase;
 		break;
 
 	default:
@@ -331,7 +330,7 @@ void *ai_setcoreidx(si_t *sih, uint coreidx)
 	ASSERT((sii->intrsenabled_fn == NULL)
 	       || !(*(sii)->intrsenabled_fn) ((sii)->intr_arg));
 
-	switch (BUSTYPE(sih->bustype)) {
+	switch (sih->bustype) {
 	case SI_BUS:
 		/* map new one */
 		if (!sii->regs[coreidx]) {
@@ -348,18 +347,16 @@ void *ai_setcoreidx(si_t *sih, uint coreidx)
 
 	case PCI_BUS:
 		/* point bar0 window */
-		OSL_PCI_WRITE_CONFIG(sii->osh, PCI_BAR0_WIN, 4, addr);
+		pci_write_config_dword(sii->osh->pdev, PCI_BAR0_WIN, addr);
 		regs = sii->curmap;
 		/* point bar0 2nd 4KB window */
-		OSL_PCI_WRITE_CONFIG(sii->osh, PCI_BAR0_WIN2, 4, wrap);
+		pci_write_config_dword(sii->osh->pdev, PCI_BAR0_WIN2, wrap);
 		break;
 
-#ifdef BCMSDIO
 	case SPI_BUS:
 	case SDIO_BUS:
-#endif				/* BCMSDIO */
-		sii->curmap = regs = (void *)addr;
-		sii->curwrap = (void *)wrap;
+		sii->curmap = regs = (void *)(unsigned long)addr;
+		sii->curwrap = (void *)(unsigned long)wrap;
 		break;
 
 	default:
@@ -505,7 +502,7 @@ uint ai_corereg(si_t *sih, uint coreidx, uint regoff, uint mask, uint val)
 	if (coreidx >= SI_MAXCORES)
 		return 0;
 
-	if (BUSTYPE(sih->bustype) == SI_BUS) {
+	if (sih->bustype == SI_BUS) {
 		/* If internal bus, we can always get at everything */
 		fast = true;
 		/* map if does not exist */
@@ -515,7 +512,7 @@ uint ai_corereg(si_t *sih, uint coreidx, uint regoff, uint mask, uint val)
 			ASSERT(GOODREGS(sii->regs[coreidx]));
 		}
 		r = (u32 *) ((unsigned char *) sii->regs[coreidx] + regoff);
-	} else if (BUSTYPE(sih->bustype) == PCI_BUS) {
+	} else if (sih->bustype == PCI_BUS) {
 		/* If pci/pcie, we can get at pci/pcie regs and on newer cores to chipc */
 
 		if ((sii->coreid[coreidx] == CC_CORE_ID) && SI_FAST(sii)) {
@@ -591,10 +588,10 @@ void ai_core_disable(si_t *sih, u32 bits)
 
 	W_REG(sii->osh, &ai->ioctrl, bits);
 	dummy = R_REG(sii->osh, &ai->ioctrl);
-	OSL_DELAY(10);
+	udelay(10);
 
 	W_REG(sii->osh, &ai->resetctrl, AIRC_RESET);
-	OSL_DELAY(1);
+	udelay(1);
 }
 
 /* reset and re-enable a core
@@ -623,11 +620,11 @@ void ai_core_reset(si_t *sih, u32 bits, u32 resetbits)
 	W_REG(sii->osh, &ai->ioctrl, (bits | SICF_FGC | SICF_CLOCK_EN));
 	dummy = R_REG(sii->osh, &ai->ioctrl);
 	W_REG(sii->osh, &ai->resetctrl, 0);
-	OSL_DELAY(1);
+	udelay(1);
 
 	W_REG(sii->osh, &ai->ioctrl, (bits | SICF_CLOCK_EN));
 	dummy = R_REG(sii->osh, &ai->ioctrl);
-	OSL_DELAY(1);
+	udelay(1);
 }
 
 void ai_core_cflags_wo(si_t *sih, u32 mask, u32 val)

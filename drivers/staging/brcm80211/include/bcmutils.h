@@ -30,7 +30,6 @@
 	};
 
 /* ** driver-only section ** */
-#include <osl.h>
 
 #define GPIO_PIN_NOTDEFINED 	0x20	/* Pin not defined */
 
@@ -42,7 +41,7 @@
 #define SPINWAIT(exp, us) { \
 	uint countdown = (us) + 9; \
 	while ((exp) && (countdown >= 10)) {\
-		OSL_DELAY(10); \
+		udelay(10); \
 		countdown -= 10; \
 	} \
 }
@@ -55,12 +54,12 @@
 #define PKTQ_MAX_PREC           16	/* Maximum precedence levels */
 #endif
 
-	typedef struct pktq_prec {
-		void *head;	/* first packet to dequeue */
-		void *tail;	/* last packet to dequeue */
-		u16 len;	/* number of queued packets */
-		u16 max;	/* maximum number of queued packets */
-	} pktq_prec_t;
+	struct pktq_prec {
+		struct sk_buff *head;	/* first packet to dequeue */
+		struct sk_buff *tail;	/* last packet to dequeue */
+		u16 len;		/* number of queued packets */
+		u16 max;		/* maximum number of queued packets */
+	};
 
 /* multi-priority pkt queue */
 	struct pktq {
@@ -72,27 +71,10 @@
 		struct pktq_prec q[PKTQ_MAX_PREC];
 	};
 
-/* simple, non-priority pkt queue */
-	struct spktq {
-		u16 num_prec;	/* number of precedences in use (always 1) */
-		u16 hi_prec;	/* rapid dequeue hint (>= highest non-empty prec) */
-		u16 max;	/* total max packets */
-		u16 len;	/* total number of packets */
-		/* q array must be last since # of elements can be either PKTQ_MAX_PREC or 1 */
-		struct pktq_prec q[1];
-	};
-
 #define PKTQ_PREC_ITER(pq, prec)        for (prec = (pq)->num_prec - 1; prec >= 0; prec--)
 
 /* fn(pkt, arg).  return true if pkt belongs to if */
 	typedef bool(*ifpkt_cb_t) (void *, int);
-
-/* forward definition of ether_addr structure used by some function prototypes */
-
-	struct ether_addr;
-
-	extern int ether_isbcast(const void *ea);
-	extern int ether_isnulladdr(const void *ea);
 
 /* operations on a specific precedence in packet queue */
 
@@ -105,23 +87,26 @@
 #define pktq_ppeek(pq, prec)            ((pq)->q[prec].head)
 #define pktq_ppeek_tail(pq, prec)       ((pq)->q[prec].tail)
 
-	extern void *pktq_penq(struct pktq *pq, int prec, void *p);
-	extern void *pktq_penq_head(struct pktq *pq, int prec, void *p);
-	extern void *pktq_pdeq(struct pktq *pq, int prec);
-	extern void *pktq_pdeq_tail(struct pktq *pq, int prec);
+extern struct sk_buff *pktq_penq(struct pktq *pq, int prec,
+				 struct sk_buff *p);
+extern struct sk_buff *pktq_penq_head(struct pktq *pq, int prec,
+				      struct sk_buff *p);
+extern struct sk_buff *pktq_pdeq(struct pktq *pq, int prec);
+extern struct sk_buff *pktq_pdeq_tail(struct pktq *pq, int prec);
+
 /* Empty the queue at particular precedence level */
 #ifdef BRCM_FULLMAC
-	extern void pktq_pflush(osl_t *osh, struct pktq *pq, int prec,
+	extern void pktq_pflush(struct osl_info *osh, struct pktq *pq, int prec,
 		bool dir);
 #else
-	extern void pktq_pflush(osl_t *osh, struct pktq *pq, int prec,
+	extern void pktq_pflush(struct osl_info *osh, struct pktq *pq, int prec,
 		bool dir, ifpkt_cb_t fn, int arg);
 #endif /* BRCM_FULLMAC */
 
 /* operations on a set of precedences in packet queue */
 
-	extern int pktq_mlen(struct pktq *pq, uint prec_bmp);
-	extern void *pktq_mdeq(struct pktq *pq, uint prec_bmp, int *prec_out);
+extern int pktq_mlen(struct pktq *pq, uint prec_bmp);
+extern struct sk_buff *pktq_mdeq(struct pktq *pq, uint prec_bmp, int *prec_out);
 
 /* operations on packet queue as a whole */
 
@@ -140,30 +125,22 @@
 
 	extern void pktq_init(struct pktq *pq, int num_prec, int max_len);
 /* prec_out may be NULL if caller is not interested in return value */
-	extern void *pktq_peek_tail(struct pktq *pq, int *prec_out);
+	extern struct sk_buff *pktq_peek_tail(struct pktq *pq, int *prec_out);
 #ifdef BRCM_FULLMAC
-	extern void pktq_flush(osl_t *osh, struct pktq *pq, bool dir);
+	extern void pktq_flush(struct osl_info *osh, struct pktq *pq, bool dir);
 #else
-	extern void pktq_flush(osl_t *osh, struct pktq *pq, bool dir,
+	extern void pktq_flush(struct osl_info *osh, struct pktq *pq, bool dir,
 		ifpkt_cb_t fn, int arg);
 #endif
 
 /* externs */
 /* packet */
-	extern uint pktfrombuf(osl_t *osh, void *p, uint offset, int len,
-			       unsigned char *buf);
-	extern uint pktsegcnt(osl_t *osh, void *p);
-	extern uint pkttotlen(osl_t *osh, void *p);
-
-/* Get priority from a packet and pass it back in scb (or equiv) */
-	extern uint pktsetprio(void *pkt, bool update_vtag);
-#define	PKTPRIO_VDSCP	0x100	/* DSCP prio found after VLAN tag */
-#define	PKTPRIO_VLAN	0x200	/* VLAN prio found */
-#define	PKTPRIO_UPD	0x400	/* DSCP used to update VLAN prio */
-#define	PKTPRIO_DSCP	0x800	/* DSCP prio found */
+	extern uint pktfrombuf(struct osl_info *osh, struct sk_buff *p,
+			       uint offset, int len, unsigned char *buf);
+	extern uint pkttotlen(struct osl_info *osh, struct sk_buff *p);
 
 /* ethernet address */
-	extern int bcm_ether_atoe(char *p, struct ether_addr *ea);
+	extern int bcm_ether_atoe(char *p, u8 *ea);
 
 /* ip address */
 	struct ipv4_addr;
@@ -173,8 +150,12 @@
 	extern char *getvar(char *vars, const char *name);
 	extern int getintvar(char *vars, const char *name);
 #ifdef BCMDBG
-	extern void prpkt(const char *msg, osl_t *osh, void *p0);
+	extern void prpkt(const char *msg, struct osl_info *osh,
+			  struct sk_buff *p0);
+#else
+#define prpkt(a, b, c)
 #endif				/* BCMDBG */
+
 #define bcm_perf_enable()
 #define bcmstats(fmt)
 #define	bcmlog(fmt, a1, a2)
@@ -366,7 +347,21 @@
 #define CEIL(x, y)		(((x) + ((y)-1)) / (y))
 #define	ISPOWEROF2(x)		((((x)-1)&(x)) == 0)
 
-/* bit map related macros */
+/* map physical to virtual I/O */
+#if !defined(CONFIG_MMC_MSM7X00A)
+#define REG_MAP(pa, size)       ioremap_nocache((unsigned long)(pa), \
+					(unsigned long)(size))
+#else
+#define REG_MAP(pa, size)       (void *)(0)
+#endif
+
+/* Register operations */
+#define AND_REG(osh, r, v)	W_REG(osh, (r), R_REG(osh, r) & (v))
+#define OR_REG(osh, r, v)	W_REG(osh, (r), R_REG(osh, r) | (v))
+
+#define SET_REG(osh, r, mask, val) \
+		W_REG((osh), (r), ((R_REG((osh), r) & ~(mask)) | (val)))
+
 #ifndef setbit
 #ifndef NBBY			/* the BSD family defines NBBY */
 #define	NBBY	8		/* 8 bits per byte */
@@ -436,7 +431,7 @@
 #ifdef __i386__
 			   1 ||
 #endif
-			   (((uintptr) src1 | (uintptr) src2 | (uintptr) dst) &
+			   (((unsigned long) src1 | (unsigned long) src2 | (unsigned long) dst) &
 			    3) == 0) {
 			/* ARM CM3 rel time: 1229 (727 if alignment check could be omitted) */
 			/* x86 supports unaligned.  This version runs 6x-9x faster on x86. */
@@ -489,18 +484,8 @@
 	extern u16 bcm_qdbm_to_mw(u8 qdbm);
 	extern u8 bcm_mw_to_qdbm(u16 mw);
 
-/* generic datastruct to help dump routines */
-	struct fielddesc {
-		const char *nameandfmt;
-		u32 offset;
-		u32 len;
-	};
-
 	extern void bcm_binit(struct bcmstrbuf *b, char *buf, uint size);
 	extern int bcm_bprintf(struct bcmstrbuf *b, const char *fmt, ...);
-
-	typedef u32(*bcmutl_rdreg_rtn) (void *arg0, uint arg1,
-					   u32 offset);
 
 	extern uint bcm_mkiovar(char *name, char *data, uint datalen, char *buf,
 				uint len);

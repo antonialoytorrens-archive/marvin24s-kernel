@@ -89,6 +89,10 @@
 #define  WIN_A_ACT_REQ		(1 << 1)
 #define  WIN_B_ACT_REQ		(1 << 2)
 #define  WIN_C_ACT_REQ		(1 << 3)
+#define  GENERAL_UPDATE		(1 << 8)
+#define  WIN_A_UPDATE		(1 << 9)
+#define  WIN_B_UPDATE		(1 << 10)
+#define  WIN_C_UPDATE		(1 << 11)
 
 #define DC_CMD_DISPLAY_WINDOW_HEADER		0x042
 #define  WINDOW_A_SELECT		(1 << 4)
@@ -392,7 +396,7 @@
 #define  BLEND_WEIGHT1(x)		(((x) & 0xff) << 16)
 #define  BLEND(key, control, weight0, weight1)			\
 	  (CKEY_ ## key | BLEND_CONTROL_ ## control |		\
-	   BLEND_WEIGHT0(weight0) | BLEND_WEIGHT0(weight1))
+	   BLEND_WEIGHT0(weight0) | BLEND_WEIGHT1(weight1))
 
 
 #define DC_WIN_HP_FETCH_CONTROL			0x714

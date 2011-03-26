@@ -35,14 +35,7 @@
 #include <mach/fb.h>
 
 #include "devices.h"
-#include "gpio-names.h"
-
-#define paz00_bl_enb		TEGRA_GPIO_PU4  // PB5
-#define paz00_lvds_shutdown	TEGRA_GPIO_PM6  // PB2
-#define paz00_en_vdd_pnl	TEGRA_GPIO_PA4  // PC6
-#define paz00_bl_vdd		TEGRA_GPIO_PW0  // PW0
-#define paz00_bl_pwm		TEGRA_GPIO_PU3  // PB4
-#define paz00_hdmi_hpd		TEGRA_GPIO_PN7  // enable Hotplug
+#include "board-paz00.h"
 
 static int paz00_backlight_init(struct device *dev)
 {
@@ -71,19 +64,19 @@ static int paz00_backlight_init(struct device *dev)
 			pr_warning("Couldn't enable regualtor vddio_lcd\n");
 	}
 
-	ret = gpio_request(paz00_bl_enb, "blacklight_enable");
+	ret = gpio_request(PAZ00_BACKLIGHT, "blacklight_enable");
 	if (ret) {
-		pr_warning("could not request paz00_bl_enb gpio\n");
+		pr_warning("could not request PAZ00_BACKLIGHT gpio\n");
 		return ret;
 	}
 
-	ret = gpio_direction_output(paz00_bl_enb, 1);
+	ret = gpio_direction_output(PAZ00_BACKLIGHT, 1);
 	if (ret) {
 		pr_warning("could not set output direction of lvds_shutdown\n");
 		return ret;
 	}
 
-	gpio_set_value(paz00_bl_enb, 1);
+	gpio_set_value(PAZ00_BACKLIGHT, 1);
 
 	return 0;
 
@@ -91,15 +84,15 @@ static int paz00_backlight_init(struct device *dev)
 
 static void paz00_backlight_exit(struct device *dev)
 {
-	gpio_set_value(paz00_bl_enb, 0);
-	gpio_free(paz00_bl_enb);
+	gpio_set_value(PAZ00_BACKLIGHT, 0);
+	gpio_free(PAZ00_BACKLIGHT);
 }
 
 static int paz00_backlight_notify(struct device *unused, int brightness)
 {
-	gpio_set_value(paz00_en_vdd_pnl, !!brightness);
-	gpio_set_value(paz00_lvds_shutdown, !!brightness);
-	gpio_set_value(paz00_bl_enb, !!brightness);
+	gpio_set_value(PAZ00_EN_VDD_PNL, !!brightness);
+	gpio_set_value(PAZ00_LVDS_SHUTDOWN, !!brightness);
+	gpio_set_value(PAZ00_BACKLIGHT, !!brightness);
 	return brightness;
 }
 
@@ -123,7 +116,7 @@ static struct platform_device paz00_backlight_device = {
 
 static int paz00_panel_enable(void)
 {
-	static struct regulator *reg = NULL;
+/*	static struct regulator *reg = NULL;
 	int ret = 0;
 
 	pr_warning(">>> panel_enable\n");
@@ -149,22 +142,22 @@ static int paz00_panel_enable(void)
 			pr_warning("Couldn't enable regualtor avdd_lvds\n");
 	}
 
-	ret = gpio_request(paz00_lvds_shutdown, "lvds_shdn");
+	ret = gpio_request(PAZ00_LVDS_SHUTDOWN, "lvds_shdn");
 	if (ret) {
-		pr_warning("could not request lvds_shutdown gpio\n");
+		pr_warning("could not request PAZ00_LVDS_SHUTDOWN gpio\n");
 		return ret;
 	}
 
-	ret = gpio_direction_output(paz00_lvds_shutdown, 1);
+	ret = gpio_direction_output(PAZ00_LVDS_SHUTDOWN, 1);
 	if (ret) {
 		pr_warning("could not set output direction of lvds_shutdown\n");
 		return ret;
 	}
-
-	gpio_set_value(paz00_lvds_shutdown, 1);
+*/
+	gpio_set_value(PAZ00_LVDS_SHUTDOWN, 1);
 
 /* Backlight */
-
+/*
 	pr_warning(">>> backlight_enable\n");
 
 	reg = regulator_get(NULL, "vddio_lcd");
@@ -187,26 +180,26 @@ static int paz00_panel_enable(void)
 			pr_warning("Couldn't enable regualtor vddio_lcd\n");
 	}
 
-	ret = gpio_request(paz00_bl_enb, "blacklight_enable");
+	ret = gpio_request(PAZ00_BACKLIGHT, "blacklight_enable");
 	if (ret) {
 		pr_warning("could not request paz00_bl_enb gpio\n");
 		return ret;
 	}
 
-	ret = gpio_direction_output(paz00_bl_enb, 1);
+	ret = gpio_direction_output(PAZ00_BACKLIGHT, 1);
 	if (ret) {
 		pr_warning("could not set output direction of lvds_shutdown\n");
 		return ret;
 	}
 
-	gpio_set_value(paz00_bl_enb, 1);
-
+	gpio_set_value(PAZ00_BACKLIGHT, 1);
+*/
 	return 0;
 }
 
 static int paz00_panel_disable(void)
 {
-	gpio_set_value(paz00_lvds_shutdown, 0);
+	gpio_set_value(PAZ00_LVDS_SHUTDOWN, 0);
 	return 0;
 }
 
@@ -318,7 +311,7 @@ static struct tegra_dc_out paz00_disp2_out = {
 	.flags		= TEGRA_DC_OUT_HOTPLUG_HIGH,
 
 	.dcc_bus	= 1,
-	.hotplug_gpio	= paz00_hdmi_hpd,
+	.hotplug_gpio	= PAZ00_HDMI_HPD,
 
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
@@ -400,21 +393,21 @@ int __init paz00_panel_init(void)
 {
 	int err;
 
-	gpio_request(paz00_en_vdd_pnl, "en_vdd_pnl");
-	gpio_direction_output(paz00_en_vdd_pnl, 1);
-	tegra_gpio_enable(paz00_en_vdd_pnl);
-	gpio_free(paz00_en_vdd_pnl);
+/*	gpio_request(PAZ00_EN_VDD_PNL, "en_vdd_pnl");
+	gpio_direction_output(PAZ00_EN_VDD_PNL, 1);
+	tegra_gpio_enable(PAZ00_EN_VDD_PNL);
+	gpio_free(PAZ00_EN_VDD_PNL);
 
-	gpio_request(paz00_bl_vdd, "bl_vdd");
-	gpio_direction_output(paz00_bl_vdd, 1);
-	tegra_gpio_enable(paz00_bl_vdd);
-	gpio_free(paz00_bl_vdd);
+	gpio_request(PAZ00_BACKLIGHT_VDD, "bl_vdd");
+	gpio_direction_output(PAZ00_BACKLIGHT_VDD, 1);
+	tegra_gpio_enable(PAZ00_BACKLIGHT_VDD);
+	gpio_free(PAZ00_BACKLIGHT_VDD);
 
-	gpio_request(paz00_hdmi_hpd, "hdmi_hpd");
-	gpio_direction_input(paz00_hdmi_hpd);
-	tegra_gpio_enable(paz00_hdmi_hpd);
-	gpio_free(paz00_hdmi_hpd);
-
+	gpio_request(PAZ00_HDMI_HPD, "hdmi_hpd");
+	gpio_direction_input(PAZ00_HDMI_HPD);
+	tegra_gpio_enable(PAZ00_HDMI_HPD);
+	gpio_free(PAZ00_HDMI_HPD);
+*/
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));
 

@@ -1263,18 +1263,8 @@ static void hcd_free_coherent(struct usb_bus *bus, dma_addr_t *dma_handle,
 	*dma_handle = 0;
 }
 
-static void unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
+void unmap_urb_setup_for_dma(struct usb_hcd *hcd, struct urb *urb)
 {
-	if (hcd->driver->unmap_urb_for_dma)
-		hcd->driver->unmap_urb_for_dma(hcd, urb);
-	else
-		usb_hcd_unmap_urb_for_dma(hcd, urb);
-}
-
-void usb_hcd_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
-{
-	enum dma_data_direction dir;
-
 	if (urb->transfer_flags & URB_SETUP_MAP_SINGLE)
 		dma_unmap_single(hcd->self.controller,
 				urb->setup_dma,
@@ -1286,6 +1276,26 @@ void usb_hcd_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
 				(void **) &urb->setup_packet,
 				sizeof(struct usb_ctrlrequest),
 				DMA_TO_DEVICE);
+
+	/* Make it safe to call this routine more than once */
+	urb->transfer_flags &= ~(URB_SETUP_MAP_SINGLE | URB_SETUP_MAP_LOCAL);
+}
+EXPORT_SYMBOL_GPL(unmap_urb_setup_for_dma);
+
+void unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb, int status)
+{
+       if (hcd->driver->unmap_urb_for_dma)
+               hcd->driver->unmap_urb_for_dma(hcd, urb, status);
+       else
+               usb_hcd_unmap_urb_for_dma(hcd, urb);
+}
+EXPORT_SYMBOL_GPL(unmap_urb_for_dma);
+
+void usb_hcd_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
+{
+	enum dma_data_direction dir;
+
+	unmap_urb_setup_for_dma(hcd, urb);
 
 	dir = usb_urb_dir_in(urb) ? DMA_FROM_DEVICE : DMA_TO_DEVICE;
 	if (urb->transfer_flags & URB_DMA_MAP_SG)
@@ -1311,11 +1321,9 @@ void usb_hcd_unmap_urb_for_dma(struct usb_hcd *hcd, struct urb *urb)
 				dir);
 
 	/* Make it safe to call this routine more than once */
-	urb->transfer_flags &= ~(URB_SETUP_MAP_SINGLE | URB_SETUP_MAP_LOCAL |
-			URB_DMA_MAP_SG | URB_DMA_MAP_PAGE |
+	urb->transfer_flags &= ~(URB_DMA_MAP_SG | URB_DMA_MAP_PAGE |
 			URB_DMA_MAP_SINGLE | URB_MAP_LOCAL);
 }
-EXPORT_SYMBOL_GPL(usb_hcd_unmap_urb_for_dma);
 
 static int map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 			   gfp_t mem_flags)
@@ -1339,6 +1347,8 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 	 */
 
 	if (usb_endpoint_xfer_control(&urb->ep->desc)) {
+		if (hcd->self.uses_pio_for_control)
+			return ret;
 		if (hcd->self.uses_dma) {
 			urb->setup_dma = dma_map_single(
 					hcd->self.controller,
@@ -1422,7 +1432,6 @@ int usb_hcd_map_urb_for_dma(struct usb_hcd *hcd, struct urb *urb,
 	}
 	return ret;
 }
-EXPORT_SYMBOL_GPL(usb_hcd_map_urb_for_dma);
 
 /*-------------------------------------------------------------------------*/
 
@@ -1460,7 +1469,7 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 		if (likely(status == 0)) {
 			status = hcd->driver->urb_enqueue(hcd, urb, mem_flags);
 			if (unlikely(status))
-				unmap_urb_for_dma(hcd, urb);
+				unmap_urb_for_dma(hcd, urb, status);
 		}
 	}
 
@@ -1566,7 +1575,7 @@ void usb_hcd_giveback_urb(struct usb_hcd *hcd, struct urb *urb, int status)
 			!status))
 		status = -EREMOTEIO;
 
-	unmap_urb_for_dma(hcd, urb);
+	unmap_urb_for_dma(hcd, urb, status);
 	usbmon_urb_complete(&hcd->self, urb, status);
 	usb_unanchor_urb(urb);
 

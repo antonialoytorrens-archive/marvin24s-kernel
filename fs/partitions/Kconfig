@@ -255,7 +255,7 @@ config TEGRAPART_PARTITION
 	depends on MACH_PAZ00 && !EMBEDDED_MMC_START_OFFSET
 	default y
 	help
-	      Add support for extended tegrapart= cmdline
+	  Add support for extended tegrapart= cmdline
 
 config NVTEGRA_PARTITION
 	bool "Nvidia Tegra partition table support" if PARTITION_ADVANCED

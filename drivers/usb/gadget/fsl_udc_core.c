@@ -380,8 +380,6 @@ static void dr_controller_stop(struct fsl_udc *udc)
 	tmp = fsl_readl(&dr_regs->usbcmd);
 	tmp &= ~USB_CMD_RUN_STOP;
 	fsl_writel(tmp, &dr_regs->usbcmd);
-
-	return;
 }
 
 static void dr_ep_setup(unsigned char ep_num, unsigned char dir,
@@ -488,8 +486,6 @@ static void struct_ep_qh_setup(struct fsl_udc *udc, unsigned char ep_num,
 	p_QH->max_pkt_length = cpu_to_le32(tmp);
 	p_QH->next_dtd_ptr = 1;
 	p_QH->size_ioc_int_sts = 0;
-
-	return;
 }
 
 /* Setup qh structure and ep register for ep0. */
@@ -846,9 +842,11 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 {
 	struct fsl_ep *ep = container_of(_ep, struct fsl_ep, ep);
 	struct fsl_req *req = container_of(_req, struct fsl_req, req);
-	struct fsl_udc *udc;
+	struct fsl_udc *udc = ep->udc;
 	unsigned long flags;
+	enum dma_data_direction dir;
 	int is_iso = 0;
+	int status;
 
 	/* catch various bogus parameters */
 	if (!_req || !req->req.complete || !req->req.buf
@@ -856,17 +854,27 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 		VDBG("%s, bad params", __func__);
 		return -EINVAL;
 	}
-	if (unlikely(!_ep || !ep->desc)) {
+
+	spin_lock_irqsave(&udc->lock, flags);
+
+	if (unlikely(!ep->desc)) {
 		VDBG("%s, bad ep", __func__);
+		spin_unlock_irqrestore(&udc->lock, flags);
 		return -EINVAL;
 	}
+
 	if (ep->desc->bmAttributes == USB_ENDPOINT_XFER_ISOC) {
-		if (req->req.length > ep->ep.maxpacket)
+		if (req->req.length > ep->ep.maxpacket) {
+			spin_unlock_irqrestore(&udc->lock, flags);
 			return -EMSGSIZE;
+		}
 		is_iso = 1;
 	}
 
-	udc = ep->udc;
+	dir = ep_is_in(ep) ? DMA_TO_DEVICE : DMA_FROM_DEVICE;
+
+	spin_unlock_irqrestore(&udc->lock, flags);
+
 	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN)
 		return -ESHUTDOWN;
 
@@ -874,18 +882,12 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 
 	/* map virtual address to hardware */
 	if (req->req.dma == DMA_ADDR_INVALID) {
-		req->req.dma = dma_map_single(ep->udc->gadget.dev.parent,
-					req->req.buf,
-					req->req.length, ep_is_in(ep)
-						? DMA_TO_DEVICE
-						: DMA_FROM_DEVICE);
+		req->req.dma = dma_map_single(udc->gadget.dev.parent,
+					req->req.buf, req->req.length, dir);
 		req->mapped = 1;
 	} else {
-		dma_sync_single_for_device(ep->udc->gadget.dev.parent,
-					req->req.dma, req->req.length,
-					ep_is_in(ep)
-						? DMA_TO_DEVICE
-						: DMA_FROM_DEVICE);
+		dma_sync_single_for_device(udc->gadget.dev.parent,
+					req->req.dma, req->req.length, dir);
 		req->mapped = 0;
 	}
 
@@ -895,10 +897,19 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 
 
 	/* build dtds and push them to device queue */
-	if (fsl_req_to_dtd(req, gfp_flags))
-		return -ENOMEM;
+	status = fsl_req_to_dtd(req, gfp_flags);
+	if (status)
+		goto err_unmap;
 
 	spin_lock_irqsave(&udc->lock, flags);
+
+	/* re-check if the ep has not been disabled */
+	if (unlikely(!ep->desc)) {
+		spin_unlock_irqrestore(&udc->lock, flags);
+		status = -EINVAL;
+		goto err_unmap;
+	}
+
 	fsl_queue_td(ep, req);
 
 	/* Update ep0 state */
@@ -911,6 +922,15 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 	spin_unlock_irqrestore(&udc->lock, flags);
 
 	return 0;
+
+err_unmap:
+	if (req->mapped) {
+		dma_unmap_single(udc->gadget.dev.parent,
+			req->req.dma, req->req.length, dir);
+		req->req.dma = DMA_ADDR_INVALID;
+		req->mapped = 0;
+	}
+	return status;
 }
 
 /* dequeues (cancels, unlinks) an I/O request from an endpoint */
@@ -2000,7 +2020,8 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
  * Hook to gadget drivers
  * Called by initialization code of gadget drivers
 *----------------------------------------------------------------*/
-int usb_gadget_register_driver(struct usb_gadget_driver *driver)
+int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
+		int (*bind)(struct usb_gadget *))
 {
 	int retval = -ENODEV;
 	unsigned long flags = 0;
@@ -2010,8 +2031,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 
 	if (!driver || (driver->speed != USB_SPEED_FULL
 				&& driver->speed != USB_SPEED_HIGH)
-			|| !driver->bind || !driver->disconnect
-			|| !driver->setup)
+			|| !bind || !driver->disconnect || !driver->setup)
 		return -EINVAL;
 
 	if (udc_controller->driver)
@@ -2027,7 +2047,7 @@ int usb_gadget_register_driver(struct usb_gadget_driver *driver)
 	spin_unlock_irqrestore(&udc_controller->lock, flags);
 
 	/* bind udc driver to gadget driver */
-	retval = driver->bind(&udc_controller->gadget);
+	retval = bind(&udc_controller->gadget);
 	if (retval) {
 		VDBG("bind to %s --> %d", driver->driver.name, retval);
 		udc_controller->gadget.dev.driver = NULL;
@@ -2052,7 +2072,7 @@ out:
 		       retval);
 	return retval;
 }
-EXPORT_SYMBOL(usb_gadget_register_driver);
+EXPORT_SYMBOL(usb_gadget_probe_driver);
 
 /* Disconnect from gadget driver */
 int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)

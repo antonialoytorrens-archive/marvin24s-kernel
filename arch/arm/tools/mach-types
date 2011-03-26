@@ -12,7 +12,7 @@
 #
 #   http://www.arm.linux.org.uk/developer/machines/?action=new
 #
-# Last update: Wed Jan 12 08:23:27 2011
+# Last update: Thu Jan 13 22:11:19 2011
 #
 # machine_is_xxx	CONFIG_xxxx		MACH_TYPE_xxx		number
 #
@@ -3276,4 +3276,9 @@ gfs_spm			MACH_GFS_SPM		GFS_SPM			3289
 cm_t3730		MACH_CM_T3730		CM_T3730		3290
 isc3			MACH_ISC3		ISC3			3291
 rascal			MACH_RASCAL		RASCAL			3292
-tegra_legacy		MACH_TEGRA_LEGACY	TEGRA_LEGACY		3333
+hrefv60			MACH_HREFV60		HREFV60			3293
+tpt_2_0			MACH_TPT_2_0		TPT_2_0			3294
+pyramid_td		MACH_PYRAMID_TD		PYRAMID_TD		3295
+splendor		MACH_SPLENDOR		SPLENDOR		3296
+guf_planet		MACH_GUF_PLANET		GUF_PLANET		3297
+msm8x60_qt		MACH_MSM8X60_QT		MSM8X60_QT		3298

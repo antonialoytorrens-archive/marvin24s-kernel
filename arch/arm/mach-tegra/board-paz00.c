@@ -20,14 +20,9 @@
 #include <linux/platform_device.h>
 #include <linux/serial_8250.h>
 #include <linux/clk.h>
-#include <linux/mtd/mtd.h>
-#include <linux/mtd/partitions.h>
-#include <linux/dma-mapping.h>
-#include <linux/pda_power.h>
 #include <linux/i2c.h>
 #include <linux/i2c-tegra.h>
 #include <linux/io.h>
-#include <linux/delay.h>
 #include <linux/tegra_usb.h>
 #include <linux/fsl_devices.h>
 #include <linux/mfd/nvec.h>
@@ -35,7 +30,6 @@
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
-#include <asm/mach/time.h>
 #include <asm/setup.h>
 
 #include <mach/iomap.h>
@@ -48,7 +42,6 @@
 #include "board.h"
 #include "board-paz00.h"
 #include "devices.h"
-#include "gpio-names.h"
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
@@ -91,7 +84,7 @@ static struct nvec_subdev paz00_nvec_subdevs[] = {
 
 static struct nvec_platform_data nvec_mfd_platform_data = {
 	.i2c_addr = 0x8a,
-	.gpio = TEGRA_GPIO_PV2, // FIXME: move to res?
+	.gpio = PAZ00_NVEC_REQ, // FIXME: move to res?
 	.subdevs = paz00_nvec_subdevs,
 	.num_subdevs = ARRAY_SIZE(paz00_nvec_subdevs),
 };
@@ -125,8 +118,8 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 };
 
 static struct tegra_ulpi_config ulpi_phy_config = {
-	.reset_gpio = TEGRA_GPIO_PV0,
-	.clk = "clk_dev2",
+	.reset_gpio = PAZ00_ULPI_RST,
+	.clk = "cdev2",
 };
 
 static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
@@ -256,14 +249,11 @@ static void __init tegra_paz00_fixup(struct machine_desc *desc,
 	mi->nr_banks = 1;
 	mi->bank[0].start = PHYS_OFFSET;
 	mi->bank[0].size = 448 * SZ_1M;
-/*	mi->bank[1].start = SZ_512M;
-	mi->bank[1].size = SZ_512M; */
 }
 
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 /*	{ "clk_dev1",	NULL,		26000000,	true},
-	{ "clk_dev2",	NULL,		26000000,	true},
 	{ "3d",		"pll_m",	266400000,	true},
 	{ "2d",		"pll_m",	266400000,	true},
 	{ "vi",		"pll_m",	50000000,	true},
@@ -317,11 +307,12 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 
 	{ "apbdma",	"hclk",		54000000,	true},
 	{ "audio",	"pll_a_out0",	11289600,	true},
+	{ "cdev1",	"pll_a_out0",	11289600,	true},
 	{ "audio_2x",	"audio",	22579200,	false},
+	{ "clk_d",	"clk_m",	24000000,	true},
 	{ "uarta",	"clk_m",	12000000,	true},
 	{ "uartd",	"pll_p",	216000000,	true},
 	{ "pwm",	"clk_32k",	32768,		true},
-	{ "clk_d",	"clk_m",	24000000,	true},
 	{ "pll_a",	"pll_p_out1",	56448000,	true},
 	{ "pll_a_out0",	"pll_a",	11289600,	true},
 	{ "pll_c",	"clk_m",	600000000,	true},
@@ -374,20 +365,6 @@ static void __init tegra_paz00_init(void)
 /* for newer bootloaders */
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 	.boot_params	= 0x00000100,
-	.phys_io	= IO_APB_PHYS,
-	.io_pg_offst	= ((IO_APB_VIRT) >> 18) & 0xfffc,
-	.fixup		= tegra_paz00_fixup,
-	.init_irq	= tegra_init_irq,
-	.init_machine	= tegra_paz00_init,
-	.map_io		= tegra_map_common_io,
-	.timer		= &tegra_timer,
-MACHINE_END
-
-/* for android 2.1 bootloader */
-MACHINE_START(TEGRA_LEGACY, "tegra_legacy")
-	.boot_params	= 0x00000100,
-	.phys_io	= IO_APB_PHYS,
-	.io_pg_offst	= ((IO_APB_VIRT) >> 18) & 0xfffc,
 	.fixup		= tegra_paz00_fixup,
 	.init_irq	= tegra_init_irq,
 	.init_machine	= tegra_paz00_init,

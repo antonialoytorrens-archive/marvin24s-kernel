@@ -121,7 +121,6 @@ int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 		ecryptfs_inode_to_private(ecryptfs_dentry->d_inode);
 	int rc = 0;
 
-	mutex_lock(&inode_info->lower_file_mutex);
 	if (!inode_info->lower_file) {
 		struct dentry *lower_dentry;
 		struct vfsmount *lower_mnt =
@@ -137,7 +136,6 @@ int ecryptfs_init_persistent_file(struct dentry *ecryptfs_dentry)
 			inode_info->lower_file = NULL;
 		}
 	}
-	mutex_unlock(&inode_info->lower_file_mutex);
 	return rc;
 }
 
@@ -208,7 +206,8 @@ enum { ecryptfs_opt_sig, ecryptfs_opt_ecryptfs_sig,
        ecryptfs_opt_passthrough, ecryptfs_opt_xattr_metadata,
        ecryptfs_opt_encrypted_view, ecryptfs_opt_fnek_sig,
        ecryptfs_opt_fn_cipher, ecryptfs_opt_fn_cipher_key_bytes,
-       ecryptfs_opt_unlink_sigs, ecryptfs_opt_err };
+       ecryptfs_opt_unlink_sigs, ecryptfs_opt_mount_auth_tok_only,
+       ecryptfs_opt_err };
 
 static const match_table_t tokens = {
 	{ecryptfs_opt_sig, "sig=%s"},
@@ -223,6 +222,7 @@ static const match_table_t tokens = {
 	{ecryptfs_opt_fn_cipher, "ecryptfs_fn_cipher=%s"},
 	{ecryptfs_opt_fn_cipher_key_bytes, "ecryptfs_fn_key_bytes=%u"},
 	{ecryptfs_opt_unlink_sigs, "ecryptfs_unlink_sigs"},
+	{ecryptfs_opt_mount_auth_tok_only, "ecryptfs_mount_auth_tok_only"},
 	{ecryptfs_opt_err, NULL}
 };
 
@@ -406,6 +406,10 @@ static int ecryptfs_parse_options(struct ecryptfs_sb_info *sbi, char *options)
 		case ecryptfs_opt_unlink_sigs:
 			mount_crypt_stat->flags |= ECRYPTFS_UNLINK_SIGS;
 			break;
+		case ecryptfs_opt_mount_auth_tok_only:
+			mount_crypt_stat->flags |=
+				ECRYPTFS_GLOBAL_MOUNT_AUTH_TOK_ONLY;
+			break;
 		case ecryptfs_opt_err:
 		default:
 			printk(KERN_WARNING
@@ -540,9 +544,8 @@ out:
  *                        ecryptfs_interpose to perform most of the linking
  * ecryptfs_interpose(): links the lower filesystem into ecryptfs (inode.c)
  */
-static int ecryptfs_get_sb(struct file_system_type *fs_type, int flags,
-			const char *dev_name, void *raw_data,
-			struct vfsmount *mnt)
+static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags,
+			const char *dev_name, void *raw_data)
 {
 	struct super_block *s;
 	struct ecryptfs_sb_info *sbi;
@@ -607,8 +610,7 @@ static int ecryptfs_get_sb(struct file_system_type *fs_type, int flags,
 		err = "Reading sb failed";
 		goto out;
 	}
-	simple_set_mnt(mnt, s);
-	return 0;
+	return dget(s->s_root);
 
 out:
 	if (sbi) {
@@ -616,7 +618,7 @@ out:
 		kmem_cache_free(ecryptfs_sb_info_cache, sbi);
 	}
 	printk(KERN_ERR "%s; rc = [%d]\n", err, rc);
-	return rc;
+	return ERR_PTR(rc);
 }
 
 /**
@@ -639,7 +641,7 @@ static void ecryptfs_kill_block_super(struct super_block *sb)
 static struct file_system_type ecryptfs_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "ecryptfs",
-	.get_sb = ecryptfs_get_sb,
+	.mount = ecryptfs_mount,
 	.kill_sb = ecryptfs_kill_block_super,
 	.fs_flags = 0
 };

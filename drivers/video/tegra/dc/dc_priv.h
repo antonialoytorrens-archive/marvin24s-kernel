@@ -60,6 +60,7 @@ struct tegra_dc {
 	int				irq;
 
 	struct clk			*clk;
+	struct clk			*emc_clk;
 
 	bool				enabled;
 
@@ -83,6 +84,9 @@ struct tegra_dc {
 	u32				syncpt_id;
 	u32				syncpt_min;
 	u32				syncpt_max;
+
+	unsigned long			underflow_mask;
+	struct work_struct		reset_work;
 };
 
 static inline void tegra_dc_io_start(struct tegra_dc *dc)

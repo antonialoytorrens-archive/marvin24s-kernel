@@ -19,7 +19,6 @@
 
 #ifndef _LANGUAGE_ASSEMBLY
 
-#include <typedefs.h>
 #include <bcmdefs.h>
 
 struct nvram_header {
@@ -28,12 +27,6 @@ struct nvram_header {
 	u32 crc_ver_init;	/* 0:7 crc, 8:15 ver, 16:31 sdram_init */
 	u32 config_refresh;	/* 0:15 sdram_config, 16:31 sdram_refresh */
 	u32 config_ncdl;	/* ncdl values for memc */
-};
-
-struct nvram_tuple {
-	char *name;
-	char *value;
-	struct nvram_tuple *next;
 };
 
 /*

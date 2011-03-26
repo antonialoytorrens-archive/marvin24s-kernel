@@ -101,6 +101,7 @@ struct tegra_dc_win {
 	unsigned		z;
 
 	int			dirty;
+	int			underflows;
 	struct tegra_dc		*dc;
 
 	struct nvmap_handle_ref	*cur_handle;
@@ -154,6 +155,7 @@ struct tegra_fb_data {
 
 struct tegra_dc_platform_data {
 	unsigned long		flags;
+	unsigned long		emc_clk_rate;
 	struct tegra_dc_out	*default_out;
 	struct tegra_fb_data	*fb;
 };
@@ -177,5 +179,11 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n);
 int tegra_dc_sync_windows(struct tegra_dc_win *windows[], int n);
 
 int tegra_dc_set_mode(struct tegra_dc *dc, const struct tegra_dc_mode *mode);
+
+/*
+ * This sets the sample rate for all display controllers at once,
+ * since there is a single audio source routed to themn all.
+ */
+int tegra_dc_hdmi_set_audio_sample_rate(unsigned audio_freq);
 
 #endif

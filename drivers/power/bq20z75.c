@@ -25,6 +25,10 @@
 #include <linux/power_supply.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
+#include <linux/interrupt.h>
+#include <linux/gpio.h>
+
+#include <linux/power/bq20z75.h>
 
 enum {
 	REG_MANUFACTURER_DATA,
@@ -141,36 +145,66 @@ static enum power_supply_property bq20z75_properties[] = {
 };
 
 struct bq20z75_info {
-	struct i2c_client	*client;
-	struct power_supply	power_supply;
+	struct i2c_client		*client;
+	struct power_supply		power_supply;
+	struct bq20z75_platform_data	*pdata;
+	bool				is_present;
+	bool				gpio_detect;
+	bool				enable_detection;
+	int				irq;
 };
 
 static int bq20z75_read_word_data(struct i2c_client *client, u8 address)
 {
-	s32 ret;
+	struct bq20z75_info *bq20z75_device = i2c_get_clientdata(client);
+	s32 ret = 0;
+	int retries = 1;
 
-	ret = i2c_smbus_read_word_data(client, address);
+	if (bq20z75_device->pdata)
+		retries = max(bq20z75_device->pdata->i2c_retry_count + 1, 1);
+
+	while (retries > 0) {
+		ret = i2c_smbus_read_word_data(client, address);
+		if (ret >= 0)
+			break;
+		retries--;
+	}
+
 	if (ret < 0) {
-		dev_err(&client->dev,
+		dev_dbg(&client->dev,
 			"%s: i2c read at address 0x%x failed\n",
 			__func__, address);
 		return ret;
 	}
+
 	return le16_to_cpu(ret);
 }
 
 static int bq20z75_write_word_data(struct i2c_client *client, u8 address,
 	u16 value)
 {
-	s32 ret;
+	struct bq20z75_info *bq20z75_device = i2c_get_clientdata(client);
+	s32 ret = 0;
+	int retries = 1;
 
-	ret = i2c_smbus_write_word_data(client, address, le16_to_cpu(value));
+	if (bq20z75_device->pdata)
+		retries = max(bq20z75_device->pdata->i2c_retry_count + 1, 1);
+
+	while (retries > 0) {
+		ret = i2c_smbus_write_word_data(client, address,
+			le16_to_cpu(value));
+		if (ret >= 0)
+			break;
+		retries--;
+	}
+
 	if (ret < 0) {
-		dev_err(&client->dev,
+		dev_dbg(&client->dev,
 			"%s: i2c write to address 0x%x failed\n",
 			__func__, address);
 		return ret;
 	}
+
 	return 0;
 }
 
@@ -179,6 +213,19 @@ static int bq20z75_get_battery_presence_and_health(
 	union power_supply_propval *val)
 {
 	s32 ret;
+	struct bq20z75_info *bq20z75_device = i2c_get_clientdata(client);
+
+	if (psp == POWER_SUPPLY_PROP_PRESENT &&
+		bq20z75_device->gpio_detect) {
+		ret = gpio_get_value(
+			bq20z75_device->pdata->battery_detect);
+		if (ret == bq20z75_device->pdata->battery_detect_present)
+			val->intval = 1;
+		else
+			val->intval = 0;
+		bq20z75_device->is_present = val->intval;
+		return ret;
+	}
 
 	/* Write to ManufacturerAccess with
 	 * ManufacturerAccess command and then
@@ -186,9 +233,11 @@ static int bq20z75_get_battery_presence_and_health(
 	ret = bq20z75_write_word_data(client,
 		bq20z75_data[REG_MANUFACTURER_DATA].addr,
 		MANUFACTURER_ACCESS_STATUS);
-	if (ret < 0)
+	if (ret < 0) {
+		if (psp == POWER_SUPPLY_PROP_PRESENT)
+			val->intval = 0; /* battery removed */
 		return ret;
-
+	}
 
 	ret = bq20z75_read_word_data(client,
 		bq20z75_data[REG_MANUFACTURER_DATA].addr);
@@ -273,12 +322,15 @@ static void  bq20z75_unit_adjustment(struct i2c_client *client,
 {
 #define BASE_UNIT_CONVERSION		1000
 #define BATTERY_MODE_CAP_MULT_WATT	(10 * BASE_UNIT_CONVERSION)
-#define TIME_UNIT_CONVERSION		600
-#define TEMP_KELVIN_TO_CELCIUS		2731
+#define TIME_UNIT_CONVERSION		60
+#define TEMP_KELVIN_TO_CELSIUS		2731
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ENERGY_NOW:
 	case POWER_SUPPLY_PROP_ENERGY_FULL:
 	case POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN:
+		/* bq20z75 provides energy in units of 10mWh.
+		 * Convert to µWh
+		 */
 		val->intval *= BATTERY_MODE_CAP_MULT_WATT;
 		break;
 
@@ -292,14 +344,17 @@ static void  bq20z75_unit_adjustment(struct i2c_client *client,
 		break;
 
 	case POWER_SUPPLY_PROP_TEMP:
-		/* bq20z75 provides battery tempreture in 0.1°K
-		 * so convert it to 0.1°C */
-		val->intval -= TEMP_KELVIN_TO_CELCIUS;
-		val->intval *= 10;
+		/* bq20z75 provides battery temperature in 0.1K
+		 * so convert it to 0.1°C
+		 */
+		val->intval -= TEMP_KELVIN_TO_CELSIUS;
 		break;
 
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
+		/* bq20z75 provides time to empty and time to full in minutes.
+		 * Convert to seconds
+		 */
 		val->intval *= TIME_UNIT_CONVERSION;
 		break;
 
@@ -313,36 +368,27 @@ static enum bq20z75_battery_mode
 bq20z75_set_battery_mode(struct i2c_client *client,
 	enum bq20z75_battery_mode mode)
 {
-	int ret, originalVal;
+	int ret, original_val;
 
-	originalVal = bq20z75_read_word_data(client, BATTERY_MODE_OFFSET);
-	if (originalVal < 0)
-		return originalVal;
+	original_val = bq20z75_read_word_data(client, BATTERY_MODE_OFFSET);
+	if (original_val < 0)
+		return original_val;
 
-	if ((originalVal & BATTERY_MODE_MASK) == mode)
+	if ((original_val & BATTERY_MODE_MASK) == mode)
 		return mode;
 
 	if (mode == BATTERY_MODE_AMPS)
-		ret = originalVal & ~BATTERY_MODE_MASK;
+		ret = original_val & ~BATTERY_MODE_MASK;
 	else
-		ret = originalVal | BATTERY_MODE_MASK;
+		ret = original_val | BATTERY_MODE_MASK;
 
 	ret = bq20z75_write_word_data(client, BATTERY_MODE_OFFSET, ret);
 	if (ret < 0)
 		return ret;
 
-	return originalVal & BATTERY_MODE_MASK;
+	return original_val & BATTERY_MODE_MASK;
 }
 
-#define PROP_NEEDS_AMPS(PSP) \
-	((PSP == POWER_SUPPLY_PROP_CHARGE_NOW) || \
-	 (PSP == POWER_SUPPLY_PROP_CHARGE_FULL) || \
-	 (PSP == POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN))
-
-#define PROP_NEEDS_WATTS(PSP) \
-	((PSP == POWER_SUPPLY_PROP_ENERGY_NOW) || \
-	 (PSP == POWER_SUPPLY_PROP_ENERGY_FULL) || \
-	 (PSP == POWER_SUPPLY_PROP_ENERGY_FULL_DESIGN))
 static int bq20z75_get_battery_capacity(struct i2c_client *client,
 	int reg_offset, enum power_supply_property psp,
 	union power_supply_propval *val)
@@ -350,7 +396,7 @@ static int bq20z75_get_battery_capacity(struct i2c_client *client,
 	s32 ret;
 	enum bq20z75_battery_mode mode = BATTERY_MODE_WATTS;
 
-	if (PROP_NEEDS_AMPS(psp))
+	if (power_supply_is_amp_property(psp))
 		mode = BATTERY_MODE_AMPS;
 
 	mode = bq20z75_set_battery_mode(client, mode);
@@ -410,8 +456,7 @@ static int bq20z75_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val)
 {
-	int ps_index;
-	int ret;
+	int ret = 0;
 	struct bq20z75_info *bq20z75_device = container_of(psy,
 				struct bq20z75_info, power_supply);
 	struct i2c_client *client = bq20z75_device->client;
@@ -420,8 +465,8 @@ static int bq20z75_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_PRESENT:
 	case POWER_SUPPLY_PROP_HEALTH:
 		ret = bq20z75_get_battery_presence_and_health(client, psp, val);
-		if (ret)
-			return ret;
+		if (psp == POWER_SUPPLY_PROP_PRESENT)
+			return 0;
 		break;
 
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
@@ -435,20 +480,15 @@ static int bq20z75_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
 	case POWER_SUPPLY_PROP_CAPACITY:
-		ps_index = bq20z75_get_property_index(client, psp);
-		if (ps_index < 0)
-			return ps_index;
+		ret = bq20z75_get_property_index(client, psp);
+		if (ret < 0)
+			break;
 
-		ret = bq20z75_get_battery_capacity(client, ps_index, psp, val);
-		if (ret)
-			return ret;
-
+		ret = bq20z75_get_battery_capacity(client, ret, psp, val);
 		break;
 
 	case POWER_SUPPLY_PROP_SERIAL_NUMBER:
 		ret = bq20z75_get_battery_serial_number(client, val);
-		if (ret)
-			return ret;
 		break;
 
 	case POWER_SUPPLY_PROP_STATUS:
@@ -459,14 +499,11 @@ static int bq20z75_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
-		ps_index = bq20z75_get_property_index(client, psp);
-		if (ps_index < 0)
-			return ps_index;
+		ret = bq20z75_get_property_index(client, psp);
+		if (ret < 0)
+			break;
 
-		ret = bq20z75_get_battery_property(client, ps_index, psp, val);
-		if (ret)
-			return ret;
-
+		ret = bq20z75_get_battery_property(client, ret, psp, val);
 		break;
 
 	default:
@@ -475,26 +512,58 @@ static int bq20z75_get_property(struct power_supply *psy,
 		return -EINVAL;
 	}
 
-	/* Convert units to match requirements for power supply class */
-	bq20z75_unit_adjustment(client, psp, val);
+	if (!bq20z75_device->enable_detection)
+		goto done;
+
+	if (!bq20z75_device->gpio_detect &&
+		bq20z75_device->is_present != (ret >= 0)) {
+		bq20z75_device->is_present = (ret >= 0);
+		power_supply_changed(&bq20z75_device->power_supply);
+	}
+
+done:
+	if (!ret) {
+		/* Convert units to match requirements for power supply class */
+		bq20z75_unit_adjustment(client, psp, val);
+	}
 
 	dev_dbg(&client->dev,
-		"%s: property = %d, value = %d\n", __func__, psp, val->intval);
+		"%s: property = %d, value = %x\n", __func__, psp, val->intval);
+
+	if (ret && bq20z75_device->is_present)
+		return ret;
+
+	/* battery not present, so return NODATA for properties */
+	if (ret)
+		return -ENODATA;
 
 	return 0;
 }
 
-static int bq20z75_probe(struct i2c_client *client,
+static irqreturn_t bq20z75_irq(int irq, void *devid)
+{
+	struct power_supply *battery = devid;
+
+	power_supply_changed(battery);
+
+	return IRQ_HANDLED;
+}
+
+static int __devinit bq20z75_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	struct bq20z75_info *bq20z75_device;
+	struct bq20z75_platform_data *pdata = client->dev.platform_data;
 	int rc;
+	int irq;
 
 	bq20z75_device = kzalloc(sizeof(struct bq20z75_info), GFP_KERNEL);
 	if (!bq20z75_device)
 		return -ENOMEM;
 
 	bq20z75_device->client = client;
+	bq20z75_device->enable_detection = false;
+	bq20z75_device->gpio_detect = false;
 	bq20z75_device->power_supply.name = "battery";
 	bq20z75_device->power_supply.type = POWER_SUPPLY_TYPE_BATTERY;
 	bq20z75_device->power_supply.properties = bq20z75_properties;
@@ -502,25 +571,85 @@ static int bq20z75_probe(struct i2c_client *client,
 		ARRAY_SIZE(bq20z75_properties);
 	bq20z75_device->power_supply.get_property = bq20z75_get_property;
 
+	if (pdata) {
+		bq20z75_device->gpio_detect =
+			gpio_is_valid(pdata->battery_detect);
+		bq20z75_device->pdata = pdata;
+	}
+
 	i2c_set_clientdata(client, bq20z75_device);
+
+	if (!bq20z75_device->gpio_detect)
+		goto skip_gpio;
+
+	rc = gpio_request(pdata->battery_detect, dev_name(&client->dev));
+	if (rc) {
+		dev_warn(&client->dev, "Failed to request gpio: %d\n", rc);
+		bq20z75_device->gpio_detect = false;
+		goto skip_gpio;
+	}
+
+	rc = gpio_direction_input(pdata->battery_detect);
+	if (rc) {
+		dev_warn(&client->dev, "Failed to get gpio as input: %d\n", rc);
+		gpio_free(pdata->battery_detect);
+		bq20z75_device->gpio_detect = false;
+		goto skip_gpio;
+	}
+
+	irq = gpio_to_irq(pdata->battery_detect);
+	if (irq <= 0) {
+		dev_warn(&client->dev, "Failed to get gpio as irq: %d\n", irq);
+		gpio_free(pdata->battery_detect);
+		bq20z75_device->gpio_detect = false;
+		goto skip_gpio;
+	}
+
+	rc = request_irq(irq, bq20z75_irq,
+		IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
+		dev_name(&client->dev), &bq20z75_device->power_supply);
+	if (rc) {
+		dev_warn(&client->dev, "Failed to request irq: %d\n", rc);
+		gpio_free(pdata->battery_detect);
+		bq20z75_device->gpio_detect = false;
+		goto skip_gpio;
+	}
+
+	bq20z75_device->irq = irq;
+
+skip_gpio:
 
 	rc = power_supply_register(&client->dev, &bq20z75_device->power_supply);
 	if (rc) {
 		dev_err(&client->dev,
 			"%s: Failed to register power supply\n", __func__);
-		kfree(bq20z75_device);
-		return rc;
+		goto exit_psupply;
 	}
 
 	dev_info(&client->dev,
 		"%s: battery gas gauge device registered\n", client->name);
 
 	return 0;
+
+exit_psupply:
+	if (bq20z75_device->irq)
+		free_irq(bq20z75_device->irq, &bq20z75_device->power_supply);
+	if (bq20z75_device->gpio_detect)
+		gpio_free(pdata->battery_detect);
+
+	kfree(bq20z75_device);
+
+	return rc;
 }
 
-static int bq20z75_remove(struct i2c_client *client)
+static int __devexit bq20z75_remove(struct i2c_client *client)
 {
 	struct bq20z75_info *bq20z75_device = i2c_get_clientdata(client);
+
+	if (bq20z75_device->irq)
+		free_irq(bq20z75_device->irq, &bq20z75_device->power_supply);
+	if (bq20z75_device->gpio_detect)
+		gpio_free(bq20z75_device->pdata->battery_detect);
 
 	power_supply_unregister(&bq20z75_device->power_supply);
 	kfree(bq20z75_device);
@@ -533,13 +662,14 @@ static int bq20z75_remove(struct i2c_client *client)
 static int bq20z75_suspend(struct i2c_client *client,
 	pm_message_t state)
 {
+	struct bq20z75_info *bq20z75_device = i2c_get_clientdata(client);
 	s32 ret;
 
 	/* write to manufacturer access with sleep command */
 	ret = bq20z75_write_word_data(client,
 		bq20z75_data[REG_MANUFACTURER_DATA].addr,
 		MANUFACTURER_ACCESS_SLEEP);
-	if (ret < 0)
+	if (bq20z75_device->is_present && ret < 0)
 		return ret;
 
 	return 0;
@@ -557,7 +687,7 @@ static const struct i2c_device_id bq20z75_id[] = {
 
 static struct i2c_driver bq20z75_battery_driver = {
 	.probe		= bq20z75_probe,
-	.remove		= bq20z75_remove,
+	.remove		= __devexit_p(bq20z75_remove),
 	.suspend	= bq20z75_suspend,
 	.resume		= bq20z75_resume,
 	.id_table	= bq20z75_id,

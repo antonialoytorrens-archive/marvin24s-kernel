@@ -13,14 +13,15 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
-#include <typedefs.h>
+#include <linux/types.h>
+#include <linux/sched.h>	/* request_irq() */
+#include <linux/netdevice.h>
+#include <bcmdefs.h>
+#include <osl.h>
 #include <bcmutils.h>
 #include <sdio.h>		/* SDIO Specs */
 #include <bcmsdbus.h>		/* bcmsdh to/from specific controller APIs */
 #include <sdiovar.h>		/* to get msglevel bit values */
-
-#include <linux/sched.h>	/* request_irq() */
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/card.h>
@@ -148,7 +149,7 @@ int sdioh_sdmmc_osinit(sdioh_info_t *sd)
 {
 	struct sdos_info *sdos;
 
-	sdos = (struct sdos_info *)MALLOC(sd->osh, sizeof(struct sdos_info));
+	sdos = kmalloc(sizeof(struct sdos_info), GFP_ATOMIC);
 	sd->sdos_info = (void *)sdos;
 	if (sdos == NULL)
 		return BCME_NOMEM;
@@ -164,7 +165,7 @@ void sdioh_sdmmc_osfree(sdioh_info_t *sd)
 	ASSERT(sd && sd->sdos_info);
 
 	sdos = (struct sdos_info *)sd->sdos_info;
-	MFREE(sd->osh, sdos, sizeof(struct sdos_info));
+	kfree(sdos);
 }
 
 /* Interrupt enable/disable */
@@ -212,7 +213,7 @@ int sdio_function_init(void)
 	if (!gInstance)
 		return -ENOMEM;
 
-	bzero(&sdmmc_dev, sizeof(sdmmc_dev));
+	memset(&sdmmc_dev, 0, sizeof(sdmmc_dev));
 	error = sdio_register_driver(&bcmsdh_sdmmc_driver);
 
 	return error;

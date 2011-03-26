@@ -79,10 +79,12 @@ struct suspend_context {
 volatile struct suspend_context tegra_sctx;
 
 static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
+#ifdef CONFIG_PM
 static void __iomem *clk_rst = IO_ADDRESS(TEGRA_CLK_RESET_BASE);
 static void __iomem *flow_ctrl = IO_ADDRESS(TEGRA_FLOW_CTRL_BASE);
 static void __iomem *evp_reset = IO_ADDRESS(TEGRA_EXCEPTION_VECTORS_BASE)+0x100;
 static void __iomem *tmrus = IO_ADDRESS(TEGRA_TMRUS_BASE);
+#endif
 
 #define PMC_CTRL		0x0
 #define PMC_CTRL_LATCH_WAKEUPS	(1 << 5)
@@ -124,6 +126,10 @@ static void __iomem *tmrus = IO_ADDRESS(TEGRA_TMRUS_BASE);
 
 #define FLOW_CTRL_CPU_CSR	0x8
 #define FLOW_CTRL_CPU1_CSR	0x18
+
+#define EMC_MRW_0		0x0e8
+#define EMC_MRW_DEV_SELECTN     30
+#define EMC_MRW_DEV_NONE	(3 << EMC_MRW_DEV_SELECTN)
 
 unsigned long tegra_pgd_phys;  /* pgd used by hotplug & LP2 bootup */
 static pgd_t *tegra_pgd;
@@ -251,6 +257,7 @@ static int create_suspend_pgtable(void)
 
 
 
+#ifdef CONFIG_PM
 /*
  * suspend_cpu_complex
  *
@@ -295,7 +302,6 @@ static noinline void restore_cpu_complex(void)
 	enable_irq(INT_SYS_STATS_MON);
 }
 
-#ifdef CONFIG_PM
 static noinline void suspend_cpu_complex(void)
 {
 	unsigned int reg;
@@ -452,13 +458,17 @@ static void tegra_suspend_dram(bool do_lp0)
 
 	suspend_cpu_complex();
 	flush_cache_all();
+#ifdef CONFIG_CACHE_L2X0
 	l2x0_shutdown();
+#endif
 
 	__cortex_a9_save(mode);
 	restore_cpu_complex();
 
 	writel(orig, evp_reset);
+#ifdef CONFIG_CACHE_L2X0
 	l2x0_restart();
+#endif
 
 	if (!do_lp0) {
 		memcpy(iram_code, iram_save, iram_save_size);
@@ -566,6 +576,7 @@ static int tegra_suspend_enter(suspend_state_t state)
 {
 	struct irq_desc *desc;
 	void __iomem *mc = IO_ADDRESS(TEGRA_MC_BASE);
+	void __iomem *emc = IO_ADDRESS(TEGRA_EMC_BASE);
 	unsigned long flags;
 	u32 mc_data[3] = {0, 0, 0};
 	int irq;
@@ -632,6 +643,9 @@ static int tegra_suspend_enter(suspend_state_t state)
 		writel(mc_data[0], mc + MC_SECURITY_START);
 		writel(mc_data[1], mc + MC_SECURITY_SIZE);
 		writel(mc_data[2], mc + MC_SECURITY_CFG2);
+
+		/* trigger emc mode write */
+		writel(EMC_MRW_DEV_NONE, emc + EMC_MRW_0);
 
 		tegra_clk_resume();
 		tegra_gpio_resume();

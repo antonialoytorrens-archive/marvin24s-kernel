@@ -119,6 +119,7 @@ static void _dump_regs(struct tegra_dc *dc, void *data,
 	char buff[256];
 
 	tegra_dc_io_start(dc);
+	clk_enable(dc->clk);
 
 	DUMP_REG(DC_CMD_DISPLAY_COMMAND_OPTION0);
 	DUMP_REG(DC_CMD_DISPLAY_COMMAND);
@@ -256,6 +257,7 @@ static void _dump_regs(struct tegra_dc *dc, void *data,
 		DUMP_REG(DC_WIN_CSC_KVB);
 	}
 
+	clk_disable(dc->clk);
 	tegra_dc_io_end(dc);
 }
 
@@ -369,7 +371,7 @@ static int get_topmost_window(u32 *depths, unsigned long *wins)
 {
 	int idx, best = -1;
 
-	for_each_set_bit(idx, wins, sizeof(*wins)) {
+	for_each_set_bit(idx, wins, DC_N_WINDOWS) {
 		if (best == -1 || depths[idx] < depths[best])
 			best = idx;
 	}
@@ -406,13 +408,15 @@ static u32 blend_2win(int idx, unsigned long behind_mask, u32* flags, int xy)
 static u32 blend_3win(int idx, unsigned long behind_mask, u32* flags)
 {
 	unsigned long infront_mask;
+	int first;
 
 	infront_mask = ~(behind_mask | BIT(idx));
 	infront_mask &= (BIT(DC_N_WINDOWS) - 1);
+	first = ffs(infront_mask) - 1;
 
 	if (!infront_mask)
 		return blend_topwin(flags[idx]);
-	else if (behind_mask && flags[ffs(infront_mask)])
+	else if (behind_mask && first != -1 && flags[first])
 		return BLEND(NOKEY, DEPENDANT, 0x00, 0x00);
 	else
 		return BLEND(NOKEY, FIX, 0x0, 0x0);
@@ -490,7 +494,7 @@ int tegra_dc_update_windows(struct tegra_dc_win *windows[], int n)
 	if (no_vsync)
 		tegra_dc_writel(dc, WRITE_MUX_ACTIVE | READ_MUX_ACTIVE, DC_CMD_STATE_ACCESS);
 	else
-		tegra_dc_writel(dc, WRITE_MUX_ASSEMBLY | WRITE_MUX_ASSEMBLY, DC_CMD_STATE_ACCESS);
+		tegra_dc_writel(dc, WRITE_MUX_ASSEMBLY | READ_MUX_ASSEMBLY, DC_CMD_STATE_ACCESS);
 
 	for (i = 0; i < n; i++) {
 		struct tegra_dc_win *win = windows[i];
@@ -695,8 +699,10 @@ void tegra_dc_setup_clk(struct tegra_dc *dc, struct clk *clk)
 
 		if (dc->mode.pclk > 70000000)
 			rate = 594000000;
-		else
+		else if (dc->mode.pclk >= 27000000)
 			rate = 216000000;
+		else
+			rate = 252000000;
 
 		if (rate != clk_get_rate(pll_d_clk))
 			clk_set_rate(pll_d_clk, rate);
@@ -812,6 +818,7 @@ static irqreturn_t tegra_dc_irq(int irq, void *ptr)
 	struct tegra_dc *dc = ptr;
 	unsigned long status;
 	unsigned long val;
+	unsigned long underflow_mask;
 	int i;
 
 	status = tegra_dc_readl(dc, DC_CMD_INT_STATUS);
@@ -823,7 +830,7 @@ static irqreturn_t tegra_dc_irq(int irq, void *ptr)
 
 		val = tegra_dc_readl(dc, DC_CMD_STATE_CONTROL);
 		for (i = 0; i < DC_N_WINDOWS; i++) {
-			if (!(val & (WIN_A_ACT_REQ << i))) {
+			if (!(val & (WIN_A_UPDATE << i))) {
 				dc->windows[i].dirty = 0;
 				completed = 1;
 			} else {
@@ -840,6 +847,45 @@ static irqreturn_t tegra_dc_irq(int irq, void *ptr)
 		if (completed)
 			wake_up(&dc->wq);
 	}
+
+
+	/*
+	 * Overlays can get thier internal state corrupted during and underflow
+	 * condition.  The only way to fix this state is to reset the DC.
+	 * if we get 4 consecutive frames with underflows, assume we're
+	 * hosed and reset.
+	 */
+	underflow_mask = status & (WIN_A_UF_INT | WIN_B_UF_INT | WIN_C_UF_INT);
+	if (underflow_mask) {
+		val = tegra_dc_readl(dc, DC_CMD_INT_ENABLE);
+		val |= V_BLANK_INT;
+		tegra_dc_writel(dc, val, DC_CMD_INT_ENABLE);
+		dc->underflow_mask |= underflow_mask;
+	}
+
+	if (status & V_BLANK_INT) {
+		int i;
+
+		for (i = 0; i< DC_N_WINDOWS; i++) {
+			if (dc->underflow_mask & (WIN_A_UF_INT <<i)) {
+				dc->windows[i].underflows++;
+
+				if (dc->windows[i].underflows > 4)
+					schedule_work(&dc->reset_work);
+			} else {
+				dc->windows[i].underflows = 0;
+			}
+		}
+
+		if (!dc->underflow_mask) {
+			val = tegra_dc_readl(dc, DC_CMD_INT_ENABLE);
+			val &= ~V_BLANK_INT;
+			tegra_dc_writel(dc, val, DC_CMD_INT_ENABLE);
+		}
+
+		dc->underflow_mask = 0;
+	}
+
 
 	return IRQ_HANDLED;
 }
@@ -928,11 +974,17 @@ static void tegra_dc_init(struct tegra_dc *dc)
 	tegra_dc_writel(dc, 0x00000100 | vblank_syncpt, DC_CMD_CONT_SYNCPT_VSYNC);
 	tegra_dc_writel(dc, 0x00004700, DC_CMD_INT_TYPE);
 	tegra_dc_writel(dc, 0x0001c700, DC_CMD_INT_POLARITY);
-	tegra_dc_writel(dc, 0x00000020, DC_DISP_MEM_HIGH_PRIORITY);
-	tegra_dc_writel(dc, 0x00000001, DC_DISP_MEM_HIGH_PRIORITY_TIMER);
+	tegra_dc_writel(dc, 0x00202020, DC_DISP_MEM_HIGH_PRIORITY);
+	tegra_dc_writel(dc, 0x00010101, DC_DISP_MEM_HIGH_PRIORITY_TIMER);
 
-	tegra_dc_writel(dc, 0x00000002, DC_CMD_INT_MASK);
-	tegra_dc_writel(dc, 0x00000000, DC_CMD_INT_ENABLE);
+	tegra_dc_writel(dc, (FRAME_END_INT |
+			     V_BLANK_INT |
+			     WIN_A_UF_INT |
+			     WIN_B_UF_INT |
+			     WIN_C_UF_INT), DC_CMD_INT_MASK);
+	tegra_dc_writel(dc, (WIN_A_UF_INT |
+			     WIN_B_UF_INT |
+			     WIN_C_UF_INT), DC_CMD_INT_ENABLE);
 
 	tegra_dc_writel(dc, 0x00000000, DC_DISP_BORDER_COLOR);
 
@@ -967,6 +1019,7 @@ static bool _tegra_dc_enable(struct tegra_dc *dc)
 	tegra_dc_setup_clk(dc, dc->clk);
 
 	clk_enable(dc->clk);
+	clk_enable(dc->emc_clk);
 	enable_irq(dc->irq);
 
 	tegra_dc_init(dc);
@@ -997,6 +1050,7 @@ static void _tegra_dc_disable(struct tegra_dc *dc)
 	if (dc->out_ops && dc->out_ops->disable)
 		dc->out_ops->disable(dc);
 
+	clk_disable(dc->emc_clk);
 	clk_disable(dc->clk);
 	tegra_dvfs_set_rate(dc->clk, 0);
 
@@ -1025,10 +1079,30 @@ void tegra_dc_disable(struct tegra_dc *dc)
 	mutex_unlock(&dc->lock);
 }
 
+static void tegra_dc_reset_worker(struct work_struct *work)
+{
+	struct tegra_dc *dc =
+		container_of(work, struct tegra_dc, reset_work);
+
+	dev_warn(&dc->ndev->dev, "overlay stuck in underflow state.  resetting.\n");
+
+	mutex_lock(&dc->lock);
+	_tegra_dc_disable(dc);
+
+	tegra_periph_reset_assert(dc->clk);
+	msleep(10);
+	tegra_periph_reset_deassert(dc->clk);
+
+	_tegra_dc_enable(dc);
+	mutex_unlock(&dc->lock);
+}
+
+
 static int tegra_dc_probe(struct nvhost_device *ndev)
 {
 	struct tegra_dc *dc;
 	struct clk *clk;
+	struct clk *emc_clk;
 	struct resource	*res;
 	struct resource *base_res;
 	struct resource *fb_mem = NULL;
@@ -1036,6 +1110,7 @@ static int tegra_dc_probe(struct nvhost_device *ndev)
 	void __iomem *base;
 	int irq;
 	int i;
+	unsigned long emc_clk_rate;
 
 	if (!ndev->dev.platform_data) {
 		dev_err(&ndev->dev, "no platform data\n");
@@ -1085,18 +1160,34 @@ static int tegra_dc_probe(struct nvhost_device *ndev)
 		goto err_iounmap_reg;
 	}
 
+	emc_clk = clk_get(&ndev->dev, "emc");
+	if (IS_ERR_OR_NULL(emc_clk)) {
+		dev_err(&ndev->dev, "can't get emc clock\n");
+		ret = -ENOENT;
+		goto err_put_clk;
+	}
+
 	dc->clk = clk;
+	dc->emc_clk = emc_clk;
 	dc->base_res = base_res;
 	dc->base = base;
 	dc->irq = irq;
 	dc->ndev = ndev;
 	dc->pdata = ndev->dev.platform_data;
 
+	/*
+	 * The emc is a shared clock, it will be set based on
+	 * the requirements for each user on the bus.
+	 */
+	emc_clk_rate = dc->pdata->emc_clk_rate;
+	clk_set_rate(emc_clk, emc_clk_rate ? emc_clk_rate : ULONG_MAX);
+
 	if (dc->pdata->flags & TEGRA_DC_FLAG_ENABLED)
 		dc->enabled = true;
 
 	mutex_init(&dc->lock);
 	init_waitqueue_head(&dc->wq);
+	INIT_WORK(&dc->reset_work, tegra_dc_reset_worker);
 
 	dc->n_windows = DC_N_WINDOWS;
 	for (i = 0; i < dc->n_windows; i++) {
@@ -1108,7 +1199,7 @@ static int tegra_dc_probe(struct nvhost_device *ndev)
 			dev_name(&ndev->dev), dc)) {
 		dev_err(&ndev->dev, "request_irq %d failed\n", irq);
 		ret = -EBUSY;
-		goto err_put_clk;
+		goto err_put_emc_clk;
 	}
 
 	/* hack to ballence enable_irq calls in _tegra_dc_enable() */
@@ -1158,6 +1249,8 @@ static int tegra_dc_probe(struct nvhost_device *ndev)
 
 err_free_irq:
 	free_irq(irq, dc);
+err_put_emc_clk:
+	clk_put(emc_clk);
 err_put_clk:
 	clk_put(clk);
 err_iounmap_reg:
@@ -1187,6 +1280,7 @@ static int tegra_dc_remove(struct nvhost_device *ndev)
 		_tegra_dc_disable(dc);
 
 	free_irq(dc->irq, dc);
+	clk_put(dc->emc_clk);
 	clk_put(dc->clk);
 	iounmap(dc->base);
 	if (dc->fb_mem)

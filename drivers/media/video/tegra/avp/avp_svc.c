@@ -35,6 +35,16 @@
 #include "avp.h"
 
 enum {
+	AVP_DBG_TRACE_SVC		= 1U << 0,
+};
+
+static u32 debug_mask = 0;
+module_param_named(debug_mask, debug_mask, uint, S_IWUSR | S_IRUGO);
+
+#define DBG(flag, args...) \
+	do { if (unlikely(debug_mask & (flag))) pr_info(args); } while (0)
+
+enum {
 	CLK_REQUEST_VCP		= 0,
 	CLK_REQUEST_BSEA	= 1,
 	CLK_REQUEST_VDE		= 2,
@@ -72,6 +82,7 @@ struct avp_svc_info {
 	struct avp_clk			clks[NUM_CLK_REQUESTS];
 	/* used for dvfs */
 	struct clk			*sclk;
+	struct clk			*emcclk;
 
 	struct mutex			clk_lock;
 
@@ -308,7 +319,6 @@ static void do_svc_module_reset(struct avp_svc_info *avp_svc,
 		resp.err = 0;
 		goto send_response;
 	}
-	pr_info("avp_svc: module reset: %s\n", mod->name);
 
 	aclk = &avp_svc->clks[mod->clk_req];
 	tegra_periph_reset_assert(aclk->clk);
@@ -338,13 +348,12 @@ static void do_svc_module_clock(struct avp_svc_info *avp_svc,
 		resp.err = AVP_ERR_EINVAL;
 		goto send_response;
 	}
-	pr_info("avp_svc: module clock: %s %s\n", mod->name,
-		msg->enable ? "on" : "off");
 
 	mutex_lock(&avp_svc->clk_lock);
 	aclk = &avp_svc->clks[mod->clk_req];
 	if (msg->enable) {
 		if (aclk->refcnt++ == 0) {
+			clk_enable(avp_svc->emcclk);
 			clk_enable(avp_svc->sclk);
 			clk_enable(aclk->clk);
 		}
@@ -355,6 +364,7 @@ static void do_svc_module_clock(struct avp_svc_info *avp_svc,
 		} else if (--aclk->refcnt == 0) {
 			clk_disable(aclk->clk);
 			clk_disable(avp_svc->sclk);
+			clk_disable(avp_svc->emcclk);
 		}
 	}
 	mutex_unlock(&avp_svc->clk_lock);
@@ -624,6 +634,9 @@ void avp_svc_stop(struct avp_svc_info *avp_svc)
 			pr_info("%s: remote left clock '%s' on\n", __func__,
 				aclk->mod->name);
 			clk_disable(aclk->clk);
+			/* sclk/emcclk was enabled once for every clock */
+			clk_disable(avp_svc->sclk);
+			clk_disable(avp_svc->emcclk);
 		}
 		aclk->refcnt = 0;
 	}
@@ -673,6 +686,21 @@ struct avp_svc_info *avp_svc_init(struct platform_device *pdev,
 		ret = -ENOENT;
 		goto err_get_clks;
 	}
+
+	avp_svc->emcclk = clk_get(&pdev->dev, "emc");
+	if (IS_ERR(avp_svc->emcclk)) {
+		pr_err("avp_svc: Couldn't get emcclk for dvfs\n");
+		ret = -ENOENT;
+		goto err_get_clks;
+	}
+
+	/*
+	 * The emc is a shared clock, it will be set to the highest
+	 * requested rate from any user.  Set the rate to ULONG_MAX to
+	 * always request the max rate whenever this request is enabled
+	 */
+	clk_set_rate(avp_svc->emcclk, ULONG_MAX);
+
 	avp_svc->rpc_node = rpc_node;
 
 	mutex_init(&avp_svc->clk_lock);
@@ -685,6 +713,8 @@ err_get_clks:
 			clk_put(avp_svc->clks[i].clk);
 	if (!IS_ERR_OR_NULL(avp_svc->sclk))
 		clk_put(avp_svc->sclk);
+	if (!IS_ERR_OR_NULL(avp_svc->emcclk))
+		clk_put(avp_svc->emcclk);
 err_alloc:
 	return ERR_PTR(ret);
 }
@@ -696,6 +726,7 @@ void avp_svc_destroy(struct avp_svc_info *avp_svc)
 	for (i = 0; i < NUM_CLK_REQUESTS; i++)
 		clk_put(avp_svc->clks[i].clk);
 	clk_put(avp_svc->sclk);
+	clk_put(avp_svc->emcclk);
 
 	kfree(avp_svc);
 }

@@ -14,8 +14,11 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <typedefs.h>
+#include <linux/types.h>
 #include <bcmdefs.h>
+#ifdef BRCM_FULLMAC
+#include <linux/netdevice.h>
+#endif
 #include <osl.h>
 #include <bcmutils.h>
 #include <siutils.h>
@@ -87,10 +90,10 @@ static u32 _sb_coresba(si_info_t *sii)
 {
 	u32 sbaddr = 0;
 
-	switch (BUSTYPE(sii->pub.bustype)) {
+	switch (sii->pub.bustype) {
 	case SPI_BUS:
 	case SDIO_BUS:
-		sbaddr = (u32) (uintptr) sii->curmap;
+		sbaddr = (u32)(unsigned long)sii->curmap;
 		break;
 	default:
 		ASSERT(0);
@@ -248,7 +251,7 @@ static uint _sb_scan(si_info_t *sii, u32 sba, void *regs, uint bus, u32 sbba,
 			else {
 				/* Older chips */
 				SI_ERROR(("sb_chip2numcores: unsupported chip "
-					"0x%x\n", CHIPID(sii->pub.chip)));
+						  "0x%x\n", sii->pub.chip));
 				ASSERT(0);
 				numcores = 1;
 			}
@@ -344,7 +347,7 @@ static void *_sb_setcoreidx(si_info_t *sii, uint coreidx)
 	u32 sbaddr = sii->coresba[coreidx];
 	void *regs;
 
-	switch (BUSTYPE(sii->pub.bustype)) {
+	switch (sii->pub.bustype) {
 #ifdef BCMSDIO
 	case SPI_BUS:
 	case SDIO_BUS:
@@ -363,94 +366,6 @@ static void *_sb_setcoreidx(si_info_t *sii, uint coreidx)
 	}
 
 	return regs;
-}
-
-/* traverse all cores to find and clear source of serror */
-static void sb_serr_clear(si_info_t *sii)
-{
-	sbconfig_t *sb;
-	uint origidx;
-	uint i, intr_val = 0;
-	void *corereg = NULL;
-
-	INTR_OFF(sii, intr_val);
-	origidx = si_coreidx(&sii->pub);
-
-	for (i = 0; i < sii->numcores; i++) {
-		corereg = sb_setcoreidx(&sii->pub, i);
-		if (NULL != corereg) {
-			sb = REGS2SB(corereg);
-			if ((R_SBREG(sii, &sb->sbtmstatehigh)) & SBTMH_SERR) {
-				AND_SBREG(sii, &sb->sbtmstatehigh, ~SBTMH_SERR);
-				SI_ERROR(("sb_serr_clear: SError core 0x%x\n",
-				sb_coreid(&sii->pub)));
-			}
-		}
-	}
-
-	sb_setcoreidx(&sii->pub, origidx);
-	INTR_RESTORE(sii, intr_val);
-}
-
-/*
- * Check if any inband, outband or timeout errors has happened and clear them.
- * Must be called with chip clk on !
- */
-bool sb_taclear(si_t *sih, bool details)
-{
-	si_info_t *sii;
-	sbconfig_t *sb;
-	uint origidx;
-	uint intr_val = 0;
-	bool rc = false;
-	u32 inband = 0, serror = 0, timeout = 0;
-	void *corereg = NULL;
-	volatile u32 imstate, tmstate;
-
-	sii = SI_INFO(sih);
-
-	if ((BUSTYPE(sii->pub.bustype) == SDIO_BUS) ||
-	    (BUSTYPE(sii->pub.bustype) == SPI_BUS)) {
-
-		INTR_OFF(sii, intr_val);
-		origidx = si_coreidx(sih);
-
-		corereg = si_setcore(sih, PCMCIA_CORE_ID, 0);
-		if (NULL == corereg)
-			corereg = si_setcore(sih, SDIOD_CORE_ID, 0);
-		if (NULL != corereg) {
-			sb = REGS2SB(corereg);
-
-			imstate = R_SBREG(sii, &sb->sbimstate);
-			if ((imstate != 0xffffffff)
-			    && (imstate & (SBIM_IBE | SBIM_TO))) {
-				AND_SBREG(sii, &sb->sbimstate,
-					  ~(SBIM_IBE | SBIM_TO));
-				/* inband = imstate & SBIM_IBE; cmd error */
-				timeout = imstate & SBIM_TO;
-			}
-			tmstate = R_SBREG(sii, &sb->sbtmstatehigh);
-			if ((tmstate != 0xffffffff)
-			    && (tmstate & SBTMH_INT_STATUS)) {
-				sb_serr_clear(sii);
-				serror = 1;
-				OR_SBREG(sii, &sb->sbtmstatelow, SBTML_INT_ACK);
-				AND_SBREG(sii, &sb->sbtmstatelow,
-					  ~SBTML_INT_ACK);
-			}
-		}
-
-		sb_setcoreidx(sih, origidx);
-		INTR_RESTORE(sii, intr_val);
-	}
-
-	if (inband | timeout | serror) {
-		rc = true;
-		SI_ERROR(("sb_taclear: inband 0x%x, serror 0x%x, timeout "
-			"0x%x!\n", inband, serror, timeout));
-	}
-
-	return rc;
 }
 
 void sb_core_disable(si_t *sih, u32 bits)
@@ -477,7 +392,7 @@ void sb_core_disable(si_t *sih, u32 bits)
 	   (preserve core-specific bits) */
 	OR_SBREG(sii, &sb->sbtmstatelow, SBTML_REJ);
 	dummy = R_SBREG(sii, &sb->sbtmstatelow);
-	OSL_DELAY(1);
+	udelay(1);
 	SPINWAIT((R_SBREG(sii, &sb->sbtmstatehigh) & SBTMH_BUSY), 100000);
 	if (R_SBREG(sii, &sb->sbtmstatehigh) & SBTMH_BUSY)
 		SI_ERROR(("%s: target state still busy\n", __func__));
@@ -485,7 +400,7 @@ void sb_core_disable(si_t *sih, u32 bits)
 	if (R_SBREG(sii, &sb->sbidlow) & SBIDL_INIT) {
 		OR_SBREG(sii, &sb->sbimstate, SBIM_RJ);
 		dummy = R_SBREG(sii, &sb->sbimstate);
-		OSL_DELAY(1);
+		udelay(1);
 		SPINWAIT((R_SBREG(sii, &sb->sbimstate) & SBIM_BY), 100000);
 	}
 
@@ -494,7 +409,7 @@ void sb_core_disable(si_t *sih, u32 bits)
 		(((bits | SICF_FGC | SICF_CLOCK_EN) << SBTML_SICF_SHIFT) |
 		 SBTML_REJ | SBTML_RESET));
 	dummy = R_SBREG(sii, &sb->sbtmstatelow);
-	OSL_DELAY(10);
+	udelay(10);
 
 	/* don't forget to clear the initiator reject bit */
 	if (R_SBREG(sii, &sb->sbidlow) & SBIDL_INIT)
@@ -504,7 +419,7 @@ disable:
 	/* leave reset and reject asserted */
 	W_SBREG(sii, &sb->sbtmstatelow,
 		((bits << SBTML_SICF_SHIFT) | SBTML_REJ | SBTML_RESET));
-	OSL_DELAY(1);
+	udelay(1);
 }
 
 /* reset and re-enable a core
@@ -538,7 +453,7 @@ void sb_core_reset(si_t *sih, u32 bits, u32 resetbits)
 		(((bits | resetbits | SICF_FGC | SICF_CLOCK_EN) <<
 		  SBTML_SICF_SHIFT) | SBTML_RESET));
 	dummy = R_SBREG(sii, &sb->sbtmstatelow);
-	OSL_DELAY(1);
+	udelay(1);
 
 	if (R_SBREG(sii, &sb->sbtmstatehigh) & SBTMH_SERR)
 		W_SBREG(sii, &sb->sbtmstatehigh, 0);
@@ -552,34 +467,11 @@ void sb_core_reset(si_t *sih, u32 bits, u32 resetbits)
 		((bits | resetbits | SICF_FGC | SICF_CLOCK_EN) <<
 		 SBTML_SICF_SHIFT));
 	dummy = R_SBREG(sii, &sb->sbtmstatelow);
-	OSL_DELAY(1);
+	udelay(1);
 
 	/* leave clock enabled */
 	W_SBREG(sii, &sb->sbtmstatelow,
 		((bits | SICF_CLOCK_EN) << SBTML_SICF_SHIFT));
 	dummy = R_SBREG(sii, &sb->sbtmstatelow);
-	OSL_DELAY(1);
-}
-
-u32 sb_base(u32 admatch)
-{
-	u32 base;
-	uint type;
-
-	type = admatch & SBAM_TYPE_MASK;
-	ASSERT(type < 3);
-
-	base = 0;
-
-	if (type == 0) {
-		base = admatch & SBAM_BASE0_MASK;
-	} else if (type == 1) {
-		ASSERT(!(admatch & SBAM_ADNEG));	/* neg not supported */
-		base = admatch & SBAM_BASE1_MASK;
-	} else if (type == 2) {
-		ASSERT(!(admatch & SBAM_ADNEG));	/* neg not supported */
-		base = admatch & SBAM_BASE2_MASK;
-	}
-
-	return base;
+	udelay(1);
 }

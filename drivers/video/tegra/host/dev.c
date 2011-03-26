@@ -30,6 +30,7 @@
 #include <linux/platform_device.h>
 #include <linux/uaccess.h>
 #include <linux/file.h>
+#include <linux/clk.h>
 
 #include <asm/io.h>
 
@@ -208,7 +209,8 @@ static ssize_t nvhost_channelwrite(struct file *filp, const char __user *buf,
 }
 
 static int nvhost_ioctl_channel_flush(struct nvhost_channel_userctx *ctx,
-                                      struct nvhost_get_param_args *args)
+				      struct nvhost_get_param_args *args,
+				      int null_kickoff)
 {
 	struct nvhost_cpuinterrupt ctxsw;
 	int gather_idx = 2;
@@ -216,8 +218,7 @@ static int nvhost_ioctl_channel_flush(struct nvhost_channel_userctx *ctx,
 	u32 syncval;
 	int num_unpin;
 	int err;
-	int nulled_incrs = ctx->submit_hdr.null_kickoff ?
-		ctx->submit_hdr.syncpt_incrs : 0;
+	int nulled_incrs = null_kickoff ? ctx->submit_hdr.syncpt_incrs : 0;
 
 	if (ctx->submit_hdr.num_relocs || ctx->submit_hdr.num_cmdbufs) {
 		reset_submit(ctx);
@@ -302,7 +303,7 @@ static int nvhost_ioctl_channel_flush(struct nvhost_channel_userctx *ctx,
 	ctxsw.syncpt_val += syncval - ctx->submit_hdr.syncpt_incrs;
 
 	nvhost_channel_submit(ctx->ch, ctx->nvmap, &ctx->gathers[gather_idx],
-			      (ctx->submit_hdr.null_kickoff ?
+			      (null_kickoff ?
 				2 : ctx->num_gathers) -
 				gather_idx, &ctxsw, num_intrs,
 			      ctx->unpinarray, num_unpin,
@@ -339,7 +340,10 @@ static long nvhost_channelctl(struct file *filp,
 
 	switch (cmd) {
 	case NVHOST_IOCTL_CHANNEL_FLUSH:
-		err = nvhost_ioctl_channel_flush(priv, (void *)buf);
+		err = nvhost_ioctl_channel_flush(priv, (void *)buf, 0);
+		break;
+	case NVHOST_IOCTL_CHANNEL_NULL_KICKOFF:
+		err = nvhost_ioctl_channel_flush(priv, (void *)buf, 1);
 		break;
 	case NVHOST_IOCTL_CHANNEL_GET_SYNCPOINTS:
 		((struct nvhost_get_param_args *)buf)->value =
@@ -580,7 +584,6 @@ static void power_host(struct nvhost_module *mod, enum nvhost_power_action actio
 
 	if (action == NVHOST_POWER_ACTION_ON) {
 		nvhost_intr_configure(&dev->intr, clk_get_rate(mod->clk[0]));
-		nvhost_syncpt_reset(&dev->syncpt);
 	}
 	else if (action == NVHOST_POWER_ACTION_OFF) {
 		int i;
@@ -719,6 +722,10 @@ static int __devinit nvhost_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, host);
 
+	clk_enable(host->mod.clk[0]);
+	nvhost_syncpt_reset(&host->syncpt);
+	clk_disable(host->mod.clk[0]);
+
 	nvhost_bus_register(host);
 
 	nvhost_debug_init(host);
@@ -744,13 +751,28 @@ static int nvhost_suspend(struct platform_device *pdev, pm_message_t state)
 	struct nvhost_master *host = platform_get_drvdata(pdev);
 	dev_info(&pdev->dev, "suspending\n");
 	nvhost_module_suspend(&host->mod);
+	clk_enable(host->mod.clk[0]);
+	nvhost_syncpt_save(&host->syncpt);
+	clk_disable(host->mod.clk[0]);
 	dev_info(&pdev->dev, "suspended\n");
+	return 0;
+}
+
+static int nvhost_resume(struct platform_device *pdev)
+{
+	struct nvhost_master *host = platform_get_drvdata(pdev);
+	dev_info(&pdev->dev, "resuming\n");
+	clk_enable(host->mod.clk[0]);
+	nvhost_syncpt_reset(&host->syncpt);
+	clk_disable(host->mod.clk[0]);
+	dev_info(&pdev->dev, "resumed\n");
 	return 0;
 }
 
 static struct platform_driver nvhost_driver = {
 	.remove = __exit_p(nvhost_remove),
 	.suspend = nvhost_suspend,
+	.resume = nvhost_resume,
 	.driver = {
 		.owner = THIS_MODULE,
 		.name = DRIVER_NAME

@@ -13,19 +13,18 @@
  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
-#include <typedefs.h>
-#include <bcmdefs.h>
-#include <osl.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
-#include <linuxver.h>
+#include <linux/etherdevice.h>
+#include <bcmdefs.h>
+#include <osl.h>
+#include <linux/module.h>
+#include <linux/pci.h>
 #include <stdarg.h>
 #include <bcmutils.h>
 #include <hndsoc.h>
 #include <sbchipc.h>
 #include <bcmdevs.h>
-#include <bcmendian.h>
 #include <pcicfg.h>
 #include <siutils.h>
 #include <bcmsrom.h>
@@ -44,7 +43,7 @@
 #include <sbsdpcmdev.h>
 #endif
 
-#include <proto/ethernet.h>	/* for sprom content groking */
+#include <linux/if_ether.h>
 
 #define	BS_ERROR(args)
 
@@ -68,29 +67,30 @@ extern uint _varsz;
 
 #define SROM_CIS_SINGLE	1
 
-static int initvars_srom_si(si_t *sih, osl_t *osh, void *curmap, char **vars,
-			    uint *count);
+static int initvars_srom_si(si_t *sih, struct osl_info *osh, void *curmap,
+			    char **vars, uint *count);
 static void _initvars_srom_pci(u8 sromrev, u16 *srom, uint off,
 			       varbuf_t *b);
 static int initvars_srom_pci(si_t *sih, void *curmap, char **vars,
 			     uint *count);
 static int initvars_flash_si(si_t *sih, char **vars, uint *count);
 #ifdef BCMSDIO
-static int initvars_cis_sdio(osl_t *osh, char **vars, uint *count);
-static int sprom_cmd_sdio(osl_t *osh, u8 cmd);
-static int sprom_read_sdio(osl_t *osh, u16 addr, u16 *data);
+static int initvars_cis_sdio(struct osl_info *osh, char **vars, uint *count);
+static int sprom_cmd_sdio(struct osl_info *osh, u8 cmd);
+static int sprom_read_sdio(struct osl_info *osh, u16 addr, u16 *data);
 #endif				/* BCMSDIO */
-static int sprom_read_pci(osl_t *osh, si_t *sih, u16 *sprom, uint wordoff,
-			  u16 *buf, uint nwords, bool check_crc);
+static int sprom_read_pci(struct osl_info *osh, si_t *sih, u16 *sprom,
+			  uint wordoff, u16 *buf, uint nwords, bool check_crc);
 #if defined(BCMNVRAMR)
-static int otp_read_pci(osl_t *osh, si_t *sih, u16 *buf, uint bufsz);
+static int otp_read_pci(struct osl_info *osh, si_t *sih, u16 *buf, uint bufsz);
 #endif
-static u16 srom_cc_cmd(si_t *sih, osl_t *osh, void *ccregs, u32 cmd,
+static u16 srom_cc_cmd(si_t *sih, struct osl_info *osh, void *ccregs, u32 cmd,
 			  uint wordoff, u16 data);
 
-static int initvars_table(osl_t *osh, char *start, char *end, char **vars,
-			  uint *count);
-static int initvars_flash(si_t *sih, osl_t *osh, char **vp, uint len);
+static int initvars_table(struct osl_info *osh, char *start, char *end,
+			  char **vars, uint *count);
+static int initvars_flash(si_t *sih, struct osl_info *osh, char **vp,
+			  uint len);
 
 /* Initialization of varbuf structure */
 static void varbuf_init(varbuf_t *b, char *buf, uint size)
@@ -131,7 +131,7 @@ static int varbuf_append(varbuf_t *b, const char *fmt, ...)
 	if (s != NULL) {
 		len = (size_t) (s - b->buf);
 		for (s = b->base; s < b->buf;) {
-			if ((bcmp(s, b->buf, len) == 0) && s[len] == '=') {
+			if ((memcmp(s, b->buf, len) == 0) && s[len] == '=') {
 				len = strlen(s) + 1;
 				memmove(s, (s + len),
 					((b->buf + r + 1) - (s + len)));
@@ -157,21 +157,21 @@ static int varbuf_append(varbuf_t *b, const char *fmt, ...)
  * Initialize local vars from the right source for this platform.
  * Return 0 on success, nonzero on error.
  */
-int srom_var_init(si_t *sih, uint bustype, void *curmap, osl_t *osh,
+int srom_var_init(si_t *sih, uint bustype, void *curmap, struct osl_info *osh,
 		  char **vars, uint *count)
 {
 	uint len;
 
 	len = 0;
 
-	ASSERT(bustype == BUSTYPE(bustype));
+	ASSERT(bustype == bustype);
 	if (vars == NULL || count == NULL)
 		return 0;
 
 	*vars = NULL;
 	*count = 0;
 
-	switch (BUSTYPE(bustype)) {
+	switch (bustype) {
 	case SI_BUS:
 	case JTAG_BUS:
 		return initvars_srom_si(sih, osh, curmap, vars, count);
@@ -196,7 +196,7 @@ int srom_var_init(si_t *sih, uint bustype, void *curmap, osl_t *osh,
 
 /* support only 16-bit word read from srom */
 int
-srom_read(si_t *sih, uint bustype, void *curmap, osl_t *osh,
+srom_read(si_t *sih, uint bustype, void *curmap, struct osl_info *osh,
 	  uint byteoff, uint nbytes, u16 *buf, bool check_crc)
 {
 	uint off, nw;
@@ -204,7 +204,7 @@ srom_read(si_t *sih, uint bustype, void *curmap, osl_t *osh,
 	uint i;
 #endif				/* BCMSDIO */
 
-	ASSERT(bustype == BUSTYPE(bustype));
+	ASSERT(bustype == bustype);
 
 	/* check input - 16-bit access only */
 	if (byteoff & 1 || nbytes & 1 || (byteoff + nbytes) > SROM_MAX)
@@ -213,7 +213,7 @@ srom_read(si_t *sih, uint bustype, void *curmap, osl_t *osh,
 	off = byteoff / 2;
 	nw = nbytes / 2;
 
-	if (BUSTYPE(bustype) == PCI_BUS) {
+	if (bustype == PCI_BUS) {
 		if (!curmap)
 			return 1;
 
@@ -235,7 +235,7 @@ srom_read(si_t *sih, uint bustype, void *curmap, osl_t *osh,
 		}
 #endif
 #ifdef BCMSDIO
-	} else if (BUSTYPE(bustype) == SDIO_BUS) {
+	} else if (bustype == SDIO_BUS) {
 		off = byteoff / 2;
 		nw = nbytes / 2;
 		for (i = 0; i < nw; i++) {
@@ -244,7 +244,7 @@ srom_read(si_t *sih, uint bustype, void *curmap, osl_t *osh,
 				return 1;
 		}
 #endif				/* BCMSDIO */
-	} else if (BUSTYPE(bustype) == SI_BUS) {
+	} else if (bustype == SI_BUS) {
 		return 1;
 	} else {
 		return 1;
@@ -378,7 +378,8 @@ u8 patch_pair;
 /* For dongle HW, accept partial calibration parameters */
 #define BCMDONGLECASE(n)
 
-int srom_parsecis(osl_t *osh, u8 *pcis[], uint ciscnt, char **vars, uint *count)
+int srom_parsecis(struct osl_info *osh, u8 *pcis[], uint ciscnt, char **vars,
+		  uint *count)
 {
 	char eabuf[32];
 	char *base;
@@ -398,13 +399,13 @@ int srom_parsecis(osl_t *osh, u8 *pcis[], uint ciscnt, char **vars, uint *count)
 
 	boardnum = -1;
 
-	base = MALLOC(osh, MAXSZ_NVRAM_VARS);
+	base = kmalloc(MAXSZ_NVRAM_VARS, GFP_ATOMIC);
 	ASSERT(base != NULL);
 	if (!base)
 		return -2;
 
 	varbuf_init(&b, base, MAXSZ_NVRAM_VARS);
-	bzero(base, MAXSZ_NVRAM_VARS);
+	memset(base, 0, MAXSZ_NVRAM_VARS);
 	eabuf[0] = '\0';
 	for (cisnum = 0; cisnum < ciscnt; cisnum++) {
 		cis = *pcis++;
@@ -498,12 +499,12 @@ int srom_parsecis(osl_t *osh, u8 *pcis[], uint ciscnt, char **vars, uint *count)
 					break;
 				default:
 					/* set macaddr if HNBU_MACADDR not seen yet */
-					if (eabuf[0] == '\0'
-					    && cis[i] == LAN_NID
-					    && !(ETHER_ISNULLADDR(&cis[i + 2]))
-					    && !(ETHER_ISMULTI(&cis[i + 2]))) {
+					if (eabuf[0] == '\0' &&
+					    cis[i] == LAN_NID &&
+					    !is_zero_ether_addr(&cis[i + 2]) &&
+					    !is_multicast_ether_addr(&cis[i + 2])) {
 						ASSERT(cis[i + 1] ==
-						       ETHER_ADDR_LEN);
+						       ETH_ALEN);
 						snprintf(eabuf, sizeof(eabuf),
 							"%pM", &cis[i + 2]);
 
@@ -972,8 +973,8 @@ int srom_parsecis(osl_t *osh, u8 *pcis[], uint ciscnt, char **vars, uint *count)
 					break;
 
 				case HNBU_MACADDR:
-					if (!(ETHER_ISNULLADDR(&cis[i + 1])) &&
-					    !(ETHER_ISMULTI(&cis[i + 1]))) {
+					if (!is_zero_ether_addr(&cis[i + 1]) &&
+					    !is_multicast_ether_addr(&cis[i + 1])) {
 						snprintf(eabuf, sizeof(eabuf),
 							"%pM", &cis[i + 1]);
 
@@ -1334,8 +1335,8 @@ int srom_parsecis(osl_t *osh, u8 *pcis[], uint ciscnt, char **vars, uint *count)
 						u8 srev = cis[i + 1 + 70];
 						ASSERT(srev == 3);
 						/* make tuple value 16-bit aligned and parse it */
-						bcopy(&cis[i + 1], srom,
-						      sizeof(srom));
+						memcpy(srom, &cis[i + 1],
+						       sizeof(srom));
 						_initvars_srom_pci(srev, srom,
 								   SROM3_SWRGN_OFF,
 								   &b);
@@ -1399,7 +1400,7 @@ int srom_parsecis(osl_t *osh, u8 *pcis[], uint ciscnt, char **vars, uint *count)
 	ASSERT(b.buf - base <= MAXSZ_NVRAM_VARS);
 	err = initvars_table(osh, base, b.buf, vars, count);
 
-	MFREE(osh, base, MAXSZ_NVRAM_VARS);
+	kfree(base);
 	return err;
 }
 
@@ -1407,8 +1408,8 @@ int srom_parsecis(osl_t *osh, u8 *pcis[], uint ciscnt, char **vars, uint *count)
  * not in the bus cores.
  */
 static u16
-srom_cc_cmd(si_t *sih, osl_t *osh, void *ccregs, u32 cmd, uint wordoff,
-	    u16 data)
+srom_cc_cmd(si_t *sih, struct osl_info *osh, void *ccregs, u32 cmd,
+	    uint wordoff, u16 data)
 {
 	chipcregs_t *cc = (chipcregs_t *) ccregs;
 	uint wait_cnt = 1000;
@@ -1436,12 +1437,24 @@ srom_cc_cmd(si_t *sih, osl_t *osh, void *ccregs, u32 cmd, uint wordoff,
 		return 0xffff;
 }
 
+static inline void ltoh16_buf(u16 *buf, unsigned int size)
+{
+	for (size /= 2; size; size--)
+		*(buf + size) = le16_to_cpu(*(buf + size));
+}
+
+static inline void htol16_buf(u16 *buf, unsigned int size)
+{
+	for (size /= 2; size; size--)
+		*(buf + size) = cpu_to_le16(*(buf + size));
+}
+
 /*
  * Read in and validate sprom.
  * Return 0 on success, nonzero on error.
  */
 static int
-sprom_read_pci(osl_t *osh, si_t *sih, u16 *sprom, uint wordoff,
+sprom_read_pci(struct osl_info *osh, si_t *sih, u16 *sprom, uint wordoff,
 	       u16 *buf, uint nwords, bool check_crc)
 {
 	int err = 0;
@@ -1501,7 +1514,7 @@ sprom_read_pci(osl_t *osh, si_t *sih, u16 *sprom, uint wordoff,
 }
 
 #if defined(BCMNVRAMR)
-static int otp_read_pci(osl_t *osh, si_t *sih, u16 *buf, uint bufsz)
+static int otp_read_pci(struct osl_info *osh, si_t *sih, u16 *buf, uint bufsz)
 {
 	u8 *otp;
 	uint sz = OTP_SZ_MAX / 2;	/* size in words */
@@ -1509,19 +1522,17 @@ static int otp_read_pci(osl_t *osh, si_t *sih, u16 *buf, uint bufsz)
 
 	ASSERT(bufsz <= OTP_SZ_MAX);
 
-	otp = MALLOC(osh, OTP_SZ_MAX);
+	otp = kzalloc(OTP_SZ_MAX, GFP_ATOMIC);
 	if (otp == NULL) {
 		return BCME_ERROR;
 	}
 
-	bzero(otp, OTP_SZ_MAX);
-
 	err = otp_read_region(sih, OTP_HW_RGN, (u16 *) otp, &sz);
 
-	bcopy(otp, buf, bufsz);
+	memcpy(buf, otp, bufsz);
 
 	if (otp)
-		MFREE(osh, otp, OTP_SZ_MAX);
+		kfree(otp);
 
 	/* Check CRC */
 	if (buf[0] == 0xffff) {
@@ -1551,18 +1562,18 @@ static int otp_read_pci(osl_t *osh, si_t *sih, u16 *buf, uint bufsz)
 * Create variable table from memory.
 * Return 0 on success, nonzero on error.
 */
-static int initvars_table(osl_t *osh, char *start, char *end, char **vars,
-			  uint *count)
+static int initvars_table(struct osl_info *osh, char *start, char *end,
+			  char **vars, uint *count)
 {
 	int c = (int)(end - start);
 
 	/* do it only when there is more than just the null string */
 	if (c > 1) {
-		char *vp = MALLOC(osh, c);
+		char *vp = kmalloc(c, GFP_ATOMIC);
 		ASSERT(vp != NULL);
 		if (!vp)
 			return BCME_NOMEM;
-		bcopy(start, vp, c);
+		memcpy(vp, start, c);
 		*vars = vp;
 		*count = c;
 	} else {
@@ -1578,7 +1589,8 @@ static int initvars_table(osl_t *osh, char *start, char *end, char **vars,
  * of the table upon enter and to the end of the table upon exit when success.
  * Return 0 on success, nonzero on error.
  */
-static int initvars_flash(si_t *sih, osl_t *osh, char **base, uint len)
+static int initvars_flash(si_t *sih, struct osl_info *osh, char **base,
+			  uint len)
 {
 	char *vp = *base;
 	char *flash;
@@ -1588,7 +1600,7 @@ static int initvars_flash(si_t *sih, osl_t *osh, char **base, uint len)
 	char devpath[SI_DEVPATH_BUFSZ];
 
 	/* allocate memory and read in flash */
-	flash = MALLOC(osh, NVRAM_SPACE);
+	flash = kmalloc(NVRAM_SPACE, GFP_ATOMIC);
 	if (!flash)
 		return BCME_NOMEM;
 	err = nvram_getall(flash, NVRAM_SPACE);
@@ -1628,7 +1640,7 @@ static int initvars_flash(si_t *sih, osl_t *osh, char **base, uint len)
 
 	*base = vp;
 
- exit:	MFREE(osh, flash, NVRAM_SPACE);
+ exit:	kfree(flash);
 	return err;
 }
 
@@ -1638,14 +1650,14 @@ static int initvars_flash(si_t *sih, osl_t *osh, char **base, uint len)
  */
 static int initvars_flash_si(si_t *sih, char **vars, uint *count)
 {
-	osl_t *osh = si_osh(sih);
+	struct osl_info *osh = si_osh(sih);
 	char *vp, *base;
 	int err;
 
 	ASSERT(vars != NULL);
 	ASSERT(count != NULL);
 
-	base = vp = MALLOC(osh, MAXSZ_NVRAM_VARS);
+	base = vp = kmalloc(MAXSZ_NVRAM_VARS, GFP_ATOMIC);
 	ASSERT(vp != NULL);
 	if (!vp)
 		return BCME_NOMEM;
@@ -1654,7 +1666,7 @@ static int initvars_flash_si(si_t *sih, char **vars, uint *count)
 	if (err == 0)
 		err = initvars_table(osh, base, vp, vars, count);
 
-	MFREE(osh, base, MAXSZ_NVRAM_VARS);
+	kfree(base);
 
 	return err;
 }
@@ -1724,16 +1736,16 @@ static void _initvars_srom_pci(u8 sromrev, u16 *srom, uint off, varbuf_t *b)
 			continue;
 
 		if (flags & SRFL_ETHADDR) {
-			struct ether_addr ea;
+			u8 ea[ETH_ALEN];
 
-			ea.octet[0] = (srom[srv->off - off] >> 8) & 0xff;
-			ea.octet[1] = srom[srv->off - off] & 0xff;
-			ea.octet[2] = (srom[srv->off + 1 - off] >> 8) & 0xff;
-			ea.octet[3] = srom[srv->off + 1 - off] & 0xff;
-			ea.octet[4] = (srom[srv->off + 2 - off] >> 8) & 0xff;
-			ea.octet[5] = srom[srv->off + 2 - off] & 0xff;
+			ea[0] = (srom[srv->off - off] >> 8) & 0xff;
+			ea[1] = srom[srv->off - off] & 0xff;
+			ea[2] = (srom[srv->off + 1 - off] >> 8) & 0xff;
+			ea[3] = srom[srv->off + 1 - off] & 0xff;
+			ea[4] = (srom[srv->off + 2 - off] >> 8) & 0xff;
+			ea[5] = srom[srv->off + 2 - off] & 0xff;
 
-			varbuf_append(b, "%s=%pM", name, ea.octet);
+			varbuf_append(b, "%s=%pM", name, ea);
 		} else {
 			ASSERT(mask_valid(srv->mask));
 			ASSERT(mask_width(srv->mask));
@@ -1849,7 +1861,7 @@ static int initvars_srom_pci(si_t *sih, void *curmap, char **vars, uint *count)
 	u32 sr;
 	varbuf_t b;
 	char *vp, *base = NULL;
-	osl_t *osh = si_osh(sih);
+	struct osl_info *osh = si_osh(sih);
 	bool flash = false;
 	int err = 0;
 
@@ -1859,7 +1871,7 @@ static int initvars_srom_pci(si_t *sih, void *curmap, char **vars, uint *count)
 	 * if we should return an error when CRC fails or read SROM variables
 	 * from flash.
 	 */
-	srom = MALLOC(osh, SROM_MAX);
+	srom = kmalloc(SROM_MAX, GFP_ATOMIC);
 	ASSERT(srom != NULL);
 	if (!srom)
 		return -2;
@@ -1947,7 +1959,7 @@ static int initvars_srom_pci(si_t *sih, void *curmap, char **vars, uint *count)
 	ASSERT(vars != NULL);
 	ASSERT(count != NULL);
 
-	base = vp = MALLOC(osh, MAXSZ_NVRAM_VARS);
+	base = vp = kmalloc(MAXSZ_NVRAM_VARS, GFP_ATOMIC);
 	ASSERT(vp != NULL);
 	if (!vp) {
 		err = -2;
@@ -1979,9 +1991,9 @@ static int initvars_srom_pci(si_t *sih, void *curmap, char **vars, uint *count)
 
  errout:
 	if (base)
-		MFREE(osh, base, MAXSZ_NVRAM_VARS);
+		kfree(base);
 
-	MFREE(osh, srom, SROM_MAX);
+	kfree(srom);
 	return err;
 }
 
@@ -1990,7 +2002,7 @@ static int initvars_srom_pci(si_t *sih, void *curmap, char **vars, uint *count)
  * Read the SDIO cis and call parsecis to initialize the vars.
  * Return 0 on success, nonzero on error.
  */
-static int initvars_cis_sdio(osl_t *osh, char **vars, uint *count)
+static int initvars_cis_sdio(struct osl_info *osh, char **vars, uint *count)
 {
 	u8 *cis[SBSDIO_NUM_FUNCTION + 1];
 	uint fn, numfn;
@@ -2000,17 +2012,15 @@ static int initvars_cis_sdio(osl_t *osh, char **vars, uint *count)
 	ASSERT(numfn <= SDIOD_MAX_IOFUNCS);
 
 	for (fn = 0; fn <= numfn; fn++) {
-		cis[fn] = MALLOC(osh, SBSDIO_CIS_SIZE_LIMIT)
+		cis[fn] = kzalloc(SBSDIO_CIS_SIZE_LIMIT, GFP_ATOMIC);
 		if (cis[fn] == NULL) {
 			rc = -1;
 			break;
 		}
 
-		bzero(cis[fn], SBSDIO_CIS_SIZE_LIMIT);
-
 		if (bcmsdh_cis_read(NULL, fn, cis[fn], SBSDIO_CIS_SIZE_LIMIT) !=
 		    0) {
-			MFREE(osh, cis[fn], SBSDIO_CIS_SIZE_LIMIT);
+			kfree(cis[fn]);
 			rc = -2;
 			break;
 		}
@@ -2020,13 +2030,13 @@ static int initvars_cis_sdio(osl_t *osh, char **vars, uint *count)
 		rc = srom_parsecis(osh, cis, fn, vars, count);
 
 	while (fn-- > 0)
-		MFREE(osh, cis[fn], SBSDIO_CIS_SIZE_LIMIT);
+		kfree(cis[fn]);
 
 	return rc;
 }
 
 /* set SDIO sprom command register */
-static int sprom_cmd_sdio(osl_t *osh, u8 cmd)
+static int sprom_cmd_sdio(struct osl_info *osh, u8 cmd)
 {
 	u8 status = 0;
 	uint wait_cnt = 1000;
@@ -2046,7 +2056,7 @@ static int sprom_cmd_sdio(osl_t *osh, u8 cmd)
 }
 
 /* read a word from the SDIO srom */
-static int sprom_read_sdio(osl_t *osh, u16 addr, u16 *data)
+static int sprom_read_sdio(struct osl_info *osh, u16 addr, u16 *data)
 {
 	u8 addr_l, addr_h, data_l, data_h;
 
@@ -2074,8 +2084,8 @@ static int sprom_read_sdio(osl_t *osh, u16 addr, u16 *data)
 }
 #endif				/* BCMSDIO */
 
-static int initvars_srom_si(si_t *sih, osl_t *osh, void *curmap, char **vars,
-			    uint *varsz)
+static int initvars_srom_si(si_t *sih, struct osl_info *osh, void *curmap,
+			    char **vars, uint *varsz)
 {
 	/* Search flash nvram section for srom variables */
 	return initvars_flash_si(sih, vars, varsz);

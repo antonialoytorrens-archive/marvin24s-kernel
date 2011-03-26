@@ -206,7 +206,7 @@ static int ak8975_setup(struct i2c_client *client)
 	}
 
 	/* Precalculate scale factor for each axis and
-	   store in the device data. */
+           store in the device data. */
 	data->raw_to_gauss[0] = ((data->asa[0] + 128) * 30) >> 8;
 	data->raw_to_gauss[1] = ((data->asa[1] + 128) * 30) >> 8;
 	data->raw_to_gauss[2] = ((data->asa[2] + 128) * 30) >> 8;
