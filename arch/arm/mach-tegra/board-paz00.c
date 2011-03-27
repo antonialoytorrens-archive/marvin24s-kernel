@@ -372,6 +372,16 @@ MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 	.timer		= &tegra_timer,
 MACHINE_END
 
+/* for newer bootloaders */
+MACHINE_START(TEGRA_LEGACY, "Tegra Legacy")
+	.boot_params	= 0x00000100,
+	.fixup		= tegra_paz00_fixup,
+	.init_irq	= tegra_init_irq,
+	.init_machine	= tegra_paz00_init,
+	.map_io		= tegra_map_common_io,
+	.timer		= &tegra_timer,
+MACHINE_END
+
 /* this is need for some unknown reason */
 MACHINE_START(HARMONY, "harmony")
 MACHINE_END
