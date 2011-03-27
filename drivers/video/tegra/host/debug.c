@@ -261,7 +261,7 @@ void nvhost_debug_init(struct nvhost_master *master)
 	debugfs_create_file("tegra_host", S_IRUGO, NULL, master, &nvhost_debug_fops);
 }
 #else
-void nvhost_debug_add(struct nvhost_master *master)
+void nvhost_debug_init(struct nvhost_master *master)
 {
 }
 
