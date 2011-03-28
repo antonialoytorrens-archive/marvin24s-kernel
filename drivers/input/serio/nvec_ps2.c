@@ -40,7 +40,7 @@ static int ps2_sendcommand(struct serio *ser_dev, unsigned char cmd)
 	unsigned char buf[] = SEND_COMMAND;
 
 	buf[2] = cmd & 0xff;
-	printk(KERN_ERR "Sending ps2 cmd %02x\n", cmd);
+//	printk(KERN_ERR "Sending ps2 cmd %02x\n", cmd);
 	nvec_write_async(ps2_dev.nvec, buf, sizeof(buf));
 	//ret=nvec_send_msg(buf, &size, NOT_AT_ALL, nvec_resp_handler);
 	return 0;
