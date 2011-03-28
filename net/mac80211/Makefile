@@ -4,6 +4,7 @@ obj-$(CONFIG_MAC80211) += mac80211.o
 mac80211-y := \
 	main.o status.o \
 	sta_info.o \
+	compat-2.6.38.o \
 	wep.o \
 	wpa.o \
 	scan.o offchannel.o \
