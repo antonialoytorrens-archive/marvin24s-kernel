@@ -360,7 +360,10 @@ void rt2x00usb_register_read_async(struct rt2x00_dev *rt2x00dev,
 				   const unsigned int offset,
 				   void (*callback)(struct rt2x00_dev*,int,u32));
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> dc576d1... rt2800usb: read TX_STA_FIFO asynchronously
 /*
  * Radio handlers
  */
