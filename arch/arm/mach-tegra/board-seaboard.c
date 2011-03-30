@@ -300,7 +300,7 @@ static struct wm8903_platform_data wm8903_pdata = {
 	.irq_active_low = 0,
 	.micdet_cfg = 0,
 	.micdet_delay = 100,
-	.gpio_base = GPIO_WM8903(0),
+	.gpio_base = SEABOARD_GPIO_WM8903(0),
 	.gpio_cfg = {
 		WM8903_GPIO_NO_CONFIG,
 		WM8903_GPIO_NO_CONFIG,
@@ -332,7 +332,7 @@ static struct nct1008_platform_data nct1008_pdata = {
 static struct i2c_board_info __initdata wm8903_device = {
 	I2C_BOARD_INFO("wm8903", 0x1a),
 	.platform_data = &wm8903_pdata,
-	.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PX3),
+	.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CDC_IRQ),
 };
 
 static struct i2c_board_info __initdata isl29018_device = {
@@ -511,6 +511,8 @@ static void __init kaen_i2c_init(void)
 	bq20z75_pdata.battery_detect = TEGRA_GPIO_BATT_DETECT;
 	/* battery present is low */
 	bq20z75_pdata.battery_detect_present = 0;
+	tegra_gpio_enable(TEGRA_GPIO_BATT_DETECT);
+
 	i2c_register_board_info(2, &bq20z75_device, 1);
 
 	i2c_register_board_info(4, &nct1008_device, 1);
@@ -556,6 +558,40 @@ static void __init wario_i2c_init(void)
 	i2c_register_board_info(4, &ak8975_device, 1);
 
 	common_i2c_init();
+}
+
+static struct seaboard_audio_platform_data audio_pdata = {
+	.gpio_spkr_en = TEGRA_GPIO_SPKR_EN,
+	.gpio_hp_det = TEGRA_GPIO_HP_DET,
+	.gpio_hp_mute = -1,
+};
+
+static struct platform_device audio_device = {
+	.name = "tegra-snd-seaboard",
+	.id   = 0,
+	.dev  = {
+		.platform_data = &audio_pdata,
+	},
+};
+
+static void __init seaboard_audio_init(void)
+{
+	tegra_gpio_enable(TEGRA_GPIO_HP_DET);
+
+	platform_device_register(&audio_device);
+}
+
+static void __init kaen_audio_init(void)
+{
+	audio_pdata.gpio_hp_mute = TEGRA_GPIO_KAEN_HP_MUTE;
+	tegra_gpio_enable(TEGRA_GPIO_KAEN_HP_MUTE);
+
+	seaboard_audio_init();
+}
+
+static void __init aebl_audio_init(void)
+{
+	seaboard_audio_init();
 }
 
 static struct resource tegra_rtc_resources[] = {
@@ -677,19 +713,6 @@ static void seaboard_kbc_init(void)
 	platform_device_register(&seaboard_kbc_device);
 }
 
-static struct seaboard_audio_platform_data audio_pdata = {
-	.gpio_spkr_en = GPIO_WM8903(2),
-	.gpio_hp_det = TEGRA_GPIO_PX1,
-};
-
-static struct platform_device audio_device = {
-	.name = "tegra-snd-seaboard",
-	.id   = 0,
-	.dev  = {
-		.platform_data = &audio_pdata,
-	},
-};
-
 static struct platform_device spdif_dit_device = {
 	.name   = "spdif-dit",
 	.id     = -1,
@@ -706,7 +729,6 @@ static struct platform_device *seaboard_devices[] __initdata = {
 	&tegra_i2s_device1,
 	&tegra_das_device,
 	&tegra_pcm_device,
-	&audio_device,
 	&tegra_avp_device,
 };
 
@@ -766,8 +788,6 @@ static void __init __tegra_seaboard_init(void)
 
 	tegra_clk_init_from_table(seaboard_clk_init_table);
 
-	tegra_gpio_enable(audio_pdata.gpio_hp_det);
-
 	platform_add_devices(seaboard_devices, ARRAY_SIZE(seaboard_devices));
 
 	seaboard_ehci_init();
@@ -793,6 +813,8 @@ static void __init tegra_seaboard_init(void)
 	__tegra_seaboard_init();
 
 	seaboard_i2c_init();
+	seaboard_audio_init();
+	seaboard_sensors_init();
 }
 
 static void __init tegra_kaen_init(void)
@@ -808,6 +830,8 @@ static void __init tegra_kaen_init(void)
 	__tegra_seaboard_init();
 
 	kaen_i2c_init();
+	kaen_audio_init();
+	kaen_sensors_init();
 }
 
 static void __init tegra_aebl_init(void)
@@ -823,6 +847,8 @@ static void __init tegra_aebl_init(void)
 	__tegra_seaboard_init();
 
 	aebl_i2c_init();
+	aebl_audio_init();
+	aebl_sensors_init();
 }
 
 static void __init tegra_wario_init(void)

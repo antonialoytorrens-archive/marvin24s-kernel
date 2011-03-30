@@ -17,6 +17,12 @@
 #ifndef _MACH_TEGRA_BOARD_SEABOARD_H
 #define _MACH_TEGRA_BOARD_SEABOARD_H
 
+#define TPS_GPIO_BASE			TEGRA_NR_GPIOS
+
+#define TPS_GPIO_WWAN_PWR		(TPS_GPIO_BASE + 2)
+
+#define SEABOARD_GPIO_WM8903(_x_)	(TPS_GPIO_BASE + 4 + (_x_))
+
 #define TEGRA_GPIO_LIDSWITCH		TEGRA_GPIO_PC7
 #define TEGRA_GPIO_USB1			TEGRA_GPIO_PD0
 #define TEGRA_GPIO_POWERKEY		TEGRA_GPIO_PV2
@@ -34,12 +40,10 @@
 #define TEGRA_GPIO_BATT_DETECT		TEGRA_GPIO_PP2
 #define TEGRA_GPIO_MXT_RST              TEGRA_GPIO_PV7
 #define TEGRA_GPIO_MXT_IRQ              TEGRA_GPIO_PV6
-
-#define TPS_GPIO_BASE			TEGRA_NR_GPIOS
-
-#define TPS_GPIO_WWAN_PWR		(TPS_GPIO_BASE + 2)
-
-#define GPIO_WM8903(_x_)		(TPS_GPIO_BASE + 4 + (_x_))
+#define TEGRA_GPIO_CDC_IRQ		TEGRA_GPIO_PX3
+#define TEGRA_GPIO_SPKR_EN		SEABOARD_GPIO_WM8903(2)
+#define TEGRA_GPIO_HP_DET		TEGRA_GPIO_PX1
+#define TEGRA_GPIO_KAEN_HP_MUTE		TEGRA_GPIO_PA5
 
 extern void tegra_throttling_enable(bool enable);
 
@@ -51,5 +55,18 @@ int seaboard_panel_init(void);
 void seaboard_sdhci_init(void);
 int seaboard_power_init(void);
 void seaboard_emc_init(void);
+int seaboard_sensors_init(void);
+
+#ifdef CONFIG_MACH_KAEN
+int kaen_sensors_init(void);
+#else
+static inline int kaen_sensors_init(void) { return 0; }
+#endif
+
+#ifdef CONFIG_MACH_AEBL
+int aebl_sensors_init(void);
+#else
+static inline int kaen_sensors_init(void) { return 0; }
+#endif
 
 #endif

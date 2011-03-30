@@ -40,6 +40,12 @@ obj-$(CONFIG_TEGRA_IOVMM_GART)          += iovmm-gart.o
 
 obj-y					+= nv/
 
+obj-${CONFIG_MACH_PAZ00}		+= board-paz00.o
+obj-${CONFIG_MACH_PAZ00}		+= board-paz00-pinmux.o
+obj-${CONFIG_MACH_PAZ00}		+= board-paz00-panel.o
+obj-${CONFIG_MACH_PAZ00}		+= board-paz00-power.o
+obj-${CONFIG_MACH_PAZ00}		+= board-paz00-sdhci.o
+
 obj-${CONFIG_MACH_HARMONY}              += board-harmony.o
 obj-${CONFIG_MACH_HARMONY}              += board-harmony-pinmux.o
 obj-${CONFIG_MACH_HARMONY}              += board-harmony-pcie.o
@@ -58,9 +64,8 @@ obj-${CONFIG_MACH_SEABOARD}             += board-seaboard-sdhci.o
 obj-${CONFIG_MACH_SEABOARD}             += board-seaboard-power.o
 obj-${CONFIG_MACH_SEABOARD}             += board-seaboard-panel.o
 obj-${CONFIG_MACH_SEABOARD}             += board-seaboard-memory.o
+obj-${CONFIG_MACH_SEABOARD}             += board-seaboard-sensors.o
 
-obj-${CONFIG_MACH_PAZ00}                += board-paz00.o
-obj-${CONFIG_MACH_PAZ00}                += board-paz00-pinmux.o
-obj-${CONFIG_MACH_PAZ00}                += board-paz00-panel.o
-obj-${CONFIG_MACH_PAZ00}                += board-paz00-power.o
-obj-${CONFIG_MACH_PAZ00}                += board-paz00-sdhci.o
+obj-${CONFIG_MACH_KAEN}			+= board-kaen-sensors.o
+
+obj-${CONFIG_MACH_AEBL}			+= board-aebl-sensors.o

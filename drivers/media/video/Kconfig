@@ -29,6 +29,11 @@ config VIDEOBUF_DMA_CONTIG
 	select VIDEOBUF_GEN
 	tristate
 
+config VIDEOBUF_DMA_NVMAP
+	depends on HAS_DMA
+	select VIDEOBUF_GEN
+	tristate
+
 config VIDEOBUF_DVB
 	tristate
 	select VIDEOBUF_GEN
@@ -808,6 +813,12 @@ config SOC_CAMERA_OV9640
 	help
 	  This is a ov9640 camera driver
 
+config SOC_CAMERA_OV9740
+	tristate "ov9740 camera support"
+	depends on SOC_CAMERA && I2C
+	help
+	  This is a ov9740 camera driver
+
 config MX1_VIDEO
 	bool
 
@@ -850,6 +861,13 @@ config VIDEO_SH_MOBILE_CEU
 	select VIDEOBUF_DMA_CONTIG
 	---help---
 	  This is a v4l2 driver for the SuperH Mobile CEU Interface
+
+config VIDEO_TEGRA
+	tristate "Tegra soc_camera host driver"
+	depends on VIDEO_DEV && ARCH_TEGRA && SOC_CAMERA
+	select VIDEOBUF_DMA_NVMAP
+	---help---
+	  This is a v4l2 driver for the Tegra camera interface
 
 config VIDEO_OMAP1
 	tristate "OMAP1 Camera Interface driver"
