@@ -116,7 +116,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 	struct nvec_chip *nvec = (struct nvec_chip *)dev;
 	unsigned char *i2c_regs = nvec->i2c_regs;
 
-	status = readw(I2C_SL_STATUS);
+	status = readw(i2c_regs + I2C_SL_STATUS);
 
 	gpio_direction_output(nvec->gpio, 1);
 	if(!(status & I2C_SL_IRQ)) {
@@ -164,16 +164,16 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 				schedule_delayed_work(&nvec->tx_work, msecs_to_jiffies(100));
 			}
 		}
-		writew(to_send, I2C_SL_RCVD);
+		writew(to_send, i2c_regs + I2C_SL_RCVD);
 
 		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
 
 		goto handled;
 	} else {
-		received = readw(I2C_SL_RCVD);
+		received = readw(i2c_regs + I2C_SL_RCVD);
 		//Workaround?
 		if(status & RCVD) {
-			writew(0, I2C_SL_RCVD);
+			writew(0, i2c_regs + I2C_SL_RCVD);
 			//New transaction
 			dev_dbg(nvec->dev, "Received a new transaction destined to %02x (we're %02x)\n", received, 0x8a);
 			nvec->rcv_size = 0;
@@ -250,12 +250,12 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-	writew(pdata->i2c_addr>>1, I2C_SL_ADDR1);
-	writew(0, I2C_SL_ADDR2);
+	writew(pdata->i2c_addr>>1, i2c_regs + I2C_SL_ADDR1);
+	writew(0, i2c_regs + I2C_SL_ADDR2);
 
-	writew(0x1E, I2C_SL_DELAY_COUNT);
-	writew(I2C_NEW_MASTER_SFM, I2C_CNFG);
-	writew(I2C_SL_NEWL, I2C_SL_CNFG);
+	writew(0x1E, i2c_regs + I2C_SL_DELAY_COUNT);
+	writew(I2C_NEW_MASTER_SFM, i2c_regs + I2C_CNFG);
+	writew(I2C_SL_NEWL, i2c_regs + I2C_SL_CNFG);
 
 	/* Set the gpio to low when we've got something to say */
 	gpio_request(nvec->gpio, "nvec gpio");
