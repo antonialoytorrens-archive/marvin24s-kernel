@@ -212,6 +212,8 @@ static void __init paz00_wifi_init(void)
 {
 	int ret;
 
+/* unlock hw rfkill */
+
 	tegra_gpio_enable(PAZ00_WIFI_PWRN);
 
 	ret = gpio_request(PAZ00_WIFI_PWRN, "wlan_pwrn");
@@ -226,7 +228,27 @@ static void __init paz00_wifi_init(void)
 		return;
 	}
 
-	gpio_set_value(PAZ00_WIFI_PWRN, 0);
+	gpio_set_value(PAZ00_WIFI_PWRN, 1);
+	gpio_free(PAZ00_WIFI_PWRN);
+
+/* Light up the LED */
+
+	tegra_gpio_enable(PAZ00_WIFI_LED);
+
+	ret = gpio_request(PAZ00_WIFI_LED, "wlan_led");
+	if (ret) {
+		pr_warning("WIFI: could not request WIFI LED gpio!\n");
+		return;
+	}
+
+	ret = gpio_direction_output(PAZ00_WIFI_LED, 0);
+	if (ret) {
+		pr_warning("WIFI: could not set WIFI LED gpio direction!\n");
+		return;
+	}
+
+	gpio_set_value(PAZ00_WIFI_LED, 1);
+	gpio_free(PAZ00_WIFI_LED);
 }
 
 static struct platform_device *paz00_devices[] __initdata = {
