@@ -185,6 +185,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 		nvec->rcv_size++;
 	}
 handled:
+
 	return IRQ_HANDLED;
 }
 
@@ -215,8 +216,9 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, nvec);
 	nvec->dev = &pdev->dev;
 	nvec->gpio = pdata->gpio;
+	nvec->irq = pdata->irq;
 
-	i2c_clk = clk_get_sys("tegra-i2c.2", NULL);
+	i2c_clk = clk_get_sys(pdata->clock, NULL);
 	if(IS_ERR_OR_NULL(i2c_clk)) {
 		dev_err(nvec->dev, "failed to get clock tegra-i2c.2\n");
 		goto failed;
@@ -231,7 +233,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	else
 		clk_enable(i2c_clk);
 */
-	i2c_regs = ioremap(TEGRA_I2C3_BASE, TEGRA_I2C3_SIZE);
+	i2c_regs = ioremap(pdata->base, pdata->size);
 	if(!i2c_regs) {
 		dev_err(nvec->dev, "failed to ioremap registers\n");
 		goto failed;
@@ -242,7 +244,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_DELAYED_WORK(&nvec->tx_work, nvec_request_master);
 
-	err = request_irq(INT_I2C3, i2c_interrupt, 0, "i2c-slave", nvec);
+	err = request_irq(nvec->irq, i2c_interrupt, 0, "nvec", nvec);
 	if(err) {
 		dev_err(nvec->dev, "couldn't request irq");
 		goto failed;

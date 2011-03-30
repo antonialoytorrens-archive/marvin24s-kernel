@@ -40,12 +40,17 @@ struct nvec_platform_data {
 	int num_subdevs;
 	int i2c_addr;
 	int gpio;
+	int irq;
+	int base;
+	int size;
+	char clock[16];
 	struct nvec_subdev *subdevs;
 };
 
 struct nvec_chip {
 	struct device *dev;
 	int gpio;
+	int irq;
 	struct atomic_notifier_head notifier_list;
 	struct list_head tx_data;
 	struct notifier_block nvec_status_notifier;
