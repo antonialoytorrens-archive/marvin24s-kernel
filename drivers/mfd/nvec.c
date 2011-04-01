@@ -4,7 +4,6 @@
 	- add nvec_sync_write
 	- move parse_msg out of the interrupt (e.g. add rx workqueue)
 	- convert mouse, keyboard, and power to platform devices
-	- fix crash on power down
 */
 
 #include <asm/io.h>
