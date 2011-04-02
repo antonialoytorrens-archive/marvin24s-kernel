@@ -8,7 +8,7 @@
 
 struct nvec_power {
 	struct notifier_block notifier;
-	struct delayed_work pooler;
+	struct delayed_work poller;
 	struct nvec_chip *nvec;
 	int on;
 	int cap;
@@ -110,10 +110,10 @@ static struct power_supply nvec_psy = {
 	.get_property = nvec_power_get_property,
 };
 
-static void nvec_power_pool(struct work_struct *work)
+static void nvec_power_poll(struct work_struct *work)
 {
 	struct nvec_power *power = container_of(work, struct nvec_power,
-		 pooler.work);
+		 poller.work);
 
 	nvec_write_async(power->nvec, "\x01\x00", 2);
 	nvec_write_async(power->nvec, "\x02\x00", 2);
@@ -137,8 +137,8 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 
 		power->notifier.notifier_call = nvec_power_notifier;
 
-		INIT_DELAYED_WORK(&power->pooler, nvec_power_pool);
-		schedule_delayed_work(&power->pooler, 0);
+		INIT_DELAYED_WORK(&power->poller, nvec_power_poll);
+		schedule_delayed_work(&power->poller, 0);
 		break;
 	case 1:
 		psy = &nvec_bat_psy;

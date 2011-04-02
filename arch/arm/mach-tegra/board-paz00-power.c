@@ -63,7 +63,7 @@ static struct regulator_consumer_supply tps658621_ldo3_supply[] = { /* 3V3 */
 	REGULATOR_SUPPLY("tmon0", NULL),
 	REGULATOR_SUPPLY("vddio_wlan", NULL),
 };
-static struct regulator_consumer_supply tps658621_ldo4_supply[] = { 
+static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
 	REGULATOR_SUPPLY("avdd_osc", NULL),       /* AVDD_OSC */
 	REGULATOR_SUPPLY("vddio_sys", NULL),
 	REGULATOR_SUPPLY("vddio_lcd", NULL),      /* AON? */
@@ -74,6 +74,7 @@ static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
 	REGULATOR_SUPPLY("tmon1.8vs", NULL),
 	REGULATOR_SUPPLY("vddhostif_bt", NULL),
 	REGULATOR_SUPPLY("wifi3vs", NULL),
+	REGULATOR_SUPPLY("vdd_aon", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo5_supply[] = {
 	REGULATOR_SUPPLY("vddio_nand", NULL),
