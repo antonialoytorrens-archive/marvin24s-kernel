@@ -118,7 +118,7 @@ static void nvec_power_poll(struct work_struct *work)
 	nvec_write_async(power->nvec, "\x01\x00", 2);
 	nvec_write_async(power->nvec, "\x02\x00", 2);
 
-	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(1000));
+	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(5000));
 };
 
 static int __devinit nvec_power_probe(struct platform_device *pdev)
@@ -138,7 +138,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 		power->notifier.notifier_call = nvec_power_notifier;
 
 		INIT_DELAYED_WORK(&power->poller, nvec_power_poll);
-		schedule_delayed_work(&power->poller, 0);
+		schedule_delayed_work(&power->poller, 5000);
 		break;
 	case 1:
 		psy = &nvec_bat_psy;
