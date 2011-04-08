@@ -280,7 +280,7 @@ static void rt2x00usb_interrupt_txdone(struct urb *urb)
 	 * Schedule the delayed work for reading the TX status
 	 * from the device.
 	 */
-	if (!test_bit(DRIVER_REQUIRE_TXSTATUS_FIFO, &rt2x00dev->flags) ||
+	if (!test_bit(REQUIRE_TXSTATUS_FIFO, &rt2x00dev->cap_flags) ||
 	    !kfifo_is_empty(&rt2x00dev->txstatus_fifo))
 		queue_work(rt2x00dev->workqueue, &rt2x00dev->txdone_work);
 }
