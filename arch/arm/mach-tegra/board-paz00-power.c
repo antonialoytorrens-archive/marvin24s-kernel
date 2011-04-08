@@ -74,7 +74,6 @@ static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
 	REGULATOR_SUPPLY("tmon1.8vs", NULL),
 	REGULATOR_SUPPLY("vddhostif_bt", NULL),
 	REGULATOR_SUPPLY("wifi3vs", NULL),
-	REGULATOR_SUPPLY("vdd_aon", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo5_supply[] = {
 	REGULATOR_SUPPLY("vddio_nand", NULL),
@@ -119,8 +118,8 @@ static struct regulator_consumer_supply tps658621_soc_supply[] = {
 		.consumer_supplies = tps658621_##_id##_supply,		\
 	}
 
-static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 625, 2700);    // 1200
-static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 625, 1100);    // 1000
+static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 725, 1500);    // 1200
+static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 725, 1500);    // 1000
 static struct regulator_init_data sm2_data = REGULATOR_INIT(sm2, 3000, 4550);   // 3700
 static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3300); // 3300
 static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725, 1500);  // 1100
