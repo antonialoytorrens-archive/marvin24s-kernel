@@ -21,6 +21,7 @@
 #define __MACH_TEGRA_DC_H
 
 #include <linux/pm.h>
+#include <drm/drm_fixed.h>
 
 #define TEGRA_MAX_DC		2
 #define DC_N_WINDOWS		3
@@ -79,6 +80,17 @@ struct tegra_dc_out {
 struct tegra_dc;
 struct nvmap_handle_ref;
 
+struct tegra_dc_csc {
+	unsigned short yof;
+	unsigned short kyrgb;
+	unsigned short kur;
+	unsigned short kvr;
+	unsigned short kug;
+	unsigned short kvg;
+	unsigned short kub;
+	unsigned short kvb;
+};
+
 struct tegra_dc_win {
 	u8			idx;
 	u8			fmt;
@@ -90,15 +102,17 @@ struct tegra_dc_win {
 	unsigned		offset_v;
 	unsigned		stride;
 	unsigned		stride_uv;
-	unsigned		x;
-	unsigned		y;
-	unsigned		w;
-	unsigned		h;
+	fixed20_12		x;
+	fixed20_12		y;
+	fixed20_12		w;
+	fixed20_12		h;
 	unsigned		out_x;
 	unsigned		out_y;
 	unsigned		out_w;
 	unsigned		out_h;
 	unsigned		z;
+
+	struct tegra_dc_csc	csc;
 
 	int			dirty;
 	int			underflows;
@@ -164,13 +178,14 @@ struct tegra_dc_platform_data {
 
 struct tegra_dc *tegra_dc_get_dc(unsigned idx);
 struct tegra_dc_win *tegra_dc_get_window(struct tegra_dc *dc, unsigned win);
+bool tegra_dc_get_connected(struct tegra_dc *);
 
 void tegra_dc_enable(struct tegra_dc *dc);
 void tegra_dc_disable(struct tegra_dc *dc);
 
-u32 tegra_dc_get_syncpt_id(const struct tegra_dc *dc);
-u32 tegra_dc_incr_syncpt_max(struct tegra_dc *dc);
-void tegra_dc_incr_syncpt_min(struct tegra_dc *dc, u32 val);
+u32 tegra_dc_get_syncpt_id(const struct tegra_dc *dc, int i);
+u32 tegra_dc_incr_syncpt_max(struct tegra_dc *dc, int i);
+void tegra_dc_incr_syncpt_min(struct tegra_dc *dc, int i, u32 val);
 
 /* tegra_dc_update_windows and tegra_dc_sync_windows do not support windows
  * with differenct dcs in one call
@@ -185,5 +200,7 @@ int tegra_dc_set_mode(struct tegra_dc *dc, const struct tegra_dc_mode *mode);
  * since there is a single audio source routed to themn all.
  */
 int tegra_dc_hdmi_set_audio_sample_rate(unsigned audio_freq);
+
+int tegra_dc_update_csc(struct tegra_dc *dc, int win_index);
 
 #endif

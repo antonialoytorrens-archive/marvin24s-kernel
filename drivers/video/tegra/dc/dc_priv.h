@@ -24,6 +24,8 @@
 #include <linux/wait.h>
 #include "../host/dev.h"
 
+#include <mach/tegra_dc_ext.h>
+
 struct tegra_dc;
 
 struct tegra_dc_blend {
@@ -62,6 +64,7 @@ struct tegra_dc {
 	struct clk			*clk;
 	struct clk			*emc_clk;
 
+	bool				connected;
 	bool				enabled;
 
 	struct tegra_dc_out		*out;
@@ -81,12 +84,17 @@ struct tegra_dc {
 	struct resource			*fb_mem;
 	struct tegra_fb_info		*fb;
 
-	u32				syncpt_id;
-	u32				syncpt_min;
-	u32				syncpt_max;
+	struct {
+		u32			id;
+		u32			min;
+		u32			max;
+	} syncpt[DC_N_WINDOWS];
+	u32				vblank_syncpt;
 
 	unsigned long			underflow_mask;
 	struct work_struct		reset_work;
+
+	struct tegra_dc_ext		*ext;
 };
 
 static inline void tegra_dc_io_start(struct tegra_dc *dc)
