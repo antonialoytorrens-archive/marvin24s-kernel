@@ -178,13 +178,13 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 /* FIXME: Audio codec on PAZ00 is alc5632
  * no codec exists yet
  * propably requires userspace 
-
+*/
 static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO("alc5632", 0x1e),
 	},
 };
-*/
+
 
 static struct i2c_board_info __initdata paz00_i2c_bus4_board_info[] = {
 	{
@@ -202,10 +202,9 @@ static void paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device4);
 
-/* no audio yet
 	i2c_register_board_info(0, paz00_i2c_bus1_board_info,
 				ARRAY_SIZE(paz00_i2c_bus1_board_info));
-*/
+
 	i2c_register_board_info(4, paz00_i2c_bus4_board_info,
 				ARRAY_SIZE(paz00_i2c_bus4_board_info));
 

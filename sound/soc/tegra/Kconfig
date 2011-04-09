@@ -47,3 +47,14 @@ config SND_TEGRA_SOC_SEABOARD
 	  Say Y or M here if you want to add support for SoC audio on the
 	  Tegra Seaboard reference board, or its derivatives Kaen and Aebl.
 
+config SND_TEGRA_SOC_PAZ00
+	tristate "SoC Audio support for Toshiba AC100 netbook"
+	depends on SND_TEGRA_SOC && I2C
+	depends on MACH_PAZ00
+	default m
+	select SND_TEGRA_SOC_I2S
+	select SND_SOC_ALC5632
+	help
+	  Say Y or M here if you want to add support for SoC audio on the
+	  Toshiba PAZ00 netbook.
+
