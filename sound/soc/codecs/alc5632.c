@@ -991,14 +991,19 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 	if (vid1 < 0) {
 		dev_err(&client->dev, "failed to read I2C\n");
 		return -EIO;
-	}
+	} else {
+		dev_err(&client->dev, "got vid1: %x\n", vid1);
+        }
 	vid1 = ((vid1 & 0xff) << 8) | (vid1 >> 8);
 
-	vid2 = i2c_smbus_read_byte_data(client, ALC5632_VENDOR_ID2);
+	vid2 = i2c_smbus_read_word_data(client, ALC5632_VENDOR_ID2);
 	if (vid2 < 0) {
 		dev_err(&client->dev, "failed to read I2C\n");
 		return -EIO;
+	} else {
+		dev_err(&client->dev, "got vid2: %x\n", vid2);
 	}
+	vid2 = (vid2 & 0xff);
 
 	if ((vid1 != 0x10ec) || (vid2 != id->driver_data)) {
 		dev_err(&client->dev, "unknown or wrong codec\n");
@@ -1022,13 +1027,7 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 
 	alc5632->id = vid2;
 	switch (alc5632->id) {
-	case 0x21:
-		alc5632_dai.name = "alc5621-hifi";
-		break;
-	case 0x22:
-		alc5632_dai.name = "alc5622-hifi";
-		break;
-	case 0x23:
+	case 0x5c:
 		alc5632_dai.name = "alc5632-hifi";
 		break;
 	default:
