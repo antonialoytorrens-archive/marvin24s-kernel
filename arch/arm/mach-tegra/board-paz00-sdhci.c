@@ -90,8 +90,8 @@ static struct platform_device tegra_sdhci_device4 = {
 
 int __init paz00_sdhci_init(void)
 {
-	platform_device_register(&tegra_sdhci_device1);
 	platform_device_register(&tegra_sdhci_device4);
+	platform_device_register(&tegra_sdhci_device1);
 
 	return 0;
 }
