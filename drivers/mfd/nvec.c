@@ -1,4 +1,4 @@
-//#define DEBUG
+// #define DEBUG
 
 /* ToDo list (incomplete, unorderd)
 	- add nvec_sync_write
@@ -26,7 +26,7 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
-static unsigned char EC_PING[] =			{'\x04','\x00','\x01'};
+static unsigned char EC_ENABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x01'};
 static unsigned char EC_GET_FIRMWARE_VERSION[] =	{'\x07','\x15'};
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
@@ -78,8 +78,8 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 	INIT_LIST_HEAD(&msg->node);
 
 	list_add_tail(&msg->node, &nvec->tx_data);
-	gpio_direction_output(nvec->gpio, 0);
 
+	gpio_set_value(nvec->gpio, 0);
 }
 EXPORT_SYMBOL(nvec_write_async);
 
@@ -88,7 +88,7 @@ static void nvec_request_master(struct work_struct *work)
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work.work);
 
 	if(!list_empty(&nvec->tx_data)) {
-		gpio_direction_output(nvec->gpio, 0);
+		gpio_set_value(nvec->gpio, 0);
 	}
 }
 
@@ -117,7 +117,6 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 
 	status = readw(i2c_regs + I2C_SL_STATUS);
 
-	gpio_direction_output(nvec->gpio, 1);
 	if(!(status & I2C_SL_IRQ)) {
 		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
 		//Yup, handled. ahum.
@@ -136,10 +135,10 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 
 		if(status & RCVD) {
 			//Master wants something from us. New communication
-//			dev_dbg(nvec->dev, "New read comm!\n");
+			dev_dbg(nvec->dev, "New read comm!\n");
 		} else {
 			//Master wants something from us from a communication we've already started
-//			dev_dbg(nvec->dev, "Read comm cont !\n");
+			dev_dbg(nvec->dev, "Read comm cont !\n");
 		}
 		//if(msg_pos<msg_size) {
 		if(list_empty(&nvec->tx_data)) {
@@ -165,6 +164,8 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 		}
 		writew(to_send, i2c_regs + I2C_SL_RCVD);
 
+		gpio_set_value(nvec->gpio, 1);
+
 		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
 
 		goto handled;
@@ -173,8 +174,6 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 		//Workaround?
 		if(status & RCVD) {
 			writew(0, i2c_regs + I2C_SL_RCVD);
-			//New transaction
-			dev_dbg(nvec->dev, "Received a new transaction destined to %02x (we're %02x)\n", received, 0x8a);
 			nvec->rcv_size = 0;
 			goto handled;
 		}
@@ -257,13 +256,21 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	writew(I2C_SL_NEWL, i2c_regs + I2C_SL_CNFG);
 
 	/* Set the gpio to low when we've got something to say */
-	gpio_request(nvec->gpio, "nvec gpio");
+	err = gpio_request(nvec->gpio, "nvec gpio");
+	if(err < 0)
+		printk("nvec: couldn't request gpio\n");
 
-	/* Ping (=noop) */
-	nvec_write_async(nvec, EC_PING, sizeof(EC_PING));
+	gpio_direction_output(nvec->gpio, 1);
+	gpio_set_value(nvec->gpio, 0);
+
+	/* enable event reporting */
+	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
+				sizeof(EC_ENABLE_EVENT_REPORTING));
 
 	nvec_kbd_init(nvec);
+#ifdef CONFIG_SERIO_NVEC_PS2
 	nvec_ps2(nvec);
+#endif
 
         /* setup subdevs */
 	for (i = 0; i < pdata->num_subdevs; i++) {
