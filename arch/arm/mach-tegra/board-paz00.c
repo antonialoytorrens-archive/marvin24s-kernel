@@ -28,6 +28,8 @@
 #include <linux/mfd/nvec.h>
 #include <linux/gpio.h>
 
+//#include <sound/alc5632.h>
+
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/setup.h>
@@ -37,11 +39,27 @@
 #include <mach/clk.h>
 #include <mach/usb_phy.h>
 #include <mach/suspend.h>
+#include <mach/paz00_audio.h>
 
 #include "clock.h"
 #include "board.h"
 #include "board-paz00.h"
 #include "devices.h"
+
+#define ATAG_NVIDIA             0x41000801
+
+struct tag_tegra {
+	__u32 bootarg_key;
+	__u32 bootarg_len;
+	char bootarg[1];
+};
+
+static int __init parse_tag_nvidia(const struct tag *tag)
+{
+	pr_warning("tag: %x %x\n", tag->hdr.size, tag->hdr.tag);
+	return 0;
+}
+__tagtable(ATAG_NVIDIA, parse_tag_nvidia);
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
