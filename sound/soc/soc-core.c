@@ -1,3 +1,5 @@
+#define DEBUG
+
 /*
  * soc-core.c  --  ALSA SoC Audio Layer
  *

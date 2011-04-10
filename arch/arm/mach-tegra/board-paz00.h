@@ -49,4 +49,7 @@ int paz00_sdhci_init(void);
 #define PAZ00_EN_VDD_PNL	TEGRA_GPIO_PA4
 #define PAZ00_HDMI_HPD		TEGRA_GPIO_PN7
 
+/* Audio */
+#define PAZ00_HP_DET		TEGRA_GPIO_PW2
+
 #endif

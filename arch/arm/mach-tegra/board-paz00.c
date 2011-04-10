@@ -83,41 +83,6 @@ static struct platform_device debug_uart = {
 	},
 };
 
-static struct nvec_subdev paz00_nvec_subdevs[] = {
-	{
-		.name = "nvec-kbd",
-	},
-	{
-		.name = "nvec-ps2",
-	},
-	{
-		.name = "nvec-power",
-		.id = 0,
-	},
-	{
-		.name = "nvec-power",
-		.id = 1,
-	}
-};
-
-static struct nvec_platform_data nvec_mfd_platform_data = {
-	.i2c_addr = 0x8a,
-	.gpio = PAZ00_NVEC_REQ, // FIXME: move to res?
-	.irq = INT_I2C3,
-	.base = TEGRA_I2C3_BASE,
-	.size = TEGRA_I2C3_SIZE,
-	.clock = "tegra-i2c.2",
-	.subdevs = paz00_nvec_subdevs,
-	.num_subdevs = ARRAY_SIZE(paz00_nvec_subdevs),
-};
-
-static struct platform_device nvec_mfd = {
-	.name = "nvec",
-	.dev = {
-		.platform_data = &nvec_mfd_platform_data,
-	},
-};
-
 static struct tegra_utmip_config utmi_phy_config[] = {
 	[0] = {
 		.hssync_start_delay = 9,
@@ -193,10 +158,54 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.is_dvc		= true,
 };
 
-/* FIXME: Audio codec on PAZ00 is alc5632
- * no codec exists yet
- * propably requires userspace 
-*/
+static struct nvec_subdev paz00_nvec_subdevs[] = {
+	{
+		.name = "nvec-kbd",
+	},
+	{
+		.name = "nvec-ps2",
+	},
+	{
+		.name = "nvec-power",
+		.id = 0,
+	},
+	{
+		.name = "nvec-power",
+		.id = 1,
+	}
+};
+
+static struct nvec_platform_data nvec_mfd_platform_data = {
+	.i2c_addr = 0x8a,
+	.gpio = PAZ00_NVEC_REQ, // FIXME: move to res?
+	.irq = INT_I2C3,
+	.base = TEGRA_I2C3_BASE,
+	.size = TEGRA_I2C3_SIZE,
+	.clock = "tegra-i2c.2",
+	.subdevs = paz00_nvec_subdevs,
+	.num_subdevs = ARRAY_SIZE(paz00_nvec_subdevs),
+};
+
+static struct platform_device nvec_mfd = {
+	.name = "nvec",
+	.dev = {
+		.platform_data = &nvec_mfd_platform_data,
+	},
+};
+
+static struct paz00_audio_platform_data audio_pdata = {
+/* speaker enable goes via nvec */
+	.gpio_hp_det	= PAZ00_HP_DET,
+};
+
+static struct platform_device audio_device = {
+	.name	= "tegra-snd-paz00",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &audio_pdata,
+	},
+};
+
 static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
 	{
 		I2C_BOARD_INFO("alc5632", 0x1e),
@@ -284,6 +293,11 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device4,
 	&tegra_gart_device,
 	&nvec_mfd,
+	&tegra_i2s_device1,
+	&tegra_das_device,
+	&tegra_pcm_device,
+	&audio_device,
+	&tegra_avp_device,
 };
 
 static void __init tegra_paz00_fixup(struct machine_desc *desc,

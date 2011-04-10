@@ -134,6 +134,8 @@ static struct snd_soc_jack_pin paz00_mic_jack_pins[] = {
 static int paz00_event_int_spk(struct snd_soc_dapm_widget *w,
 					struct snd_kcontrol *k, int event)
 {
+/* 
+    ToDo: speaker enable via nvec
 	struct snd_soc_codec *codec = w->codec;
 	struct snd_soc_card *card = codec->card;
 	struct tegra_paz00 *paz00 = snd_soc_card_get_drvdata(card);
@@ -141,7 +143,7 @@ static int paz00_event_int_spk(struct snd_soc_dapm_widget *w,
 
 	gpio_set_value_cansleep(pdata->gpio_spkr_en,
 				SND_SOC_DAPM_EVENT_ON(event));
-
+*/
 	return 0;
 }
 
@@ -175,7 +177,8 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	struct paz00_audio_platform_data *pdata = paz00->pdata;
 	int ret;
 
-	ret = gpio_request(pdata->gpio_spkr_en, "spkr_en");
+/* Todo: speaker enable via nvec */
+/*	ret = gpio_request(pdata->gpio_spkr_en, "spkr_en");
 	if (ret) {
 		dev_err(card->dev, "cannot get spkr_en gpio\n");
 		return ret;
@@ -190,9 +193,9 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 	}
 	paz00->gpio_requested |= GPIO_INT_MIC_EN;
-
+*/
 	/* Disable int mic; enable signal is active-high */
-	gpio_direction_output(pdata->gpio_int_mic_en, 0);
+/*	gpio_direction_output(pdata->gpio_int_mic_en, 0);
 
 	ret = gpio_request(pdata->gpio_ext_mic_en, "ext_mic_en");
 	if (ret) {
@@ -200,10 +203,10 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 	}
 	paz00->gpio_requested |= GPIO_EXT_MIC_EN;
-
+*/
 	/* Enable ext mic; enable signal is active-low */
-	gpio_direction_output(pdata->gpio_ext_mic_en, 0);
-
+/*	gpio_direction_output(pdata->gpio_ext_mic_en, 0);
+*/
 	ret = snd_soc_add_controls(codec, paz00_controls,
 				   ARRAY_SIZE(paz00_controls));
 	if (ret < 0)
@@ -247,7 +250,7 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 static struct snd_soc_dai_link paz00_alc5632_dai = {
 	.name = "ALC5632",
 	.stream_name = "ALC5632 PCM",
-	.codec_name = "alc5632.0-001a",
+	.codec_name = "alc5632.0-001e",
 	.platform_name = "tegra-pcm-audio",
 	.cpu_dai_name = "tegra-i2s.0",
 	.codec_dai_name = "alc5632-hifi",
@@ -328,13 +331,13 @@ static int __devexit tegra_snd_paz00_remove(struct platform_device *pdev)
 
 	tegra_asoc_utils_fini(&paz00->util_data);
 
-	if (paz00->gpio_requested & GPIO_EXT_MIC_EN)
+/*	if (paz00->gpio_requested & GPIO_EXT_MIC_EN)
 		gpio_free(pdata->gpio_ext_mic_en);
 	if (paz00->gpio_requested & GPIO_INT_MIC_EN)
 		gpio_free(pdata->gpio_int_mic_en);
 	if (paz00->gpio_requested & GPIO_SPKR_EN)
 		gpio_free(pdata->gpio_spkr_en);
-
+*/
 	kfree(paz00);
 
 	return 0;
