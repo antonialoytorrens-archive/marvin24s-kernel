@@ -155,63 +155,6 @@ static void rt2800usb_tx_sta_fifo_timeout(unsigned long data)
 }
 
 /*
- * test if there is an entry in any TX queue for which DMA is done
- * but the TX status has not been returned yet
- */
-static bool rt2800usb_txstatus_pending(struct rt2x00_dev *rt2x00dev)
-{
-	struct data_queue *queue;
-
-	tx_queue_for_each(rt2x00dev, queue) {
-		if (rt2x00queue_get_entry(queue, Q_INDEX_DMA_DONE) !=
-		    rt2x00queue_get_entry(queue, Q_INDEX_DONE))
-			return true;
-	}
-	return false;
-}
-
-static void rt2800usb_tx_sta_fifo_read_completed(struct rt2x00_dev *rt2x00dev,
-						 int urb_status, u32 tx_status)
-{
-	if (urb_status) {
-		WARNING(rt2x00dev, "rt2x00usb_register_read_async failed: %d\n", urb_status);
-		return;
-	}
-
-	/* try to read all TX_STA_FIFO entries before scheduling txdone_work */
-	if (rt2x00_get_field32(tx_status, TX_STA_FIFO_VALID)) {
-		if (!kfifo_put(&rt2x00dev->txstatus_fifo, &tx_status)) {
-			WARNING(rt2x00dev, "TX status FIFO overrun, "
-				"drop tx status report.\n");
-			queue_work(rt2x00dev->workqueue, &rt2x00dev->txdone_work);
-		} else
-			rt2x00usb_register_read_async(rt2x00dev, TX_STA_FIFO,
-						      rt2800usb_tx_sta_fifo_read_completed);
-	} else {
-		if (!kfifo_is_empty(&rt2x00dev->txstatus_fifo))
-			queue_work(rt2x00dev->workqueue, &rt2x00dev->txdone_work);
-		else if (rt2800usb_txstatus_pending(rt2x00dev))
-			mod_timer(&rt2x00dev->txstatus_timer, jiffies + msecs_to_jiffies(20));
-	}
-}
-
-static void rt2800usb_tx_dma_done(struct queue_entry *entry)
-{
-	struct rt2x00_dev *rt2x00dev = entry->queue->rt2x00dev;
-
-	rt2x00usb_register_read_async(rt2x00dev, TX_STA_FIFO,
-				      rt2800usb_tx_sta_fifo_read_completed);
-}
-
-static void rt2800usb_tx_sta_fifo_timeout(unsigned long data)
-{
-	struct rt2x00_dev *rt2x00dev = (struct rt2x00_dev *)data;
-
-	rt2x00usb_register_read_async(rt2x00dev, TX_STA_FIFO,
-				      rt2800usb_tx_sta_fifo_read_completed);
-}
-
-/*
  * Firmware functions
  */
 static char *rt2800usb_get_firmware_name(struct rt2x00_dev *rt2x00dev)
@@ -849,7 +792,6 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x0b05, 0x1732), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x0b05, 0x1742), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x0b05, 0x1784), USB_DEVICE_DATA(&rt2800usb_ops) },
-	{ USB_DEVICE(0x1761, 0x0b05), USB_DEVICE_DATA(&rt2800usb_ops) },
 	/* AzureWave */
 	{ USB_DEVICE(0x13d3, 0x3247), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x13d3, 0x3273), USB_DEVICE_DATA(&rt2800usb_ops) },
@@ -1045,6 +987,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x0b05, 0x1760), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x0b05, 0x1761), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x0b05, 0x1790), USB_DEVICE_DATA(&rt2800usb_ops) },
+	{ USB_DEVICE(0x1761, 0x0b05), USB_DEVICE_DATA(&rt2800usb_ops) },
 	/* AzureWave */
 	{ USB_DEVICE(0x13d3, 0x3262), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x13d3, 0x3284), USB_DEVICE_DATA(&rt2800usb_ops) },
@@ -1068,8 +1011,6 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x07d1, 0x3c13), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x07d1, 0x3c15), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x07d1, 0x3c17), USB_DEVICE_DATA(&rt2800usb_ops) },
-	/* Edimax */
-	{ USB_DEVICE(0x7392, 0x4085), USB_DEVICE_DATA(&rt2800usb_ops) },
 	/* Encore */
 	{ USB_DEVICE(0x203d, 0x14a1), USB_DEVICE_DATA(&rt2800usb_ops) },
 	/* Gemtek */
@@ -1094,7 +1035,6 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x1d4d, 0x0010), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x1d4d, 0x0011), USB_DEVICE_DATA(&rt2800usb_ops) },
 	/* Planex */
-	{ USB_DEVICE(0x2019, 0x5201), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x2019, 0xab24), USB_DEVICE_DATA(&rt2800usb_ops) },
 	/* Qcom */
 	{ USB_DEVICE(0x18e8, 0x6259), USB_DEVICE_DATA(&rt2800usb_ops) },
@@ -1106,8 +1046,6 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	/* Sweex */
 	{ USB_DEVICE(0x177f, 0x0153), USB_DEVICE_DATA(&rt2800usb_ops) },
 	{ USB_DEVICE(0x177f, 0x0313), USB_DEVICE_DATA(&rt2800usb_ops) },
-	/* Toshiba */
-	{ USB_DEVICE(0x0930, 0x0a07), USB_DEVICE_DATA(&rt2800usb_ops) },
 	/* Zyxel */
 	{ USB_DEVICE(0x0586, 0x341a), USB_DEVICE_DATA(&rt2800usb_ops) },
 #endif
