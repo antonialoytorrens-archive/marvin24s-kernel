@@ -321,7 +321,8 @@ static const struct soc_enum alc5632_amp_enum =
 static const struct snd_kcontrol_new alc5632_amp_mux_controls =
 	SOC_DAPM_ENUM("Route", alc5632_amp_enum);
 
-// !!!!!!!!!!
+/* move these to soc/tegra/paz00.c
+   they are wrong anyway, even for alc5423 !
 static const struct snd_soc_dapm_widget alc5632_dapm_amp_widgets[] = {
 SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
 	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
@@ -329,6 +330,7 @@ SND_SOC_DAPM_PGA("AB Amp", ALC5632_PWR_MANAG_ADD2, 15, 0, NULL, 0),
 SND_SOC_DAPM_MUX("AB-D Amp Mux", SND_SOC_NOPM, 0, 0,
 	&alc5632_amp_mux_controls),
 };
+*/
 
 static const struct snd_soc_dapm_route intercon[] = {
 	/* virtual mixer - mixes left & right channels */
@@ -494,6 +496,14 @@ static const struct _pll_div codec_master_pll_div[] = {
 	{ 13100000,  24576000,	0x0d20},
 };
 
+/* FOUT = MCLK*(N+2)/((M+2)*(K+2))
+   N: bit 15:8 (div 2 .. div 257)
+   K: bit  6:4 typical 2
+   M: bit  3:0 (div 2 .. div 17)
+
+   same as for 5623 - thanks!
+*/
+
 static const struct _pll_div codec_slave_pll_div[] = {
 
 	{  1024000,  16384000,  0x3ea0},
@@ -543,12 +553,12 @@ static int alc5632_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 			}
 		}
 		break;
-/*	case ALC5632_PLL_FR_BCLK:
+	case ALC5632_PLL_FR_BCLK:
 		for (i = 0; i < ARRAY_SIZE(codec_slave_pll_div); i++) {
 			if (codec_slave_pll_div[i].pll_in == freq_in
 			   && codec_slave_pll_div[i].pll_out == freq_out) {
-				/ PLL source from Bitclk /
-				gbl_clk = ALC5632_GBL_CLK_PLL_SOUR_SEL_BITCLK;
+				/* PLL source from Bitclk */
+				gbl_clk = ALC5632_PLL_FR_BCLK;
 				pll_div = codec_slave_pll_div[i].regvalue;
 				break;
 			}
@@ -558,13 +568,13 @@ static int alc5632_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 		for (i = 0; i < ARRAY_SIZE(codec_slave_pll_div); i++) {
 			if (codec_slave_pll_div[i].pll_in == freq_in
 			   && codec_slave_pll_div[i].pll_out == freq_out) {
-				/ PLL source from voice clock /
-				gbl_clk = ALC5632_GBL_CLK_PLL_SOUR_SEL_BITCLK;
+				/* PLL source from voice clock */
+				gbl_clk = ALC5632_PLL_FR_VBCLK;
 				pll_div = codec_slave_pll_div[i].regvalue;
 				break;
 			}
 		}
-		break; */
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -572,17 +582,23 @@ static int alc5632_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 	if (!pll_div)
 		return -EINVAL;
 
-/*	snd_soc_write(codec, ALC5632_GLOBAL_CLK_CTRL_REG, gbl_clk);
-	snd_soc_write(codec, ALC5632_PLL_CTRL, pll_div);
+/* choose MCLK/BCLK/VBCLK */
+	snd_soc_write(codec, ALC5632_GPCR2, gbl_clk);
+/* choose PLL1 clock rate */
+	snd_soc_write(codec, ALC5632_PLL1_CTRL, pll_div);
+/* enable PLL1 */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
 				ALC5632_PWR_ADD2_PLL1,
 				ALC5632_PWR_ADD2_PLL1);
+/* enable PLL2 */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
 				ALC5632_PWR_ADD2_PLL2,
 				ALC5632_PWR_ADD2_PLL2);
-	gbl_clk |= ALC5632_GBL_CLK_SYS_SOUR_SEL_PLL;
-	snd_soc_write(codec, ALC5632_GLOBAL_CLK_CTRL_REG, gbl_clk);
-*/
+/* use PLL1 as main SYSCLK */
+	snd_soc_update_bits(codec, ALC5632_GPCR1,
+			ALC5632_GPCR1_CLK_SYS_SRC_SEL_PLL1,
+			ALC5632_GPCR1_CLK_SYS_SRC_SEL_PLL1);
+
 	return 0;
 }
 
@@ -1030,6 +1046,8 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	/* set up audio path interconnects */
 	snd_soc_dapm_add_routes(dapm, intercon, ARRAY_SIZE(intercon));
 
+/* move to soc/tegra/paz00.c ??? */
+/*
 	switch (alc5632->id) {
 	case 0x5c:
 		snd_soc_dapm_new_controls(dapm, alc5632_dapm_amp_widgets,
@@ -1040,7 +1058,7 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	default:
 		return -EINVAL;
 	}
-
+*/
 	return ret;
 }
 
