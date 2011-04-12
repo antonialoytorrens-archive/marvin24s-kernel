@@ -28,7 +28,7 @@
 #include <linux/mfd/nvec.h>
 #include <linux/gpio.h>
 
-//#include <sound/alc5632.h>
+#include <sound/alc5632.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -193,6 +193,12 @@ static struct platform_device nvec_mfd = {
 	},
 };
 
+
+static struct alc5632_platform_data alc5632_pdata = {
+	.add_ctrl = 0x0400,
+	.jack_det_ctrl = -1,
+};
+
 static struct paz00_audio_platform_data audio_pdata = {
 /* speaker enable goes via nvec */
 	.gpio_hp_det	= PAZ00_HP_DET,
@@ -206,17 +212,14 @@ static struct platform_device audio_device = {
 	},
 };
 
-static struct i2c_board_info __initdata paz00_i2c_bus1_board_info[] = {
-	{
-		I2C_BOARD_INFO("alc5632", 0x1e),
-	},
+static struct i2c_board_info __initdata alc5632_board_info = {
+	I2C_BOARD_INFO("alc5632", 0x1e),
+	.platform_data = &alc5632_pdata,
 };
 
 
-static struct i2c_board_info __initdata paz00_i2c_bus4_board_info[] = {
-	{
-		I2C_BOARD_INFO("atd7461", 0x4c), /* aka lm90 */
-	},
+static struct i2c_board_info __initdata atd7461_board_info = {
+	I2C_BOARD_INFO("atd7461", 0x4c), /* aka lm90 */
 };
 
 static void paz00_i2c_init(void)
@@ -229,11 +232,9 @@ static void paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device4);
 
-	i2c_register_board_info(0, paz00_i2c_bus1_board_info,
-				ARRAY_SIZE(paz00_i2c_bus1_board_info));
+	i2c_register_board_info(0, &alc5632_board_info, 1);
 
-	i2c_register_board_info(4, paz00_i2c_bus4_board_info,
-				ARRAY_SIZE(paz00_i2c_bus4_board_info));
+	i2c_register_board_info(4, &atd7461_board_info, 1);
 
 }
 

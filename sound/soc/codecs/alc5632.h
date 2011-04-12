@@ -22,22 +22,54 @@
 /* line output vol                      4    2      */
 /* HP output vol		   4    0    4      */
 #define ALC5632_SPK_OUT_VOL			0x02 // spe out vol
+#define ALC5632_SPK_OUT_VOL_STEP		1.5
 #define ALC5632_HP_OUT_VOL			0x04 // hp out vol
-#define ALC5632_MONO_AUX_OUT_VOL		0x06 // mono aux out vol
-#define ALC5632_AUXIN_VOL			0x08 // phone in vol
+#define ALC5632_AUX_OUT_VOL			0x06 // aux out vol
+#define ALC5632_PHONE_IN_VOL			0x08 // phone in vol
 #define ALC5632_LINE_IN_VOL			0x0A // line in vol
-#define ALC5632_STEREO_DAC_VOL			0x0C // stereo dac in vol
+#define ALC5632_STEREO_DAC_IN_VOL		0x0C // stereo dac in vol
 #define ALC5632_MIC_VOL				0x0E // mic in vol
 #define ALC5632_MIC_ROUTING_CTRL		0x10 // stero dac/mic routing
+#define ALC5632_MIC_ROUTE_MONOMIX		(1 << 0)
+#define ALC5632_MIC_ROUTE_SPK			(1 << 1)
+#define ALC5632_MIC_ROUTE_HP			(1 << 2)
+
 #define ALC5632_ADC_REC_GAIN			0x12 // rec gain
+#define ALC5632_ADC_REC_GAIN_RANGE		0x1F1F
+#define ALC5632_ADC_REC_GAIN_BASE		-16.5
+#define ALC5632_ADC_REC_GAIN_STEP		1.5
+
 #define ALC5632_ADC_REC_MIXER			0x14 // mixer control
+#define ALC5632_ADC_REC_MIC1			(1 << 6)
+#define ALC5632_ADC_REC_MIC2			(1 << 5)
+#define ALC5632_ADC_REC_LINE_IN			(1 << 4)
+#define ALC5632_ADC_REC_AUX			(1 << 3)
+#define ALC5632_ADC_REC_HP			(1 << 2)
+#define ALC5632_ADC_REC_SPK			(1 << 1)
+#define ALC5632_ADC_REC_MONOMIX			(1 << 0)
+
 #define ALC5632_VOICE_DAC_VOL			0x18 // voice dac vol
 /* ALC5632_OUTPUT_MIXER_CTRL :			*/
 /* same remark as for reg 2 line vs speaker	*/
 #define ALC5632_OUTPUT_MIXER_CTRL		0x1C // out mix ctrl
+#define ALC5632_OUTPUT_MIXER_RP			(1 << 14)
+#define ALC5632_OUTPUT_MIXER_WEEK		(1 << 12)
+#define ALC5632_OUTPUT_MIXER_HP			(1 << 10)
+#define ALC5632_OUTPUT_MIXER_AUX_SPK		(2 <<  6)
 #define ALC5632_MIC_CTRL			0x22 // mic phone ctrl
-#define ALC5632_MIC_BOOST_CTRL			0x24 // digi mic / bost ctl
+#define ALC5632_MIC_BOOST_BYPASS		0
+#define ALC5632_MIC_BOOST_20DB			1
+#define ALC5632_MIC_BOOST_30DB			2
+#define ALC5632_MIC_BOOST_40DB			3
+
+#define ALC5632_DIGI_BOOST_CTRL			0x24 // digi mic / bost ctl
+#define ALC5632_MIC_BOOST_RANGE			7
+#define ALC5632_MIC_BOOST_STEP			6
 #define ALC5632_PWR_DOWN_CTRL_STATUS		0x26
+#define ALC5632_PWR_VREF_STATUS			(1 << 3)
+#define ALC5632_PWR_AMIX_STATUS			(1 << 2)
+#define ALC5632_PWR_DAC_STATUS			(1 << 1)
+#define ALC5632_PWR_ADC_STATUS			(1 << 0)
 #define ALC5632_DAC_FUNC_SELECT			0x2E // stereo/voice DAC / stereo adc func ctrl
 
 #define ALC5632_DAI_CONTROL			0x34 // Main serial data port ctrl (i2s)
@@ -182,6 +214,7 @@
 
 #define ALC5632_DAC_CLK_CTRL1			0x60
 #define ALC5632_DAC_CLK_CTRL2			0x62
+#define ALC5632_DAC_CLK_CTRL2_DIV1_2		(1 << 0)
 #define ALC5632_VOICE_DAC_PCM_CLK_CTRL1		0x64
 #define ALC5632_PSEUDO_SPATIAL_CTRL		0x68
 #define ALC5632_HID_CTRL_INDEX			0x6A

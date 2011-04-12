@@ -284,6 +284,8 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec_write_async(nvec, EC_GET_FIRMWARE_VERSION,
 		sizeof(EC_GET_FIRMWARE_VERSION));
 
+	/* unmute speakers? */
+	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
 	return 0;
 
 failed:

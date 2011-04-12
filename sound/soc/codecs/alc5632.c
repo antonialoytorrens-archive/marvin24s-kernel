@@ -50,7 +50,7 @@ static void alc5632_fill_cache(struct snd_soc_codec *codec)
 
 static inline int alc5632_reset(struct snd_soc_codec *codec)
 {
-	return snd_soc_write(codec, ALC5632_RESET, 0);
+	return snd_soc_update_bits(codec, ALC5632_RESET, 0xffff, 0);
 }
 
 static int amp_mixer_event(struct snd_soc_dapm_widget *w,
@@ -78,22 +78,24 @@ static int amp_mixer_event(struct snd_soc_dapm_widget *w,
  * ALC5632 Controls
  */
 
-static const DECLARE_TLV_DB_SCALE(vol_tlv, -3450, 150, 0);
-static const DECLARE_TLV_DB_SCALE(hp_tlv, -4650, 150, 0);
-static const DECLARE_TLV_DB_SCALE(adc_rec_tlv, -1650, 150, 0);
+static const DECLARE_TLV_DB_SCALE(vol_tlv, -3450, 150, 0);	// -34.5db min scale, 1.5db steps, no mute
+static const DECLARE_TLV_DB_SCALE(hp_tlv, -4650, 150, 0);	// -46.5db min scale, 1.5db steps, no mute
+static const DECLARE_TLV_DB_SCALE(adc_rec_tlv, -1650, 150, 0);	// -16.5db min scale, 1.5db steps, no mute
 static const unsigned int boost_tlv[] = {
 	TLV_DB_RANGE_HEAD(3),
 	0, 0, TLV_DB_SCALE_ITEM(0, 0, 0),
 	1, 1, TLV_DB_SCALE_ITEM(2000, 0, 0),
 	2, 2, TLV_DB_SCALE_ITEM(3000, 0, 0),
 };
-static const DECLARE_TLV_DB_SCALE(dig_tlv, 0, 600, 0);
+static const DECLARE_TLV_DB_SCALE(dig_tlv, 0, 600, 0);		// 0db min scale, 6 db steps, no mute
+static const DECLARE_TLV_DB_SCALE(vdac_tlv, -3525, 075, 0);	// 0db min scalem 0.75db steps, no mute
 
 static const struct snd_kcontrol_new alc5632_vol_snd_controls[] = {
 	SOC_DOUBLE_TLV("Line Playback Volume",
-			ALC5632_SPK_OUT_VOL, 8, 0, 31, 1, hp_tlv),
+			ALC5632_SPK_OUT_VOL, 8, 0, 31, 1, hp_tlv),	// left starts at bit 8, right at bit 0
+								        // 31 steps (5 bit), -46.5db scale
 	SOC_DOUBLE("Line Playback Switch",
-			ALC5632_SPK_OUT_VOL, 15, 7, 1, 1),
+			ALC5632_SPK_OUT_VOL, 15, 7, 1, 1),		// bit 15 mutes left, bit 7 right
 	SOC_DOUBLE_TLV("Headphone Playback Volume",
 			ALC5632_HP_OUT_VOL, 8, 0, 31, 1, hp_tlv),
 	SOC_DOUBLE("Headphone Playback Switch",
@@ -102,28 +104,31 @@ static const struct snd_kcontrol_new alc5632_vol_snd_controls[] = {
 
 static const struct snd_kcontrol_new alc5632_snd_controls[] = {
 	SOC_DOUBLE_TLV("Auxout Playback Volume",
-			ALC5632_MONO_AUX_OUT_VOL, 8, 0, 31, 1, hp_tlv),
+			ALC5632_AUX_OUT_VOL, 8, 0, 31, 1, hp_tlv),
 	SOC_DOUBLE("Auxout Playback Switch",
-			ALC5632_MONO_AUX_OUT_VOL, 15, 7, 1, 1),
-	SOC_DOUBLE_TLV("PCM Playback Volume",
-			ALC5632_STEREO_DAC_VOL, 8, 0, 31, 1, vol_tlv),
-	SOC_DOUBLE_TLV("AuxI Capture Volume",
-			ALC5632_AUXIN_VOL, 8, 0, 31, 1, vol_tlv),
+			ALC5632_AUX_OUT_VOL, 15, 7, 1, 1),
+	SOC_SINGLE_TLV("Voice DAC Playback Volume",
+			ALC5632_VOICE_DAC_VOL, 0, 63, 0, vdac_tlv),
+	SOC_SINGLE_TLV("Phone Capture Volume",
+			ALC5632_PHONE_IN_VOL, 8, 31, 1, vol_tlv),
 	SOC_DOUBLE_TLV("LineIn Capture Volume",
 			ALC5632_LINE_IN_VOL, 8, 0, 31, 1, vol_tlv),
+	SOC_DOUBLE_TLV("Stereo DAC Capture Volume",
+			ALC5632_STEREO_DAC_IN_VOL, 8, 0, 63, 1, vdac_tlv),
+	SOC_DOUBLE("Stereo DAC Capture Switch",
+			ALC5632_STEREO_DAC_IN_VOL, 15, 7, 1, 1),
 	SOC_SINGLE_TLV("Mic1 Capture Volume",
 			ALC5632_MIC_VOL, 8, 31, 1, vol_tlv),
 	SOC_SINGLE_TLV("Mic2 Capture Volume",
 			ALC5632_MIC_VOL, 0, 31, 1, vol_tlv),
 	SOC_DOUBLE_TLV("Rec Capture Volume",
-			ALC5632_ADC_REC_GAIN, 7, 0, 31, 0, adc_rec_tlv),
+			ALC5632_ADC_REC_GAIN, 8, 0, 31, 0, adc_rec_tlv),
 	SOC_SINGLE_TLV("Mic 1 Boost Volume",
 			ALC5632_MIC_CTRL, 10, 2, 0, boost_tlv),
 	SOC_SINGLE_TLV("Mic 2 Boost Volume",
 			ALC5632_MIC_CTRL, 8, 2, 0, boost_tlv),
-// only MIC booster?
-//	SOC_SINGLE_TLV("Digital Boost Volume",
-//			ALC5632_ADD_CTRL_REG, 4, 3, 0, dig_tlv),
+	SOC_SINGLE_TLV("Digital Boost Volume",
+			ALC5632_DIGI_BOOST_CTRL, 0, 7, 0, dig_tlv),
 };
 
 /*
@@ -131,10 +136,12 @@ static const struct snd_kcontrol_new alc5632_snd_controls[] = {
  */
 static const struct snd_kcontrol_new alc5632_hp_mixer_controls[] = {
 SOC_DAPM_SINGLE("LI2HP Playback Switch", ALC5632_LINE_IN_VOL, 15, 1, 1),
-SOC_DAPM_SINGLE("AUXI2HP Playback Switch", ALC5632_AUXIN_VOL, 15, 1, 1),
+SOC_DAPM_SINGLE("PHONE2HP Playback Switch", ALC5632_PHONE_IN_VOL, 15, 1, 1),
 SOC_DAPM_SINGLE("MIC12HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 15, 1, 1),
-SOC_DAPM_SINGLE("MIC22HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 7, 1, 1),
-SOC_DAPM_SINGLE("DAC2HP Playback Switch", ALC5632_STEREO_DAC_VOL, 15, 1, 1),
+SOC_DAPM_SINGLE("MIC22HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 11, 1, 1),
+SOC_DAPM_SINGLE("DACL2HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 3, 1, 1),
+SOC_DAPM_SINGLE("DACR2HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 2, 1, 1),
+SOC_DAPM_SINGLE("VOICE2HP Playback Switch", ALC5632_VOICE_DAC_VOL, 15, 1, 1),
 };
 
 static const struct snd_kcontrol_new alc5632_hpl_mixer_controls[] = {
@@ -142,25 +149,26 @@ SOC_DAPM_SINGLE("ADC2HP_L Playback Switch", ALC5632_ADC_REC_GAIN, 15, 1, 1),
 };
 
 static const struct snd_kcontrol_new alc5632_hpr_mixer_controls[] = {
-SOC_DAPM_SINGLE("ADC2HP_R Playback Switch", ALC5632_ADC_REC_GAIN, 14, 1, 1),
+SOC_DAPM_SINGLE("ADC2HP_R Playback Switch", ALC5632_ADC_REC_GAIN, 7, 1, 1),
 };
 
 static const struct snd_kcontrol_new alc5632_mono_mixer_controls[] = {
-SOC_DAPM_SINGLE("ADC2MONO_L Playback Switch", ALC5632_ADC_REC_GAIN, 13, 1, 1),
-SOC_DAPM_SINGLE("ADC2MONO_R Playback Switch", ALC5632_ADC_REC_GAIN, 12, 1, 1),
+SOC_DAPM_SINGLE("ADC2MONO_L Playback Switch", ALC5632_ADC_REC_GAIN, 14, 1, 1),
+SOC_DAPM_SINGLE("ADC2MONO_R Playback Switch", ALC5632_ADC_REC_GAIN, 6, 1, 1),
 SOC_DAPM_SINGLE("LI2MONO Playback Switch", ALC5632_LINE_IN_VOL, 13, 1, 1),
-SOC_DAPM_SINGLE("AUXI2MONO Playback Switch", ALC5632_AUXIN_VOL, 13, 1, 1),
 SOC_DAPM_SINGLE("MIC12MONO Playback Switch", ALC5632_MIC_ROUTING_CTRL, 13, 1, 1),
-SOC_DAPM_SINGLE("MIC22MONO Playback Switch", ALC5632_MIC_ROUTING_CTRL, 5, 1, 1),
-SOC_DAPM_SINGLE("DAC2MONO Playback Switch", ALC5632_STEREO_DAC_VOL, 13, 1, 1),
+SOC_DAPM_SINGLE("MIC22MONO Playback Switch", ALC5632_MIC_ROUTING_CTRL, 9, 1, 1),
+SOC_DAPM_SINGLE("DAC2MONO Playback Switch", ALC5632_MIC_ROUTING_CTRL, 0, 1, 1),
+SOC_DAPM_SINGLE("VOICE2MONO Playback Switch", ALC5632_VOICE_DAC_VOL, 13, 1, 1),
 };
 
 static const struct snd_kcontrol_new alc5632_speaker_mixer_controls[] = {
 SOC_DAPM_SINGLE("LI2SPK Playback Switch", ALC5632_LINE_IN_VOL, 14, 1, 1),
-SOC_DAPM_SINGLE("AUXI2SPK Playback Switch", ALC5632_AUXIN_VOL, 14, 1, 1),
+SOC_DAPM_SINGLE("PHONE2SPK Playback Switch", ALC5632_PHONE_IN_VOL, 14, 1, 1),
 SOC_DAPM_SINGLE("MIC12SPK Playback Switch", ALC5632_MIC_ROUTING_CTRL, 14, 1, 1),
-SOC_DAPM_SINGLE("MIC22SPK Playback Switch", ALC5632_MIC_ROUTING_CTRL, 6, 1, 1),
-SOC_DAPM_SINGLE("DAC2SPK Playback Switch", ALC5632_STEREO_DAC_VOL, 14, 1, 1),
+SOC_DAPM_SINGLE("MIC22SPK Playback Switch", ALC5632_MIC_ROUTING_CTRL, 10, 1, 1),
+SOC_DAPM_SINGLE("DAC2SPK Playback Switch", ALC5632_MIC_ROUTING_CTRL, 1, 1, 1),
+SOC_DAPM_SINGLE("VOICE2SPK Playback Switch", ALC5632_VOICE_DAC_VOL, 14, 1, 1),
 };
 
 /* Left Record Mixer */
@@ -168,7 +176,7 @@ static const struct snd_kcontrol_new alc5632_captureL_mixer_controls[] = {
 SOC_DAPM_SINGLE("Mic1 Capture Switch", ALC5632_ADC_REC_MIXER, 14, 1, 1),
 SOC_DAPM_SINGLE("Mic2 Capture Switch", ALC5632_ADC_REC_MIXER, 13, 1, 1),
 SOC_DAPM_SINGLE("LineInL Capture Switch", ALC5632_ADC_REC_MIXER, 12, 1, 1),
-SOC_DAPM_SINGLE("Left AuxI Capture Switch", ALC5632_ADC_REC_MIXER, 11, 1, 1),
+SOC_DAPM_SINGLE("Left Phone Capture Switch", ALC5632_ADC_REC_MIXER, 11, 1, 1),
 SOC_DAPM_SINGLE("HPMixerL Capture Switch", ALC5632_ADC_REC_MIXER, 10, 1, 1),
 SOC_DAPM_SINGLE("SPKMixer Capture Switch", ALC5632_ADC_REC_MIXER, 9, 1, 1),
 SOC_DAPM_SINGLE("MonoMixer Capture Switch", ALC5632_ADC_REC_MIXER, 8, 1, 1),
@@ -179,14 +187,14 @@ static const struct snd_kcontrol_new alc5632_captureR_mixer_controls[] = {
 SOC_DAPM_SINGLE("Mic1 Capture Switch", ALC5632_ADC_REC_MIXER, 6, 1, 1),
 SOC_DAPM_SINGLE("Mic2 Capture Switch", ALC5632_ADC_REC_MIXER, 5, 1, 1),
 SOC_DAPM_SINGLE("LineInR Capture Switch", ALC5632_ADC_REC_MIXER, 4, 1, 1),
-SOC_DAPM_SINGLE("Right AuxI Capture Switch", ALC5632_ADC_REC_MIXER, 3, 1, 1),
+SOC_DAPM_SINGLE("Right Phone Capture Switch", ALC5632_ADC_REC_MIXER, 3, 1, 1),
 SOC_DAPM_SINGLE("HPMixerR Capture Switch", ALC5632_ADC_REC_MIXER, 2, 1, 1),
 SOC_DAPM_SINGLE("SPKMixer Capture Switch", ALC5632_ADC_REC_MIXER, 1, 1, 1),
 SOC_DAPM_SINGLE("MonoMixer Capture Switch", ALC5632_ADC_REC_MIXER, 0, 1, 1),
 };
 
 static const char *alc5632_spk_n_sour_sel[] = {
-		"RN/-R", "RP/+R", "LN/-R", "Vmid" };
+		"RN/-R", "RP/+R", "LN/-R", "Vmid"};
 static const char *alc5632_hpl_out_input_sel[] = {
 		"Vmid", "HP Left Mix"};
 static const char *alc5632_hpr_out_input_sel[] = {
@@ -269,27 +277,28 @@ SND_SOC_DAPM_DAC("Left DAC", "Left HiFi Playback",
 	ALC5632_PWR_MANAG_ADD2, 9, 0),
 SND_SOC_DAPM_DAC("Right DAC", "Right HiFi Playback",
 	ALC5632_PWR_MANAG_ADD2, 8, 0),
-SND_SOC_DAPM_MIXER("I2S Mix", ALC5632_PWR_MANAG_ADD1, 15, 0, NULL, 0),
-SND_SOC_DAPM_MIXER("AuxI Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
+SND_SOC_DAPM_MIXER("I2S Mix", ALC5632_PWR_MANAG_ADD1, 11, 0, NULL, 0),
+SND_SOC_DAPM_MIXER("Phone Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("Line Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_ADC("Left ADC", "Left HiFi Capture",
 	ALC5632_PWR_MANAG_ADD2, 7, 0),
 SND_SOC_DAPM_ADC("Right ADC", "Right HiFi Capture",
 	ALC5632_PWR_MANAG_ADD2, 6, 0),
-SND_SOC_DAPM_PGA("Left Headphone", ALC5632_PWR_MANAG_ADD3, 10, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Right Headphone", ALC5632_PWR_MANAG_ADD3, 9, 0, NULL, 0),
-SND_SOC_DAPM_PGA("SpeakerOut", ALC5632_PWR_MANAG_ADD3, 12, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Left AuxOut", ALC5632_PWR_MANAG_ADD3, 14, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Right AuxOut", ALC5632_PWR_MANAG_ADD3, 13, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Left Headphone", ALC5632_PWR_MANAG_ADD3, 11, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Right Headphone", ALC5632_PWR_MANAG_ADD3, 10, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Left Speaker", ALC5632_PWR_MANAG_ADD3, 13, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Right Speaker", ALC5632_PWR_MANAG_ADD3, 12, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Aux Out", ALC5632_PWR_MANAG_ADD3, 14, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Left LineIn", ALC5632_PWR_MANAG_ADD3, 7, 0, NULL, 0),
 SND_SOC_DAPM_PGA("Right LineIn", ALC5632_PWR_MANAG_ADD3, 6, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Left AuxI", ALC5632_PWR_MANAG_ADD3, 5, 0, NULL, 0),
-SND_SOC_DAPM_PGA("Right AuxI", ALC5632_PWR_MANAG_ADD3, 4, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Phone", ALC5632_PWR_MANAG_ADD3, 5, 0, NULL, 0),
+SND_SOC_DAPM_PGA("Phone ADMix", ALC5632_PWR_MANAG_ADD3, 4, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC1 PGA", ALC5632_PWR_MANAG_ADD3, 3, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC2 PGA", ALC5632_PWR_MANAG_ADD3, 2, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC1 Pre Amp", ALC5632_PWR_MANAG_ADD3, 1, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC2 Pre Amp", ALC5632_PWR_MANAG_ADD3, 0, 0, NULL, 0),
-SND_SOC_DAPM_MICBIAS("Mic Bias1", ALC5632_PWR_MANAG_ADD1, 11, 0),
+SND_SOC_DAPM_MICBIAS("Mic Bias1", ALC5632_PWR_MANAG_ADD1, 3, 0),
+SND_SOC_DAPM_MICBIAS("Mic Bias2", ALC5632_PWR_MANAG_ADD1, 2, 0),
 
 SND_SOC_DAPM_OUTPUT("AUXOUTL"),
 SND_SOC_DAPM_OUTPUT("AUXOUTR"),
@@ -299,8 +308,8 @@ SND_SOC_DAPM_OUTPUT("SPKOUT"),
 SND_SOC_DAPM_OUTPUT("SPKOUTN"),
 SND_SOC_DAPM_INPUT("LINEINL"),
 SND_SOC_DAPM_INPUT("LINEINR"),
-SND_SOC_DAPM_INPUT("AUXINL"),
-SND_SOC_DAPM_INPUT("AUXINR"),
+SND_SOC_DAPM_INPUT("PHONENL"),
+SND_SOC_DAPM_INPUT("PHONENR"),
 SND_SOC_DAPM_INPUT("MIC1"),
 SND_SOC_DAPM_INPUT("MIC2"),
 SND_SOC_DAPM_VMID("Vmid"),
@@ -312,6 +321,7 @@ static const struct soc_enum alc5632_amp_enum =
 static const struct snd_kcontrol_new alc5632_amp_mux_controls =
 	SOC_DAPM_ENUM("Route", alc5632_amp_enum);
 
+// !!!!!!!!!!
 static const struct snd_soc_dapm_widget alc5632_dapm_amp_widgets[] = {
 SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
 	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
@@ -326,8 +336,8 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"I2S Mix", NULL,				"Right DAC"},
 	{"Line Mix", NULL,				"Right LineIn"},
 	{"Line Mix", NULL,				"Left LineIn"},
-	{"AuxI Mix", NULL,				"Left AuxI"},
-	{"AuxI Mix", NULL,				"Right AuxI"},
+	{"Phone Mix", NULL,				"Left Phone"},
+	{"Phone Mix", NULL,				"Right Phone"},
 	{"AUXOUTL", NULL,				"Left AuxOut"},
 	{"AUXOUTR", NULL,				"Right AuxOut"},
 
@@ -337,14 +347,14 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"HPR Mix", "ADC2HP_R Playback Switch",		"Right Capture Mix"},
 	{"HPR Mix", NULL,				"HP Mix"},
 	{"HP Mix", "LI2HP Playback Switch",		"Line Mix"},
-	{"HP Mix", "AUXI2HP Playback Switch",		"AuxI Mix"},
+	{"HP Mix", "PHONE2HP Playback Switch",		"Phone Mix"},
 	{"HP Mix", "MIC12HP Playback Switch",		"MIC1 PGA"},
 	{"HP Mix", "MIC22HP Playback Switch",		"MIC2 PGA"},
 	{"HP Mix", "DAC2HP Playback Switch",		"I2S Mix"},
 
 	/* speaker mixer */
 	{"Speaker Mix", "LI2SPK Playback Switch",	"Line Mix"},
-	{"Speaker Mix", "AUXI2SPK Playback Switch",	"AuxI Mix"},
+	{"Speaker Mix", "PHONE2SPK Playback Switch",	"Phone Mix"},
 	{"Speaker Mix", "MIC12SPK Playback Switch",	"MIC1 PGA"},
 	{"Speaker Mix", "MIC22SPK Playback Switch",	"MIC2 PGA"},
 	{"Speaker Mix", "DAC2SPK Playback Switch",	"I2S Mix"},
@@ -353,14 +363,14 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"Mono Mix", "ADC2MONO_L Playback Switch",	"Left Capture Mix"},
 	{"Mono Mix", "ADC2MONO_R Playback Switch",	"Right Capture Mix"},
 	{"Mono Mix", "LI2MONO Playback Switch",		"Line Mix"},
-	{"Mono Mix", "AUXI2MONO Playback Switch",	"AuxI Mix"},
+	{"Mono Mix", "PHONE2MONO Playback Switch",	"Phone Mix"},
 	{"Mono Mix", "MIC12MONO Playback Switch",	"MIC1 PGA"},
 	{"Mono Mix", "MIC22MONO Playback Switch",	"MIC2 PGA"},
 	{"Mono Mix", "DAC2MONO Playback Switch",	"I2S Mix"},
 
 	/* Left record mixer */
 	{"Left Capture Mix", "LineInL Capture Switch",	"LINEINL"},
-	{"Left Capture Mix", "Left AuxI Capture Switch", "AUXINL"},
+	{"Left Capture Mix", "Left Phone Capture Switch", "PHONENL"},
 	{"Left Capture Mix", "Mic1 Capture Switch",	"MIC1 Pre Amp"},
 	{"Left Capture Mix", "Mic2 Capture Switch",	"MIC2 Pre Amp"},
 	{"Left Capture Mix", "HPMixerL Capture Switch", "HPL Mix"},
@@ -369,7 +379,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 
 	/*Right record mixer */
 	{"Right Capture Mix", "LineInR Capture Switch",	"LINEINR"},
-	{"Right Capture Mix", "Right AuxI Capture Switch",	"AUXINR"},
+	{"Right Capture Mix", "Right Phone Capture Switch",	"PHONENR"},
 	{"Right Capture Mix", "Mic1 Capture Switch",	"MIC1 Pre Amp"},
 	{"Right Capture Mix", "Mic2 Capture Switch",	"MIC2 Pre Amp"},
 	{"Right Capture Mix", "HPMixerR Capture Switch", "HPR Mix"},
@@ -407,8 +417,8 @@ static const struct snd_soc_dapm_route intercon[] = {
 	/* input pga */
 	{"Left LineIn", NULL,				"LINEINL"},
 	{"Right LineIn", NULL,				"LINEINR"},
-	{"Left AuxI", NULL,				"AUXINL"},
-	{"Right AuxI", NULL,				"AUXINR"},
+	{"Left Phone", NULL,				"PHONENL"},
+	{"Right Phone", NULL,				"PHONENR"},
 	{"MIC1 Pre Amp", NULL,				"MIC1"},
 	{"MIC2 Pre Amp", NULL,				"MIC2"},
 	{"MIC1 PGA", NULL,				"MIC1 Pre Amp"},
@@ -794,10 +804,10 @@ static int alc5632_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	case SND_SOC_BIAS_STANDBY:
 		/* everything off except vref/vmid, */
-		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD2,
-				ALC5632_PWR_ADD2_VREF);
 		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1,
 				ALC5632_PWR_ADD1_MAIN_BIAS);
+		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD2,
+				ALC5632_PWR_ADD2_VREF);
 		break;
 	case SND_SOC_BIAS_OFF:
 		/* everything off, dac mute, inactive */
@@ -871,6 +881,89 @@ static int alc5632_resume(struct snd_soc_codec *codec)
 	return 0;
 }
 
+#define ALC5632_REC_UNMUTE ( ALC5632_ADC_REC_MIC2 | \
+		ALC5632_ADC_REC_LINE_IN | ALC5632_ADC_REC_AUX | \
+		ALC5632_ADC_REC_HP | ALC5632_ADC_REC_SPK | \
+		ALC5632_ADC_REC_MONOMIX )
+
+#define ALC5632_MIC_ROUTE ( ALC5632_MIC_ROUTE_HP | \
+		ALC5632_MIC_ROUTE_SPK | ALC5632_MIC_ROUTE_MONOMIX )
+
+#define ALC5632_PWR_DEFAULT ( ALC5632_PWR_ADC_STATUS | \
+		ALC5632_PWR_DAC_STATUS | ALC5632_PWR_AMIX_STATUS | \
+		ALC5632_PWR_VREF_STATUS )
+
+#define ALC5632_ADC_REC_GAIN_COMP(x) (int)(( x - ALC5632_ADC_REC_GAIN_BASE ) \
+		/ ALC5632_ADC_REC_GAIN_STEP)
+
+#define ALC5632_MIC_BOOST_COMP(x) (int)( x / ALC5632_MIC_BOOST_STEP )
+
+#define ALC5632_SPK_OUT_VOL_COMP(x) (int)( x / ALC5632_SPK_OUT_VOL_STEP )
+
+static void androids_init(struct snd_soc_codec *codec)
+{
+	/* unmute stuff (right + left) 0x3f3f @ 14 */
+	snd_soc_write(codec, ALC5632_ADC_REC_MIXER,
+		(ALC5632_REC_UNMUTE << 8 | ALC5632_REC_UNMUTE) );
+
+	/* volume control to level 4 (right + left), 0x1010 @ 0c */
+	snd_soc_write(codec, ALC5632_STEREO_DAC_IN_VOL,
+		(1 << 4 | 1 << (8+4) ) );
+
+	/* MIC2 boost +20db (right + left) 0x0500 @ 22 */
+	snd_soc_write(codec, ALC5632_MIC_CTRL, ( ALC5632_MIC_BOOST_20DB << 8 |
+		ALC5632_MIC_BOOST_20DB << (2+8) ) );
+
+	/* MIC routing (mic1 + mic2) 0xee00 @ 10) */
+	snd_soc_write(codec, ALC5632_MIC_ROUTING_CTRL, ( ALC5632_MIC_ROUTE << 9 |
+		ALC5632_MIC_ROUTE << (9+4) ) );
+
+	/* set ad/dc filter divider to 2, 0x1010 @ 62 */
+	snd_soc_write(codec, ALC5632_DAC_CLK_CTRL2, 
+		( ALC5632_DAC_CLK_CTRL2_DIV1_2 << 4 |
+		  ALC5632_DAC_CLK_CTRL2_DIV1_2 << (4+8) ) );
+
+	/* I2S module enable 3A | 0x0C00 @ 3A */
+	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
+		ALC5632_PWR_ADD1_MAIN_I2S_EN, ALC5632_PWR_ADD1_MAIN_I2S_EN);
+
+	/* MIC1 bias short current detect  | 0x0C20 @ 3A */
+	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
+		ALC5632_PWR_ADD1_MIC1_SHORT_CURR, ALC5632_PWR_ADD1_MIC1_SHORT_CURR);
+
+	/* ??? set bit on readonly bits 0x000f @ 26 */
+	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS,
+		ALC5632_PWR_DEFAULT);
+
+	/* output amp set to weak | 0x9008 @ 1c */
+	snd_soc_update_bits(codec, ALC5632_OUTPUT_MIXER_CTRL,
+		ALC5632_OUTPUT_MIXER_WEEK, ALC5632_OUTPUT_MIXER_WEEK);
+
+	/* enable pwr on main bias | 0x0c22 @ 3a */
+	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
+		ALC5632_PWR_ADD1_MAIN_BIAS, ALC5632_PWR_ADD1_MAIN_BIAS);
+
+	/* set record gain to 25.5 db (right + left), 0xdcdc @ 12 */
+	snd_soc_update_bits(codec, ALC5632_ADC_REC_GAIN,
+		ALC5632_ADC_REC_GAIN_RANGE, ( ALC5632_ADC_REC_GAIN_COMP(25.5) |
+				ALC5632_ADC_REC_GAIN_COMP(25.5) << 8 ) );
+
+	/* set ADC digital boost to 24db | 0x00c4 @ 24 */
+	snd_soc_update_bits(codec, ALC5632_DIGI_BOOST_CTRL,
+		ALC5632_MIC_BOOST_RANGE, ALC5632_MIC_BOOST_COMP(24));
+
+	/* setup ouput mixers | 0x5488 @ 1c */
+	snd_soc_write(codec, ALC5632_OUTPUT_MIXER_CTRL,
+		( ALC5632_OUTPUT_MIXER_RP | ALC5632_OUTPUT_MIXER_WEEK |
+		  ALC5632_OUTPUT_MIXER_HP | ALC5632_OUTPUT_MIXER_AUX_SPK |
+		  0x08 ) );
+
+	/* setup output volume for speaker and headphone to 4.5 db | 0x8383 @ 02 */
+	snd_soc_update_bits(codec, ALC5632_SPK_OUT_VOL, ALC5632_ADC_REC_GAIN_RANGE,
+		( ALC5632_SPK_OUT_VOL_COMP(4.5) |
+		  ALC5632_SPK_OUT_VOL_COMP(4.5) << 8) );
+}
+
 static int alc5632_probe(struct snd_soc_codec *codec)
 {
 	struct alc5632_priv *alc5632 = snd_soc_codec_get_drvdata(codec);
@@ -888,14 +981,32 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	alc5632_reset(codec);
 	alc5632_fill_cache(codec);
 
-	/* power on device */
+	androids_init(codec);
+
+	/* power on device 
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-/*	if (alc5632->add_ctrl) {
-		snd_soc_write(codec, ALC5632_ADD_CTRL_REG,
+	if (alc5632->add_ctrl) {
+		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1,
 				alc5632->add_ctrl);
-	}
+	} */
 
+	/* spk amp pwr enable 3A | 0x0400 @ 3A */
+	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
+		0, ALC5632_PWR_ADD1_SPK_AMP_EN);
+
+	/* "normal" mode: 0 @ 26 */
+	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS, 0);
+
+	/* power on VREF on all analog circuits 0x2000 @ 3C */
+	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
+		0, ALC5632_PWR_ADD2_VREF);
+
+	/* enable slave mode 0x8000 @ 34 */
+	snd_soc_write(codec, ALC5632_DAI_CONTROL, ALC5632_DAI_SDP_SLAVE_MODE);
+
+/* these are maybe not needed, but just do for now */
+
+/*
 	if (alc5632->jack_det_ctrl) {
 		snd_soc_write(codec, ALC5632_JACK_DET_CTRL,
 				alc5632->jack_det_ctrl);
@@ -992,7 +1103,7 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-	dev_dbg(&client->dev, "Found codec id : alc56%02x\n", vid2);
+	dev_dbg(&client->dev, "Found codec: ALC5632 (ID: %x)\n", vid2);
 
 	alc5632 = kzalloc(sizeof(struct alc5632_priv), GFP_KERNEL);
 	if (alc5632 == NULL)
