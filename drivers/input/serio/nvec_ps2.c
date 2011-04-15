@@ -58,15 +58,15 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 			return NOTIFY_STOP;
 
 		case NVEC_PS2:
-/*			printk("ps2 response ");
-			for(i = 0; i <= (msg[1]+1); i++)
-				printk("%02x ", msg[i]);
-			printk(".\n"); */
 			if (msg[2] == 1)
 				for(i = 0; i < (msg[1] - 2); i++)
 					serio_interrupt(ps2_dev.ser_dev, msg[i+4], 0);
-			else
-				printk("nvec_ps2: unhandled mouse event.\n");
+			else {
+				printk("nvec_ps2: unhandled mouse event ");
+				for(i = 0; i <= (msg[1]+1); i++)
+					printk("%02x ", msg[i]);
+				printk(".\n");
+			}
 
 			return NOTIFY_STOP;
 	}

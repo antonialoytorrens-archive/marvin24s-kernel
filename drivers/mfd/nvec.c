@@ -98,7 +98,8 @@ static int parse_msg(struct nvec_chip *nvec) {
 		return -EINVAL;
 
 	if((nvec->rcv_data[0] & 1<<7) == 0 && nvec->rcv_data[3]) {
-		dev_err(nvec->dev, "ec responded %x\n", nvec->rcv_data[3]);
+		dev_err(nvec->dev, "ec responded %02x %02x %02x %02x\n", nvec->rcv_data[0],
+			nvec->rcv_data[1], nvec->rcv_data[2], nvec->rcv_data[3]);
 		return -EINVAL;
 	}
 
@@ -142,8 +143,9 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 		}
 		//if(msg_pos<msg_size) {
 		if(list_empty(&nvec->tx_data)) {
-			dev_err(nvec->dev, "nvec empty tx!\n");
-			to_send = 0x01;
+			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
+			to_send = 0x8a;
+			nvec_write_async(nvec, "\x02\x07\x02", 3);
 		} else {
 			msg = list_first_entry(&nvec->tx_data,
 				struct nvec_msg, node);	
