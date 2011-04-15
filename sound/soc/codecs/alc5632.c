@@ -50,7 +50,8 @@ static void alc5632_fill_cache(struct snd_soc_codec *codec)
 
 static inline int alc5632_reset(struct snd_soc_codec *codec)
 {
-	return snd_soc_update_bits(codec, ALC5632_RESET, 0xffff, 0);
+	snd_soc_write(codec, ALC5632_RESET, 0);
+	return snd_soc_read(codec, ALC5632_RESET);
 }
 
 static int amp_mixer_event(struct snd_soc_dapm_widget *w,
@@ -978,6 +979,52 @@ static void androids_init(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, ALC5632_SPK_OUT_VOL, ALC5632_ADC_REC_GAIN_RANGE,
 		( ALC5632_SPK_OUT_VOL_COMP(4.5) |
 		  ALC5632_SPK_OUT_VOL_COMP(4.5) << 8) );
+
+	snd_soc_update_bits(codec, 0x04, ~0x8c8c, 0x8c8c);
+	snd_soc_read(codec, 0x1c);
+	snd_soc_read(codec, 0x1c);
+	snd_soc_write(codec, 0x5e, 0x00e0);
+	snd_soc_update_bits(codec, 0x04, ~0x8c8c, 0x8c8c);
+	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_write(codec, 0x5e, 0x0000);
+	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
+	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
+	snd_soc_write(codec, 0x5e, 0x0000);
+	snd_soc_update_bits(codec, 0x02, ~0x8383, 0x8383);
+	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3a, ~0x0822, 0x0822);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
+	snd_soc_update_bits(codec, 0x14, ~0x7f7f, 0x7f7f);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3a, ~0x0822, 0x0822);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x24, ~0x00c4, 0x00c4);
+	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
+	snd_soc_write(codec, 0x5e, 0x00e0);
+	snd_soc_update_bits(codec, 0x04, ~0x8c8c, 0x8c8c);
+	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_write(codec, 0x5e, 0x0000);
+	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
+	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
+	snd_soc_write(codec, 0x5e, 0x0000);
+	snd_soc_update_bits(codec, 0x02, ~0x8383, 0x8383);
+	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
+	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
+	snd_soc_read(codec, ALC5632_RESET);
 }
 
 static int alc5632_probe(struct snd_soc_codec *codec)
@@ -997,8 +1044,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	alc5632_reset(codec);
 	alc5632_fill_cache(codec);
 
-	androids_init(codec);
-
 	/* power on device 
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	if (alc5632->add_ctrl) {
@@ -1009,7 +1054,8 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	/* spk amp pwr enable 3A | 0x0400 @ 3A */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
 		0, ALC5632_PWR_ADD1_SPK_AMP_EN);
-
+	snd_soc_read(codec, ALC5632_RESET);
+	
 	/* "normal" mode: 0 @ 26 */
 	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS, 0);
 
@@ -1021,13 +1067,13 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	snd_soc_write(codec, ALC5632_DAI_CONTROL, ALC5632_DAI_SDP_SLAVE_MODE);
 
 /* these are maybe not needed, but just do for now */
+	androids_init(codec);
 
-/*
-	if (alc5632->jack_det_ctrl) {
+/*	if (alc5632->jack_det_ctrl) {
 		snd_soc_write(codec, ALC5632_JACK_DET_CTRL,
 				alc5632->jack_det_ctrl);
-	}
-*/
+	} */
+
 	switch (alc5632->id) {
 	case 0x5c:
 		snd_soc_add_controls(codec, alc5632_vol_snd_controls,
