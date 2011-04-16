@@ -136,10 +136,10 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 
 		if(status & RCVD) {
 			//Master wants something from us. New communication
-			dev_dbg(nvec->dev, "New read comm!\n");
+//			dev_dbg(nvec->dev, "New read comm!\n");
 		} else {
 			//Master wants something from us from a communication we've already started
-			dev_dbg(nvec->dev, "Read comm cont !\n");
+//			dev_dbg(nvec->dev, "Read comm cont !\n");
 		}
 		//if(msg_pos<msg_size) {
 		if(list_empty(&nvec->tx_data)) {
@@ -224,7 +224,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		goto failed;
 	}
 	clk_enable(i2c_clk);
-	clk_set_rate(i2c_clk, 400000);
+	clk_set_rate(i2c_clk, 80000);
 
 /*
 	i2c_clk=clk_get_sys(NULL, "i2c");
@@ -241,6 +241,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->i2c_regs = i2c_regs;
 
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
+
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_DELAYED_WORK(&nvec->tx_work, nvec_request_master);
 
@@ -263,7 +264,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		printk("nvec: couldn't request gpio\n");
 
 	gpio_direction_output(nvec->gpio, 1);
-	gpio_set_value(nvec->gpio, 0);
 
 	/* enable event reporting */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,

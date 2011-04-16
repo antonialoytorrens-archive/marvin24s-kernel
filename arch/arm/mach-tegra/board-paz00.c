@@ -382,7 +382,7 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	{ "dvc_i2c",	"pll_p_out3",	72000000,	true},
 	{ "i2c1",	"clk_m",	3000000,	false},
 	{ "i2c2",	"clk_m",	3000000,	false},
-	{ "i2c3",	"clk_m",	3000000,	false},
+	{ "i2c3",	"clk_m",	3000000,	true},
 	{ NULL,		NULL,		0,		0},
 };
 

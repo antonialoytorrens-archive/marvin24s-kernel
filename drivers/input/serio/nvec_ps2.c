@@ -40,9 +40,10 @@ static int ps2_sendcommand(struct serio *ser_dev, unsigned char cmd)
 	unsigned char buf[] = SEND_COMMAND;
 
 	buf[2] = cmd & 0xff;
-//	printk(KERN_ERR "Sending ps2 cmd %02x\n", cmd);
+
+	dev_dbg(&ser_dev->dev, "Sending ps2 cmd %02x\n", cmd);
 	nvec_write_async(ps2_dev.nvec, buf, sizeof(buf));
-	//ret=nvec_send_msg(buf, &size, NOT_AT_ALL, nvec_resp_handler);
+
 	return 0;
 }
 
@@ -61,7 +62,8 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 			if (msg[2] == 1)
 				for(i = 0; i < (msg[1] - 2); i++)
 					serio_interrupt(ps2_dev.ser_dev, msg[i+4], 0);
-			else {
+			else if (msg[1] != 2) /* !ack */
+			{
 				printk("nvec_ps2: unhandled mouse event ");
 				for(i = 0; i <= (msg[1]+1); i++)
 					printk("%02x ", msg[i]);
