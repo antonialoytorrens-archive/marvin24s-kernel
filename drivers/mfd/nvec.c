@@ -224,7 +224,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		goto failed;
 	}
 	clk_enable(i2c_clk);
-	clk_set_rate(i2c_clk, 80000);
+	clk_set_rate(i2c_clk, 8*80000);
 
 /*
 	i2c_clk=clk_get_sys(NULL, "i2c");
