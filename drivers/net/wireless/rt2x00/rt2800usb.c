@@ -787,6 +787,16 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x8516, 0x3070) },
 	{ USB_DEVICE(0x8516, 0x3071) },
 	{ USB_DEVICE(0x8516, 0x3072) },
+	/* Alpha Networks */
+	{ USB_DEVICE(0x14b2, 0x3c06) },
+	{ USB_DEVICE(0x14b2, 0x3c07) },
+	{ USB_DEVICE(0x14b2, 0x3c09) },
+	{ USB_DEVICE(0x14b2, 0x3c12) },
+	{ USB_DEVICE(0x14b2, 0x3c23) },
+	{ USB_DEVICE(0x14b2, 0x3c25) },
+	{ USB_DEVICE(0x14b2, 0x3c27) },
+	{ USB_DEVICE(0x14b2, 0x3c28) },
+	{ USB_DEVICE(0x14b2, 0x3c2c) },
 	/* Amit */
 	{ USB_DEVICE(0x15c5, 0x0008) },
 	/* Askey */
@@ -796,6 +806,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x0b05, 0x1732) },
 	{ USB_DEVICE(0x0b05, 0x1742) },
 	{ USB_DEVICE(0x0b05, 0x1784) },
+	{ USB_DEVICE(0x1761, 0x0b05) },
 	/* AzureWave */
 	{ USB_DEVICE(0x13d3, 0x3247) },
 	{ USB_DEVICE(0x13d3, 0x3273) },
@@ -806,18 +817,13 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x050d, 0x8053) },
 	{ USB_DEVICE(0x050d, 0x805c) },
 	{ USB_DEVICE(0x050d, 0x815c) },
+	{ USB_DEVICE(0x050d, 0x825b) },
+	{ USB_DEVICE(0x050d, 0x935a) },
+	{ USB_DEVICE(0x050d, 0x935b) },
 	/* Buffalo */
 	{ USB_DEVICE(0x0411, 0x00e8) },
+	{ USB_DEVICE(0x0411, 0x016f) },
 	{ USB_DEVICE(0x0411, 0x01a2) },
-	/* Conceptronic */
-	{ USB_DEVICE(0x14b2, 0x3c06) },
-	{ USB_DEVICE(0x14b2, 0x3c07) },
-	{ USB_DEVICE(0x14b2, 0x3c09) },
-	{ USB_DEVICE(0x14b2, 0x3c12) },
-	{ USB_DEVICE(0x14b2, 0x3c23) },
-	{ USB_DEVICE(0x14b2, 0x3c25) },
-	{ USB_DEVICE(0x14b2, 0x3c27) },
-	{ USB_DEVICE(0x14b2, 0x3c28) },
 	/* Corega */
 	{ USB_DEVICE(0x07aa, 0x002f) },
 	{ USB_DEVICE(0x07aa, 0x003c) },
@@ -849,6 +855,8 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x1740, 0x9707) },
 	{ USB_DEVICE(0x1740, 0x9708) },
 	{ USB_DEVICE(0x1740, 0x9709) },
+	/* Gemtek */
+	{ USB_DEVICE(0x15a9, 0x0012) },
 	/* Gigabyte */
 	{ USB_DEVICE(0x1044, 0x800b) },
 	{ USB_DEVICE(0x1044, 0x800d) },
@@ -865,6 +873,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x04bb, 0x0947) },
 	{ USB_DEVICE(0x04bb, 0x0948) },
 	/* Linksys */
+	{ USB_DEVICE(0x13b1, 0x0031) },
 	{ USB_DEVICE(0x1737, 0x0070) },
 	{ USB_DEVICE(0x1737, 0x0071) },
 	/* Logitec */
@@ -895,6 +904,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	/* Pegatron */
 	{ USB_DEVICE(0x1d4d, 0x000c) },
 	{ USB_DEVICE(0x1d4d, 0x000e) },
+	{ USB_DEVICE(0x1d4d, 0x0011) },
 	/* Philips */
 	{ USB_DEVICE(0x0471, 0x200f) },
 	/* Planex */
@@ -944,8 +954,9 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x15a9, 0x0006) },
 	/* Sweex */
 	{ USB_DEVICE(0x177f, 0x0302) },
-	/* U-Media*/
+	/* U-Media */
 	{ USB_DEVICE(0x157e, 0x300e) },
+	{ USB_DEVICE(0x157e, 0x3013) },
 	/* ZCOM */
 	{ USB_DEVICE(0x0cde, 0x0022) },
 	{ USB_DEVICE(0x0cde, 0x0025) },
@@ -957,6 +968,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	/* Zyxel */
 	{ USB_DEVICE(0x0586, 0x3416) },
 	{ USB_DEVICE(0x0586, 0x3418) },
+	{ USB_DEVICE(0x0586, 0x341e) },
 	{ USB_DEVICE(0x0586, 0x343e) },
 #ifdef CONFIG_RT2800USB_RT33XX
 	/* Ralink */
@@ -977,11 +989,14 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	/* I-O DATA */
 	{ USB_DEVICE(0x04bb, 0x0944) },
 	/* Linksys */
+	{ USB_DEVICE(0x13b1, 0x002f) },
 	{ USB_DEVICE(0x1737, 0x0079) },
 	/* Ralink */
 	{ USB_DEVICE(0x148f, 0x3572) },
 	/* Sitecom */
 	{ USB_DEVICE(0x0df6, 0x0041) },
+	/* Toshiba */
+	{ USB_DEVICE(0x0930, 0x0a07) },
 	/* Zinwell */
 	{ USB_DEVICE(0x5a57, 0x0284) },
 #endif
@@ -993,6 +1008,9 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	/* Abocom */
 	{ USB_DEVICE(0x07b8, 0x3073) },
 	{ USB_DEVICE(0x07b8, 0x3074) },
+	/* Alpha Networks */
+	{ USB_DEVICE(0x14b2, 0x3c08) },
+	{ USB_DEVICE(0x14b2, 0x3c11) },
 	/* Amigo */
 	{ USB_DEVICE(0x0e0b, 0x9031) },
 	{ USB_DEVICE(0x0e0b, 0x9041) },
@@ -1002,7 +1020,6 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x0b05, 0x1761) },
 	{ USB_DEVICE(0x0b05, 0x1790) },
 	{ USB_DEVICE(0x0b05, 0x179d) },
-	{ USB_DEVICE(0x1761, 0x0b05) },
 	/* AzureWave */
 	{ USB_DEVICE(0x13d3, 0x3262) },
 	{ USB_DEVICE(0x13d3, 0x3284) },
@@ -1015,9 +1032,6 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x0411, 0x0148) },
 	{ USB_DEVICE(0x0411, 0x0150) },
 	{ USB_DEVICE(0x0411, 0x015d) },
-	/* Conceptronic */
-	{ USB_DEVICE(0x14b2, 0x3c08) },
-	{ USB_DEVICE(0x14b2, 0x3c11) },
 	/* Corega */
 	{ USB_DEVICE(0x07aa, 0x0041) },
 	{ USB_DEVICE(0x07aa, 0x0042) },
@@ -1029,6 +1043,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x07d1, 0x3c17) },
 	{ USB_DEVICE(0x2001, 0x3c17) },
 	/* Edimax */
+	{ USB_DEVICE(0x7392, 0x4085) },
 	{ USB_DEVICE(0x7392, 0x7722) },
 	/* Encore */
 	{ USB_DEVICE(0x203d, 0x14a1) },
@@ -1058,8 +1073,8 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x05a6, 0x0101) },
 	{ USB_DEVICE(0x1d4d, 0x0002) },
 	{ USB_DEVICE(0x1d4d, 0x0010) },
-	{ USB_DEVICE(0x1d4d, 0x0011) },
 	/* Planex */
+	{ USB_DEVICE(0x2019, 0x5201) },
 	{ USB_DEVICE(0x2019, 0xab24) },
 	/* Qcom */
 	{ USB_DEVICE(0x18e8, 0x6259) },

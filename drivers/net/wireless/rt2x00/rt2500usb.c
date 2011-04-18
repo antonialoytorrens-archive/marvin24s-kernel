@@ -1913,13 +1913,10 @@ static struct usb_device_id rt2500usb_device_table[] = {
 	/* Belkin */
 	{ USB_DEVICE(0x050d, 0x7050) },
 	{ USB_DEVICE(0x050d, 0x7051) },
-	{ USB_DEVICE(0x050d, 0x705a) },
 	/* Cisco Systems */
 	{ USB_DEVICE(0x13b1, 0x000d) },
 	{ USB_DEVICE(0x13b1, 0x0011) },
 	{ USB_DEVICE(0x13b1, 0x001a) },
-	/* CNet */
-	{ USB_DEVICE(0x1371, 0x9022) },
 	/* Conceptronic */
 	{ USB_DEVICE(0x14b2, 0x3c02) },
 	/* D-LINK */
@@ -1942,7 +1939,6 @@ static struct usb_device_id rt2500usb_device_table[] = {
 	/* Ralink */
 	{ USB_DEVICE(0x148f, 0x1706) },
 	{ USB_DEVICE(0x148f, 0x2570) },
-	{ USB_DEVICE(0x148f, 0x2573) },
 	{ USB_DEVICE(0x148f, 0x9020) },
 	/* Sagem */
 	{ USB_DEVICE(0x079b, 0x004b) },

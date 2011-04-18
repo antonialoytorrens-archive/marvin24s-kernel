@@ -956,8 +956,8 @@ struct rt2x00_dev {
 	struct tasklet_struct autowake_tasklet;
 
 	/*
-	* Protect the interrupt mask register.
-	*/
+	 * Protect the interrupt mask register.
+	 */
 	spinlock_t irqmask_lock;
 };
 
