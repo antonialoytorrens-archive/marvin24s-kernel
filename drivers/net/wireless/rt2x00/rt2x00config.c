@@ -104,9 +104,6 @@ void rt2x00lib_config_erp(struct rt2x00_dev *rt2x00dev,
 	rt2x00dev->aid = bss_conf->assoc ? bss_conf->aid : 0;
 	rt2x00dev->last_beacon = bss_conf->timestamp;
 
-	/* Update the AID, this is needed for dynamic PS support */
-	rt2x00dev->aid = bss_conf->assoc ? bss_conf->aid : 0;
-
 	/* Update global beacon interval time, this is needed for PS support */
 	rt2x00dev->beacon_int = bss_conf->beacon_int;
 
@@ -241,10 +238,6 @@ void rt2x00lib_config(struct rt2x00_dev *rt2x00dev,
 	    (ieee80211_flags & IEEE80211_CONF_CHANGE_PS))
 		cancel_delayed_work_sync(&rt2x00dev->autowakeup_work);
 
-	if (test_bit(REQUIRE_PS_AUTOWAKE, &rt2x00dev->cap_flags) &&
-	    (ieee80211_flags & IEEE80211_CONF_CHANGE_PS))
-		cancel_delayed_work_sync(&rt2x00dev->autowakeup_work);
-
 	/*
 	 * Start configuration.
 	 */
@@ -256,26 +249,6 @@ void rt2x00lib_config(struct rt2x00_dev *rt2x00dev,
 	 */
 	if (ieee80211_flags & IEEE80211_CONF_CHANGE_CHANNEL)
 		rt2x00link_reset_tuner(rt2x00dev, false);
-
-	if (test_bit(REQUIRE_PS_AUTOWAKE, &rt2x00dev->cap_flags) &&
-	    (ieee80211_flags & IEEE80211_CONF_CHANGE_PS) &&
-	    (conf->flags & IEEE80211_CONF_PS)) {
-		beacon_diff = (long)jiffies - (long)rt2x00dev->last_beacon;
-		beacon_int = msecs_to_jiffies(rt2x00dev->beacon_int);
-
-		if (beacon_diff > beacon_int)
-			beacon_diff = 0;
-
-		autowake_timeout = (conf->max_sleep_period * beacon_int) - beacon_diff;
-		queue_delayed_work(rt2x00dev->workqueue,
-				   &rt2x00dev->autowakeup_work,
-				   autowake_timeout - 15);
-	}
-
-	if (conf->flags & IEEE80211_CONF_PS)
-		set_bit(CONFIG_POWERSAVING, &rt2x00dev->flags);
-	else
-		clear_bit(CONFIG_POWERSAVING, &rt2x00dev->flags);
 
 	if (test_bit(REQUIRE_PS_AUTOWAKE, &rt2x00dev->cap_flags) &&
 	    (ieee80211_flags & IEEE80211_CONF_CHANGE_PS) &&
