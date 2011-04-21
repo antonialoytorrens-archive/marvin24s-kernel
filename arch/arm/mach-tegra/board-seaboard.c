@@ -300,8 +300,9 @@ static struct wm8903_platform_data wm8903_pdata = {
 	.micdet_delay = 100,
 	.gpio_base = SEABOARD_GPIO_WM8903(0),
 	.gpio_cfg = {
-		WM8903_GPIO_NO_CONFIG,
-		WM8903_GPIO_NO_CONFIG,
+		(WM8903_GPn_FN_DMIC_LR_CLK_OUTPUT << WM8903_GP1_FN_SHIFT),
+		(WM8903_GPn_FN_DMIC_LR_CLK_OUTPUT << WM8903_GP2_FN_SHIFT)
+			| WM8903_GP1_DIR_MASK,
 		0,
 		WM8903_GPIO_NO_CONFIG,
 		WM8903_GPIO_NO_CONFIG,
@@ -826,6 +827,7 @@ static void __init tegra_kaen_init(void)
 	seaboard_kbc_platform_data.fn_keycode = cros_kbd_keycode;
 
 	__tegra_seaboard_init();
+	kaen_emc_init();
 
 	kaen_i2c_init();
 	kaen_audio_init();
