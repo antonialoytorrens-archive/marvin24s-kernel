@@ -96,6 +96,8 @@ static int paz00_backlight_notify(struct device *unused, int brightness)
 	return brightness;
 }
 
+static int paz00_disp1_check_fb(struct device *dev, struct fb_info *info);
+
 static struct platform_pwm_backlight_data paz00_backlight_data = {
 	.pwm_id		= 0,
 	.max_brightness	= 255,
@@ -104,6 +106,7 @@ static struct platform_pwm_backlight_data paz00_backlight_data = {
 	.init		= paz00_backlight_init,
 	.exit		= paz00_backlight_exit,
 	.notify		= paz00_backlight_notify,
+	.check_fb	= paz00_disp1_check_fb,
 };
 
 static struct platform_device paz00_backlight_device = {
@@ -203,15 +206,30 @@ static int paz00_panel_disable(void)
 	return 0;
 }
 
+static struct regulator *paz00_hdmi_reg;
+static struct regulator *paz00_hdmi_pll;
+
 static int paz00_hdmi_enable(void)
 {
 	pr_warning(">>> hdmi enable\n");
+	if (WARN_ON(!paz00_hdmi_reg || !paz00_hdmi_pll))
+		return -ENODEV;
+
+//	gpio_set_value(paz00_hdmi_enb, 1);
+	regulator_enable(paz00_hdmi_reg);
+	regulator_enable(paz00_hdmi_pll);
 	return 0;
 }
 
 static int paz00_hdmi_disable(void)
 {
 	pr_warning(">>> hdmi disable\n");
+	if (WARN_ON(!paz00_hdmi_reg || !paz00_hdmi_pll))
+		return -ENODEV;
+
+//	gpio_set_value(paz00_hdmi_enb, 0);
+	regulator_disable(paz00_hdmi_reg);
+	regulator_disable(paz00_hdmi_pll);
 	return 0;
 }
 
@@ -326,10 +344,11 @@ static struct tegra_dc_platform_data paz00_disp1_pdata = {
 	.flags		= TEGRA_DC_FLAG_ENABLED,
 	.default_out	= &paz00_disp1_out,
 	.fb		= &paz00_fb_data,
+	.emc_clk_rate	= 300000000,
 };
 
 static struct tegra_dc_platform_data paz00_disp2_pdata = {
-	.flags		= TEGRA_DC_FLAG_ENABLED,
+	.flags		= 0,
 	.default_out	= &paz00_disp2_out,
 	.fb		= &paz00_hdmi_fb_data,
 };
@@ -343,6 +362,11 @@ static struct nvhost_device paz00_disp1_device = {
 		.platform_data = &paz00_disp1_pdata,
 	},
 };
+
+static int paz00_disp1_check_fb(struct device *dev, struct fb_info *info)
+{
+	return info->device == &paz00_disp1_device.dev;
+}
 
 static struct nvhost_device paz00_disp2_device = {
 	.name		= "tegradc",
@@ -395,7 +419,7 @@ int __init paz00_panel_init(void)
 {
 	int err;
 
-/*	gpio_request(PAZ00_EN_VDD_PNL, "en_vdd_pnl");
+	gpio_request(PAZ00_EN_VDD_PNL, "en_vdd_pnl");
 	gpio_direction_output(PAZ00_EN_VDD_PNL, 1);
 	tegra_gpio_enable(PAZ00_EN_VDD_PNL);
 	gpio_free(PAZ00_EN_VDD_PNL);
@@ -409,7 +433,7 @@ int __init paz00_panel_init(void)
 	gpio_direction_input(PAZ00_HDMI_HPD);
 	tegra_gpio_enable(PAZ00_HDMI_HPD);
 	gpio_free(PAZ00_HDMI_HPD);
-*/
+
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));
 
@@ -425,3 +449,37 @@ int __init paz00_panel_init(void)
 
 	return err;
 }
+
+static int __init paz00_hdmi_late_init(void)
+{
+        int ret;
+
+        paz00_hdmi_reg = regulator_get(NULL, "avdd_hdmi");
+        if (IS_ERR_OR_NULL(paz00_hdmi_reg)) {
+                ret = PTR_ERR(paz00_hdmi_reg);
+                goto fail;
+        }
+
+        paz00_hdmi_pll = regulator_get(NULL, "avdd_hdmi_pll");
+        if (IS_ERR_OR_NULL(paz00_hdmi_pll)) {
+                ret = PTR_ERR(paz00_hdmi_pll);
+                goto fail;
+        }
+
+        return 0;
+
+fail:
+        if (paz00_hdmi_pll) {
+                regulator_disable(paz00_hdmi_pll);
+                paz00_hdmi_pll = NULL;
+        }
+
+        if (paz00_hdmi_reg) {
+                regulator_disable(paz00_hdmi_reg);
+                paz00_hdmi_reg = NULL;
+        }
+
+        return ret;
+}
+
+late_initcall(paz00_hdmi_late_init);
