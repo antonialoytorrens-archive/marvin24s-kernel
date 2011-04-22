@@ -24,6 +24,7 @@ void paz00_pinmux_init(void);
 int paz00_power_init(void);
 int paz00_panel_init(void);
 int paz00_sdhci_init(void);
+void paz00_emc_init(void);
 
 /* WIFI */
 #define PAZ00_WIFI_LED		TEGRA_GPIO_PD0

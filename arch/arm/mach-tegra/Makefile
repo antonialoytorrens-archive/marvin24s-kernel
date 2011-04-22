@@ -41,6 +41,7 @@ obj-$(CONFIG_TEGRA_IOVMM_GART)          += iovmm-gart.o
 obj-y					+= nv/
 
 obj-${CONFIG_MACH_PAZ00}		+= board-paz00.o
+obj-${CONFIG_MACH_PAZ00}		+= board-paz00-memory.o
 obj-${CONFIG_MACH_PAZ00}		+= board-paz00-pinmux.o
 obj-${CONFIG_MACH_PAZ00}		+= board-paz00-panel.o
 obj-${CONFIG_MACH_PAZ00}		+= board-paz00-power.o
