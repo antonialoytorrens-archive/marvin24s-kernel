@@ -158,7 +158,7 @@ static inline int __tps6586x_writes(struct i2c_client *client, int reg,
 		ret = __tps6586x_write(client, reg + i, *(val + i));
 		if (ret < 0)
 			return ret;
-	 }
+	}
 
 	return 0;
 }

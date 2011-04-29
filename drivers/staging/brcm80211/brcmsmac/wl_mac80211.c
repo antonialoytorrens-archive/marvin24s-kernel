@@ -243,9 +243,7 @@ ieee_set_channel(struct ieee80211_hw *hw, struct ieee80211_channel *chan,
 	switch (type) {
 	case NL80211_CHAN_HT20:
 	case NL80211_CHAN_NO_HT:
-		WL_LOCK(wl);
 		err = wlc_set(wl->wlc, WLC_SET_CHANNEL, chan->hw_value);
-		WL_UNLOCK(wl);
 		break;
 	case NL80211_CHAN_HT40MINUS:
 	case NL80211_CHAN_HT40PLUS:
@@ -318,6 +316,7 @@ static int wl_ops_config(struct ieee80211_hw *hw, u32 changed)
 	}
 
  config_out:
+	WL_UNLOCK(wl);
 	return err;
 }
 
