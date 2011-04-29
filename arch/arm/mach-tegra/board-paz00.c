@@ -432,7 +432,7 @@ MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 MACHINE_END
 
 /* for newer bootloaders */
-MACHINE_START(TEGRA_LEGACY, "Tegra Legacy")
+MACHINE_START(LEGACY, "Legacy")
 	.boot_params	= 0x00000100,
 	.fixup		= tegra_paz00_fixup,
 	.init_irq	= tegra_init_irq,
