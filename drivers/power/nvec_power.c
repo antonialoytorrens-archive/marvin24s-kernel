@@ -11,6 +11,7 @@ struct nvec_power {
 	struct delayed_work poller;
 	struct nvec_chip *nvec;
 	int on;
+	int bat_present;
 	int cap;
 };
 
@@ -21,13 +22,15 @@ static int nvec_power_notifier(struct notifier_block *nb,
 	unsigned char *msg = (unsigned char *)data;
 
 	if (event_type != NVEC_SYS)
-		return 0;
+		return NOTIFY_DONE;
 
-	if(msg[2] == 0) {
+	if(msg[2] == 0)
+	{
 		power->on = msg[4];
+		return NOTIFY_STOP;
 	}
 
-        return 0;
+        return NOTIFY_OK;
 }
 
 static int nvec_power_bat_notifier(struct notifier_block *nb,
@@ -39,10 +42,12 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
         if (event_type != NVEC_BAT)
 		return NOTIFY_DONE;
 
-	switch(msg[2]) {
-	case 0:
-		power->cap = msg[5];
-		return NOTIFY_STOP;
+	switch(msg[2])
+	{
+		case 0:
+			power->bat_present = (msg[4] & 1);
+			power->cap = msg[5];
+			return NOTIFY_STOP;
 	}
 
 	return NOTIFY_OK;
@@ -71,8 +76,11 @@ static int nvec_battery_get_property(struct power_supply *psy,
 	struct nvec_power *power = dev_get_drvdata(psy->dev->parent);
 	switch(psp) {
 	case POWER_SUPPLY_PROP_CAPACITY:
-		 val->intval = power->cap;
-		 break;
+		val->intval = power->cap;
+		break;
+	case POWER_SUPPLY_PROP_PRESENT:
+		val->intval = power->bat_present;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -85,6 +93,7 @@ static enum power_supply_property nvec_power_props[] = {
 };
 
 static enum power_supply_property nvec_battery_props[] = {
+	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_CAPACITY,
 };
 
@@ -115,7 +124,9 @@ static void nvec_power_poll(struct work_struct *work)
 	struct nvec_power *power = container_of(work, struct nvec_power,
 		 poller.work);
 
+/* AC status via sys req */
 	nvec_write_async(power->nvec, "\x01\x00", 2);
+/* battery status */
 	nvec_write_async(power->nvec, "\x02\x00", 2);
 
 	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(5000));
