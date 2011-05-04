@@ -295,7 +295,7 @@ static bool rt2x00usb_kick_tx_entry(struct queue_entry *entry, void* data)
 
 	if (!test_and_clear_bit(ENTRY_DATA_PENDING, &entry->flags) ||
 	    test_bit(ENTRY_DATA_STATUS_PENDING, &entry->flags))
-		return true;
+		return false;
 
 	/*
 	 * USB devices cannot blindly pass the skb->len as the
@@ -389,7 +389,7 @@ static bool rt2x00usb_kick_rx_entry(struct queue_entry *entry, void* data)
 
 	if (test_and_set_bit(ENTRY_OWNER_DEVICE_DATA, &entry->flags) ||
 	    test_bit(ENTRY_DATA_STATUS_PENDING, &entry->flags))
-		return true;
+		return false;
 
 	rt2x00lib_dmastart(entry);
 
@@ -444,7 +444,7 @@ static bool rt2x00usb_flush_entry(struct queue_entry *entry, void* data)
 	struct queue_entry_priv_usb_bcn *bcn_priv = entry->priv_data;
 
 	if (!test_bit(ENTRY_OWNER_DEVICE_DATA, &entry->flags))
-		return true;
+		return false;
 
 	usb_kill_urb(entry_priv->urb);
 
