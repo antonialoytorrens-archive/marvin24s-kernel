@@ -12,6 +12,7 @@ struct nvec_power {
 	struct nvec_chip *nvec;
 	int on;
 	int bat_present;
+	int bat_status;
 	int cap;
 };
 
@@ -45,7 +46,24 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
 	switch(msg[2])
 	{
 		case 0:
-			power->bat_present = (msg[4] & 1);
+			if (msg[4] & 1) {
+				power->bat_present = 1;
+				switch (msg[4] >> 1)
+				{
+					case 0:
+						power->bat_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+						break;
+					case 1:
+						power->bat_status = POWER_SUPPLY_STATUS_CHARGING;
+						break;
+					case 2:
+						power->bat_status = POWER_SUPPLY_STATUS_DISCHARGING;
+						break;
+				}
+			} else {
+				power->bat_present = 0;
+				power->bat_status = POWER_SUPPLY_STATUS_UNKNOWN;
+			}
 			power->cap = msg[5];
 			return NOTIFY_STOP;
 	}
@@ -74,25 +92,29 @@ static int nvec_battery_get_property(struct power_supply *psy,
 				  union power_supply_propval *val)
 {
 	struct nvec_power *power = dev_get_drvdata(psy->dev->parent);
-	switch(psp) {
-	case POWER_SUPPLY_PROP_CAPACITY:
-		val->intval = power->cap;
-		break;
-	case POWER_SUPPLY_PROP_PRESENT:
-		val->intval = power->bat_present;
-		break;
-	default:
-		return -EINVAL;
-	}
+	switch(psp)
+	{
+		case POWER_SUPPLY_PROP_STATUS:
+			val->intval = power->bat_status;
+			break;
+		case POWER_SUPPLY_PROP_CAPACITY:
+			val->intval = power->cap;
+			break;
+		case POWER_SUPPLY_PROP_PRESENT:
+			val->intval = power->bat_present;
+			break;
+		default:
+			return -EINVAL;
+		}
 	return 0;
 }
-
 
 static enum power_supply_property nvec_power_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,
 };
 
 static enum power_supply_property nvec_battery_props[] = {
+	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_CAPACITY,
 };
