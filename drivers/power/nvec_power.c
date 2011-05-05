@@ -20,10 +20,11 @@ struct nvec_power {
 	int charge_full_design; /* in µAh, off by factor 3 */
 	int charge_last_full;   /* in µAh, off by factor 3 */
 	int critical_capacity;
+	int capacity_remain;
 	int bat_temperature;
 	int bat_cap;
-	char bat_manu[8];
-	char bat_model[8];
+	char bat_manu[30];
+	char bat_model[30];
 };
 
 static int nvec_power_notifier(struct notifier_block *nb,
@@ -88,6 +89,9 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
 		case 4: // current avg
 			power->bat_current_avg = (short)((msg[5] << 8) + msg[4]);
 			break;
+		case 6: // remaining capacity
+			power->capacity_remain = ((msg[5] << 8) + msg[4]) * 1000;
+			break;
 		case 7: // last full charge
 			power->charge_last_full = ((msg[5] << 8) + msg[4]) * 1000;
 			break;
@@ -101,11 +105,11 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
 			power->bat_temperature = ((msg[5] << 8) + msg[4]) / 10;
 			break;
 		case 11: // manufacturer
-			strncpy(power->bat_manu, &msg[4], msg[1]-2);
+			memcpy(power->bat_manu, &msg[4], msg[1]-2);
 			power->bat_model[msg[1]-2] = '\0';
 			break;
 		case 12: // model
-			strncpy(power->bat_model, &msg[4], msg[1]-2);
+			memcpy(power->bat_model, &msg[4], msg[1]-2);
 			power->bat_model[msg[1]-2] = '\0';
 			break;
 		default:
@@ -168,7 +172,7 @@ static int nvec_battery_get_property(struct power_supply *psy,
 			val->intval = power->critical_capacity;
 			break;
 		case POWER_SUPPLY_PROP_CHARGE_NOW:
-			val->intval = power->bat_cap * power->charge_last_full / 100;
+			val->intval = power->capacity_remain;
 			break;
 		case POWER_SUPPLY_PROP_TEMP:
 			val->intval = power->bat_temperature;
@@ -248,13 +252,7 @@ static void nvec_power_poll(struct work_struct *work)
 /* avg time interval */
 //	nvec_write_async(power->nvec, "\x02\x05", 2);
 /* capacity remain */
-//	nvec_write_async(power->nvec, "\x02\x06", 2);
-/* get last full charge */
-	nvec_write_async(power->nvec, "\x02\x07", 2);
-/* get design charge */
-	nvec_write_async(power->nvec, "\x02\x08", 2);
-/* get critical capacity */
-	nvec_write_async(power->nvec, "\x02\x09", 2);
+	nvec_write_async(power->nvec, "\x02\x06", 2);
 /* get temperature */
 	nvec_write_async(power->nvec, "\x02\x0A", 2);
 
@@ -291,6 +289,12 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 
 	nvec_register_notifier(nvec, &power->notifier, NVEC_SYS);
 
+/* get last full charge */
+	nvec_write_async(power->nvec, "\x02\x07", 2);
+/* get design charge */
+	nvec_write_async(power->nvec, "\x02\x08", 2);
+/* get critical capacity */
+	nvec_write_async(power->nvec, "\x02\x09", 2);
 /* get bat manu */
 	nvec_write_async(power->nvec, "\x02\x0B", 2);
 /* get bat model */
