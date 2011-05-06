@@ -92,15 +92,27 @@ static void nvec_request_master(struct work_struct *work)
 	}
 }
 
-static int parse_msg(struct nvec_chip *nvec) {
+static int parse_msg(struct nvec_chip *nvec)
+{
+	int i;
+
 	//Not an actual message
 	if(nvec->rcv_size < 2)
 		return -EINVAL;
 
-	if((nvec->rcv_data[0] & 1<<7) == 0 && nvec->rcv_data[3]) {
+	if ((nvec->rcv_data[0] & 1<<7) == 0 && nvec->rcv_data[3])
+	{
 		dev_err(nvec->dev, "ec responded %02x %02x %02x %02x\n", nvec->rcv_data[0],
 			nvec->rcv_data[1], nvec->rcv_data[2], nvec->rcv_data[3]);
 		return -EINVAL;
+	}
+
+	if ((nvec->rcv_data[0] >> 7 ) == 1 && (nvec->rcv_data[0] & 0x0f) == 5)
+	{
+		printk("ec system event ");
+		for (i=0; i < nvec->rcv_data[1]; i++)
+			printk("%02x ", nvec->rcv_data[2+i]);
+		printk("\n");
 	}
 
 	atomic_notifier_call_chain(&nvec->notifier_list, nvec->rcv_data[0] & 0x8f, nvec->rcv_data);
@@ -288,6 +300,13 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	/* unmute speakers? */
 	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
+
+	/* enable lid switch event */
+	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x02\x00", 7);
+
+	/* enable power button event */
+	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x80\x00", 7);
+
 	return 0;
 
 failed:
