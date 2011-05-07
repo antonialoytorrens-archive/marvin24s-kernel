@@ -46,12 +46,19 @@
 #include "board-paz00.h"
 #include "devices.h"
 
+
+/* output atags / or not */
+#define PRINT_ATAGS
+
+#ifdef PRINT_ATAGS
+
 #define ATAG_NVIDIA             0x41000801
 
 struct tag_tegra {
-	__u32 bootarg_key;
 	__u32 bootarg_len;
-	char bootarg[];
+	__u32 bootarg_key;
+	__u32 bootarg_nvkey;
+	__u32 bootarg[];
 };
 
 enum {
@@ -69,15 +76,45 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 	int i;
 	struct tag_tegra *nvtag = (struct tag_tegra *)tag;
 
-	printk("tag: ");
+	switch(nvtag->bootarg_nvkey) {
+		case RM:
+			printk("RM             ");
+			break;
+		case DISPLAY:
+			printk("DISPLAY        ");
+			break;
+		case FRAMEBUFFER:
+			printk("FRAMEBUFFER    ");
+			break;
+		case CHIPSHMOO:
+			printk("CHIPSHMOO      ");
+			break;
+		case CHIPSHMOO_PHYS:
+			printk("CHIPSHMOO_PHYS ");
+			break;
+		case CARVEOUT:
+			printk("CARVEOUT       ");
+			break;
+		case WARMBOOT:
+			printk("WARMBOOT       ");
+			break;
+		default:
+			if(nvtag->bootarg_nvkey & 0x10000)
+				printk("PreMemHdl %4d ", nvtag->bootarg_nvkey & 0xFFFF);
+			else
+				printk("unknown (%d) ", nvtag->bootarg_nvkey);
+			break;
+	}
 
-	for(i=0; i < tag->hdr.size; i++)
-		printk("%02x ", nvtag->bootarg[i]);
+	for(i=0; i < tag->hdr.size-2; i++)
+		printk("%08x ", nvtag->bootarg[i]);
 	printk("\n");
 
 	return 0;
 }
 __tagtable(ATAG_NVIDIA, parse_tag_nvidia);
+
+#endif
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
