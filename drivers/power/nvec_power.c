@@ -7,7 +7,8 @@
 #include <linux/workqueue.h>
 #include <linux/delay.h>
 
-struct nvec_power {
+struct nvec_power
+{
 	struct notifier_block notifier;
 	struct delayed_work poller;
 	struct nvec_chip *nvec;
@@ -47,16 +48,22 @@ enum {
 	TYPE,
 };
 
-typedef struct {
-	u8 id;
-	u8 len;
-	u8 msg;
-	union {
-		char payload_c[30];
-		u16 payload_u;
-		s16 payload_s;
+enum {
+	AC,
+	BAT,
+};
+
+struct bat_response {
+	u8 event_type;
+	u8 length;
+	u8 sub_type;
+	u8 status;
+	union { /* payload */
+		char plc[30];
+		u16 plu;
+		s16 pls;
 	};
-} bat_response;
+};
 
 static struct power_supply nvec_bat_psy;
 static struct power_supply nvec_psy;
@@ -65,16 +72,16 @@ static int nvec_power_notifier(struct notifier_block *nb,
 				 unsigned long event_type, void *data)
 {
 	struct nvec_power *power = container_of(nb, struct nvec_power, notifier);
-	unsigned char *msg = (unsigned char *)data;
+	struct bat_response *res = (struct bat_response *)data;
 
 	if (event_type != NVEC_SYS)
 		return NOTIFY_DONE;
 
-	if(msg[2] == 0)
+	if(res->sub_type == 0)
 	{
-		if (power->on != msg[4])
+		if (power->on != res->status)
 		{
-			power->on = msg[4];
+			power->on = res->status;
 			power_supply_changed(&nvec_psy);
 		}
 		return NOTIFY_STOP;
@@ -87,23 +94,22 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
 				 unsigned long event_type, void *data)
 {
 	struct nvec_power *power = container_of(nb, struct nvec_power, notifier);
-	unsigned char *msg = (unsigned char *)data;
-	struct bat_response *msg2 = (struct bat_response *)data;
-	int changed = 0;
+	struct bat_response *res = (struct bat_response *)data;
+	int status_changed = 0;
 
 	if (event_type != NVEC_BAT)
 		return NOTIFY_DONE;
 
-	switch(msg[2])
+	switch(res->sub_type)
 	{
 		case SLOT_STATUS:
-			if (msg[4] & 1) {
+			if (res->plc[0] & 1) {
 				if (power->bat_present == 0)
-					changed = 1;
+					status_changed = 1;
 
 				power->bat_present = 1;
 
-				switch ((msg[4] >> 1) & 3)
+				switch ((res->plc[0] >> 1) & 3)
 				{
 					case 0:
 						power->bat_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
@@ -119,53 +125,53 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
 				}
 			} else {
 				if (power->bat_present == 1)
-					changed = 1;
+					status_changed = 1;
 
 				power->bat_present = 0;
 				power->bat_status = POWER_SUPPLY_STATUS_UNKNOWN;
 			}
-			power->bat_cap = msg[5];
-			if (changed)
+			power->bat_cap = res->plc[1];
+			if (status_changed)
 				power_supply_changed(&nvec_bat_psy);
 			break;
 		case VOLTAGE:
-			power->bat_voltage_now = ((msg[5] << 8) + msg[4]) * 1000;
+			power->bat_voltage_now = res->plu * 1000;
 			break;
 		case TIME_REMAINING:
-			power->time_remain = (msg[5] << 8) + msg[4];
+			power->time_remain = res->plu * 3600;
 			break;
 		case CURRENT:
-			power->bat_current_now = (short)((msg[5] << 8) + msg[4]) * 1000;
+			power->bat_current_now = res->pls * 1000;
 			break;
 		case AVERAGE_CURRENT:
-			power->bat_current_avg = (short)((msg[5] << 8) + msg[4]) * 1000;
+			power->bat_current_avg = res->pls * 1000;
 			break;
 		case CAPACITY_REMAINING:
-			power->capacity_remain = ((msg[5] << 8) + msg[4]) * 1000;
+			power->capacity_remain = res->plu * 1000;
 			break;
 		case LAST_FULL_CHARGE_CAPACITY:
-			power->charge_last_full = ((msg[5] << 8) + msg[4]) * 1000;
+			power->charge_last_full = res->plu * 1000;
 			break;
 		case DESIGN_CAPACITY:
-			power->charge_full_design = ((msg[5] << 8) + msg[4]) * 1000;
+			power->charge_full_design = res->plu * 1000;
 			break;
 		case CRITICAL_CAPACITY:
-			power->critical_capacity = ((msg[5] << 8) + msg[4]) * 1000;
+			power->critical_capacity = res->plu * 1000;
 			break;
 		case TEMPERATURE:
-			power->bat_temperature = ((msg[5] << 8) + msg[4]) / 10;
+			power->bat_temperature = res->plu - 2732;
 			break;
 		case MANUFACTURER:
-			memcpy(power->bat_manu, &msg[4], msg[1]-2);
-			power->bat_model[msg[1]-2] = '\0';
+			memcpy(power->bat_manu, &res->plc, res->length-2);
+			power->bat_model[res->length-2] = '\0';
 			break;
 		case MODEL:
-			memcpy(power->bat_model, &msg[4], msg[1]-2);
-			power->bat_model[msg[1]-2] = '\0';
+			memcpy(power->bat_model, &res->plc, res->length-2);
+			power->bat_model[res->length-2] = '\0';
 			break;
 		case TYPE:
-			memcpy(power->bat_type, &msg[4], msg[1]-2);
-			power->bat_type[msg[1]-2] = '\0';
+			memcpy(power->bat_type, &res->plc, res->length-2);
+			power->bat_type[res->length-2] = '\0';
 			/* this differs a little from the spec
 			   fill in more if you find some */
 			if (!strncmp(power->bat_type, "Li", 30))
@@ -200,6 +206,7 @@ static int nvec_battery_get_property(struct power_supply *psy,
 				union power_supply_propval *val)
 {
 	struct nvec_power *power = dev_get_drvdata(psy->dev->parent);
+
 	switch(psp)
 	{
 		case POWER_SUPPLY_PROP_STATUS:
@@ -298,52 +305,39 @@ static struct power_supply nvec_psy = {
 };
 
 static int counter = 0;
+static int const bat_iter[] =
+{
+	SLOT_STATUS, VOLTAGE, TIME_REMAINING, CURRENT, AVERAGE_CURRENT,
+	CAPACITY_REMAINING, TEMPERATURE,
+};
 
 static void nvec_power_poll(struct work_struct *work)
 {
+	char buf[] = { '\x01', '\x00' };
 	struct nvec_power *power = container_of(work, struct nvec_power,
 		 poller.work);
 
-	counter++;
+	if (counter >= ARRAY_SIZE(bat_iter))
+		counter = 0;
 
-	switch (counter)
-	{
-		case 1:
 /* AC status via sys req */
-			nvec_write_async(power->nvec, "\x01\x00", 2);
-			break;
-		case 2:
-/* battery status */
-			nvec_write_async(power->nvec, "\x02\x00", 2);
-			break;
-		case 3:
-/* get voltage */
-			nvec_write_async(power->nvec, "\x02\x01", 2);
-			break;
-		case 4:
-/* get remaining time */
-			nvec_write_async(power->nvec, "\x02\x02", 2);
-			break;
-		case 5:
-/* get current */
-			nvec_write_async(power->nvec, "\x02\x03", 2);
-			break;
-		case 6:
-/* get average current */
-			nvec_write_async(power->nvec, "\x02\x04", 2);
-			break;
-		case 7:
-/* capacity remain */
-			nvec_write_async(power->nvec, "\x02\x06", 2);
-			break;
-		case 8:
-/* get temperature */
-			nvec_write_async(power->nvec, "\x02\x0A", 2);
-			break;
-		default:
-			counter = 0;
-	}
+	nvec_write_async(power->nvec, buf, 2);
+
+/* select a battery request function via round robin
+   doing it all at once seems to overload the power supply */
+	buf[0] = '\x02'; /* battery */
+        buf[1] = bat_iter[counter++];
+	nvec_write_async(power->nvec, buf, 2);
+
+//	printk("%02x %02x\n", buf[0], buf[1]);
+
 	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(1000));
+};
+
+static const int bat_init[] =
+{
+	LAST_FULL_CHARGE_CAPACITY, DESIGN_CAPACITY, CRITICAL_CAPACITY,
+	MANUFACTURER, MODEL, TYPE,
 };
 
 static int __devinit nvec_power_probe(struct platform_device *pdev)
@@ -351,12 +345,14 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 	struct power_supply *psy;
 	struct nvec_power *power = kzalloc(sizeof(struct nvec_power), GFP_NOWAIT);
 	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
+	char buf[] = { '\x02', '\x00' };
+	int i;
 
 	dev_set_drvdata(&pdev->dev, power);
 	power->nvec = nvec;
 
 	switch (pdev->id) {
-	case 0:
+	case AC:
 		psy = &nvec_psy;
 
 		power->notifier.notifier_call = nvec_power_notifier;
@@ -364,7 +360,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 		INIT_DELAYED_WORK(&power->poller, nvec_power_poll);
 		schedule_delayed_work(&power->poller, 1000);
 		break;
-	case 1:
+	case BAT:
 		psy = &nvec_bat_psy;
 
                 power->notifier.notifier_call = nvec_power_bat_notifier;
@@ -376,23 +372,12 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 
 	nvec_register_notifier(nvec, &power->notifier, NVEC_SYS);
 
-	if (pdev->id == 0)
-	{
-/* avg time interval */
-//		nvec_write_async(power->nvec, "\x02\x05", 2);
-/* get last full charge */
-		nvec_write_async(power->nvec, "\x02\x07", 2);
-/* get design charge */
-		nvec_write_async(power->nvec, "\x02\x08", 2);
-// get critical capacity */
-		nvec_write_async(power->nvec, "\x02\x09", 2);
-/* get bat manu */
-		nvec_write_async(power->nvec, "\x02\x0B", 2);
-/* get bat model */
-		nvec_write_async(power->nvec, "\x02\x0C", 2);
-/* get bat type */
-		nvec_write_async(power->nvec, "\x02\x0D", 2);
-	}
+	if (pdev->id == BAT)
+		for (i = 0; i < ARRAY_SIZE(bat_init); i++)
+		{
+			buf[1] = bat_init[i];
+			nvec_write_async(power->nvec, buf, 2);
+		}
 
 	return power_supply_register(&pdev->dev, psy);
 }
