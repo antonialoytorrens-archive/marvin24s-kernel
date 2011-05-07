@@ -51,12 +51,30 @@
 struct tag_tegra {
 	__u32 bootarg_key;
 	__u32 bootarg_len;
-	char bootarg[1];
+	char bootarg[];
+};
+
+enum {
+	RM = 1,
+	DISPLAY,
+	FRAMEBUFFER,
+	CHIPSHMOO,
+	CHIPSHMOO_PHYS,
+	CARVEOUT,
+	WARMBOOT,
 };
 
 static int __init parse_tag_nvidia(const struct tag *tag)
 {
-	pr_warning("tag: %x %x\n", tag->hdr.size, tag->hdr.tag);
+	int i;
+	struct tag_tegra *nvtag = (struct tag_tegra *)tag;
+
+	printk("tag: ");
+
+	for(i=0; i < tag->hdr.size; i++)
+		printk("%02x ", nvtag->bootarg[i]);
+	printk("\n");
+
 	return 0;
 }
 __tagtable(ATAG_NVIDIA, parse_tag_nvidia);
