@@ -27,10 +27,8 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 		nvec_size _size = (msg[0] & (3 << 5)) >> 5;
 
 /* power on/off button */
-		if(_size == NVEC_VAR_SIZE) {
-			nvec_write_async(keys_dev.nvec, "\x04\x00\x00", 3);
+		if(_size == NVEC_VAR_SIZE)
 			return NOTIFY_STOP;
-		}
 
 		if(_size == NVEC_3BYTES)
 			msg++;

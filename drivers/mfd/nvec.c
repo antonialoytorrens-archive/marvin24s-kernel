@@ -26,6 +26,7 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 
+static unsigned char EC_DISABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x00'};
 static unsigned char EC_ENABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x01'};
 static unsigned char EC_GET_FIRMWARE_VERSION[] =	{'\x07','\x15'};
 
@@ -321,10 +322,40 @@ static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+
+static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct nvec_chip *nvec = platform_get_drvdata(pdev);
+
+	dev_dbg(nvec->dev, "suspending\n");
+	nvec_write_async(nvec, EC_DISABLE_EVENT_REPORTING, 3);
+	nvec_write_async(nvec, "\x04\x02", 2);
+
+	return 0;
+}
+
+static int tegra_nvec_resume(struct platform_device *pdev) {
+
+	struct nvec_chip *nvec = platform_get_drvdata(pdev);
+
+	dev_dbg(nvec->dev, "resuming\n");
+	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
+
+	return 0;
+}
+
+#else
+#define tegra_nvec_suspend NULL
+#define tegra_nvec_resume NULL
+#endif
+
 static struct platform_driver nvec_device_driver =
 {
 	.probe = tegra_nvec_probe,
 	.remove = __devexit_p(tegra_nvec_remove),
+	.suspend = tegra_nvec_suspend,
+	.resume = tegra_nvec_resume,
 	.driver = {
 		.name = "nvec",
 		.owner = THIS_MODULE,
