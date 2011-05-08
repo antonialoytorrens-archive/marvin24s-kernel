@@ -41,6 +41,7 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 				void *data)
 {
 	unsigned char tmp, *msg = (unsigned char *)data;
+	struct nvec_chip *nvec = container_of(nb, struct nvec_chip, nvec_status_notifier);
 	int i;
 
 	if(event_type != NVEC_CNTL)
@@ -54,15 +55,15 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 	if(!strncmp(&msg[1],
 		    EC_GET_FIRMWARE_VERSION,
 				sizeof(EC_GET_FIRMWARE_VERSION))) {
-		printk("nvec: ec firmware version %02x.%02x.%02x / %02x\n",
+		dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
 			msg[4], msg[5], msg[6], msg[7]);
 		return NOTIFY_OK;
 	}
 
-	printk("nvec: unhandled event %ld, payload: ", event_type);
+	dev_warn(nvec->dev, "unhandled event %ld, payload: ", event_type);
 	for (i = 0; i < msg[0]; i++)
-		printk("%0x ", msg[i+2]);
-	printk("\n");
+		dev_warn(nvec->dev, "%0x ", msg[i+2]);
+	dev_warn(nvec->dev, "\n");
 
 	return NOTIFY_OK;
 }
@@ -110,10 +111,10 @@ static int parse_msg(struct nvec_chip *nvec)
 
 	if ((nvec->rcv_data[0] >> 7 ) == 1 && (nvec->rcv_data[0] & 0x0f) == 5)
 	{
-		printk("ec system event ");
+		dev_warn(nvec->dev, "ec system event ");
 		for (i=0; i < nvec->rcv_data[1]; i++)
-			printk("%02x ", nvec->rcv_data[2+i]);
-		printk("\n");
+			dev_warn(nvec->dev, "%02x ", nvec->rcv_data[2+i]);
+		dev_warn(nvec->dev, "\n");
 	}
 
 	atomic_notifier_call_chain(&nvec->notifier_list, nvec->rcv_data[0] & 0x8f, nvec->rcv_data);
@@ -275,7 +276,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	/* Set the gpio to low when we've got something to say */
 	err = gpio_request(nvec->gpio, "nvec gpio");
 	if(err < 0)
-		printk("nvec: couldn't request gpio\n");
+		dev_err(nvec->dev, "couldn't request gpio\n");
 
 	gpio_direction_output(nvec->gpio, 1);
 
