@@ -87,7 +87,7 @@ EXPORT_SYMBOL(nvec_write_async);
 
 static void nvec_request_master(struct work_struct *work)
 {
-	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work.work);
+	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
 
 	if(!list_empty(&nvec->tx_data)) {
 		gpio_set_value(nvec->gpio, 0);
@@ -176,7 +176,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 				list_del(&msg->node);
 				kfree(msg->data);
 				kfree(msg);
-				schedule_delayed_work(&nvec->tx_work, msecs_to_jiffies(100));
+				schedule_work(&nvec->tx_work);
 			}
 		}
 		writel(to_send, i2c_regs + I2C_SL_RCVD);
@@ -250,7 +250,8 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
 	INIT_LIST_HEAD(&nvec->tx_data);
-	INIT_DELAYED_WORK(&nvec->tx_work, nvec_request_master);
+	INIT_LIST_HEAD(&nvec->rx_data);
+	INIT_WORK(&nvec->tx_work, nvec_request_master);
 
 	writel(pdata->i2c_addr>>1, i2c_regs + I2C_SL_ADDR1);
 	writel(0, i2c_regs + I2C_SL_ADDR2);

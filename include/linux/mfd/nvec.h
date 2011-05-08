@@ -52,9 +52,9 @@ struct nvec_chip {
 	int gpio;
 	int irq;
 	struct atomic_notifier_head notifier_list;
-	struct list_head tx_data;
+	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
-	struct delayed_work tx_work;
+	struct work_struct rx_work, tx_work;
 	unsigned char *i2c_regs;
 	unsigned char rcv_data[256];
 	unsigned char rcv_size;
