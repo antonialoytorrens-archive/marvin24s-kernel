@@ -120,15 +120,16 @@ static int parse_msg(struct nvec_chip *nvec)
 	return 0;
 }
 
-static irqreturn_t i2c_interrupt(int irq, void *dev) {
-	unsigned short status;
-	unsigned short received;
+static irqreturn_t i2c_interrupt(int irq, void *dev)
+{
+	unsigned long status;
+	unsigned long received;
 	unsigned char to_send;
 	struct nvec_msg *msg;
 	struct nvec_chip *nvec = (struct nvec_chip *)dev;
 	unsigned char *i2c_regs = nvec->i2c_regs;
 
-	status = readw(i2c_regs + I2C_SL_STATUS);
+	status = readl(i2c_regs + I2C_SL_STATUS);
 
 	if(!(status & I2C_SL_IRQ)) {
 		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
@@ -176,7 +177,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 				schedule_delayed_work(&nvec->tx_work, msecs_to_jiffies(100));
 			}
 		}
-		writew(to_send, i2c_regs + I2C_SL_RCVD);
+		writel(to_send, i2c_regs + I2C_SL_RCVD);
 
 		gpio_set_value(nvec->gpio, 1);
 
@@ -184,14 +185,14 @@ static irqreturn_t i2c_interrupt(int irq, void *dev) {
 
 		goto handled;
 	} else {
-		received = readw(i2c_regs + I2C_SL_RCVD);
+		received = readl(i2c_regs + I2C_SL_RCVD);
 		//Workaround?
 		if(status & RCVD) {
-			writew(0, i2c_regs + I2C_SL_RCVD);
+			writel(0, i2c_regs + I2C_SL_RCVD);
 			nvec->rcv_size = 0;
 			goto handled;
 		}
-		dev_dbg(nvec->dev, "Got %02x from Master !\n", received);
+		dev_dbg(nvec->dev, "Got %02lx from Master !\n", received);
 
 		nvec->rcv_data[nvec->rcv_size] = received;
 		nvec->rcv_size++;
@@ -230,14 +231,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->gpio = pdata->gpio;
 	nvec->irq = pdata->irq;
 
-	i2c_clk = clk_get_sys(pdata->clock, NULL);
-	if(IS_ERR_OR_NULL(i2c_clk)) {
-		dev_err(nvec->dev, "failed to get clock tegra-i2c.2\n");
-		goto failed;
-	}
-	clk_enable(i2c_clk);
-	clk_set_rate(i2c_clk, 8*80000);
-
 /*
 	i2c_clk=clk_get_sys(NULL, "i2c");
 	if(IS_ERR_OR_NULL(i2c_clk))
@@ -257,18 +250,26 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_DELAYED_WORK(&nvec->tx_work, nvec_request_master);
 
-	err = request_irq(nvec->irq, i2c_interrupt, 0, "nvec", nvec);
+	writel(pdata->i2c_addr>>1, i2c_regs + I2C_SL_ADDR1);
+	writel(0, i2c_regs + I2C_SL_ADDR2);
+
+	writel(0x1E, i2c_regs + I2C_SL_DELAY_COUNT);
+	writel(I2C_NEW_MASTER_SFM, i2c_regs + I2C_CNFG);
+	writel(I2C_SL_NEWL, i2c_regs + I2C_SL_CNFG);
+
+	err = request_irq(nvec->irq, i2c_interrupt, IRQF_DISABLED, "nvec", nvec);
 	if(err) {
 		dev_err(nvec->dev, "couldn't request irq");
 		goto failed;
 	}
 
-	writew(pdata->i2c_addr>>1, i2c_regs + I2C_SL_ADDR1);
-	writew(0, i2c_regs + I2C_SL_ADDR2);
-
-	writew(0x1E, i2c_regs + I2C_SL_DELAY_COUNT);
-	writew(I2C_NEW_MASTER_SFM, i2c_regs + I2C_CNFG);
-	writew(I2C_SL_NEWL, i2c_regs + I2C_SL_CNFG);
+	i2c_clk = clk_get_sys(pdata->clock, NULL);
+	if(IS_ERR_OR_NULL(i2c_clk)) {
+		dev_err(nvec->dev, "failed to get clock tegra-i2c.2\n");
+		goto failed;
+	}
+	clk_enable(i2c_clk);
+	clk_set_rate(i2c_clk, 8*80000);
 
 	/* Set the gpio to low when we've got something to say */
 	err = gpio_request(nvec->gpio, "nvec gpio");
@@ -320,7 +321,8 @@ static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver nvec_device_driver = {
+static struct platform_driver nvec_device_driver =
+{
 	.probe = tegra_nvec_probe,
 	.remove = __devexit_p(tegra_nvec_remove),
 	.driver = {
@@ -329,7 +331,7 @@ static struct platform_driver nvec_device_driver = {
 	}
 };
 
-static int __init tegra_nvec_init(void) 
+static int __init tegra_nvec_init(void)
 {
 	return platform_driver_register(&nvec_device_driver);
 }
