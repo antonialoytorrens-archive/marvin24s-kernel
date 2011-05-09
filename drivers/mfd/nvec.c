@@ -160,7 +160,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		if(list_empty(&nvec->tx_data)) {
 			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
 			to_send = 0x8a;
-			nvec_write_async(nvec, "\x02\x07\x02", 3);
+			nvec_write_async(nvec, "\x07\x02", 2);
 		} else {
 			msg = list_first_entry(&nvec->tx_data,
 				struct nvec_msg, node);	
@@ -279,7 +279,9 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	if(err < 0)
 		dev_err(nvec->dev, "couldn't request gpio\n");
 
+	tegra_gpio_enable(nvec->gpio);
 	gpio_direction_output(nvec->gpio, 1);
+	gpio_set_value(nvec->gpio, 1);
 
 	/* enable event reporting */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
