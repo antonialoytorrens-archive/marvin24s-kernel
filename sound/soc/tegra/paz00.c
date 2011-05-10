@@ -237,10 +237,13 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias");
 
-	snd_soc_dapm_nc_pin(dapm, "IN3L");
-	snd_soc_dapm_nc_pin(dapm, "IN3R");
-	snd_soc_dapm_nc_pin(dapm, "LINEOUTL");
-	snd_soc_dapm_nc_pin(dapm, "LINEOUTR");
+	snd_soc_dapm_nc_pin(dapm, "AUXOUTL");
+	snd_soc_dapm_nc_pin(dapm, "AUXOUTR");
+	snd_soc_dapm_nc_pin(dapm, "LINEINL");
+	snd_soc_dapm_nc_pin(dapm, "LINEINR");
+	snd_soc_dapm_nc_pin(dapm, "PHONEP");
+	snd_soc_dapm_nc_pin(dapm, "PHONEN");
+	snd_soc_dapm_nc_pin(dapm, "MIC2");
 
 	snd_soc_dapm_sync(dapm);
 
