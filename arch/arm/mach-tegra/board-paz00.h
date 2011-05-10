@@ -30,6 +30,7 @@ void paz00_emc_init(void);
 #define PAZ00_WIFI_LED		TEGRA_GPIO_PD0
 #define PAZ00_WIFI_RST		TEGRA_GPIO_PD1
 #define PAZ00_WIFI_PWRN		TEGRA_GPIO_PK5
+#define PAZ00_EXT_WIFI_DSBL	TEGRA_GPIO_PV4
 
 /* EC */
 #define PAZ00_NVEC_REQ		TEGRA_GPIO_PV2
@@ -56,5 +57,13 @@ void paz00_emc_init(void);
 
 /* Audio */
 #define PAZ00_HP_DET		TEGRA_GPIO_PW2
+
+/* PEX */
+#define PAZ00_PEX_WAKE		TEGRA_GPIO_PV5
+#define PAZ00_PEX_RST		TEGRA_GPIO_PV6
+
+/* Bluetooth */
+#define PAZ00_BT_RST		TEGRA_GPIO_PU0
+#define PAZ00_BT_WAKE		TEGRA_GPIO_PU1
 
 #endif
