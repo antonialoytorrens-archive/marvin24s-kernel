@@ -195,7 +195,7 @@ SOC_DAPM_SINGLE("MonoMixer Capture Switch", ALC5632_ADC_REC_MIXER, 0, 1, 1),
 };
 
 static const char *alc5632_spk_n_sour_sel[] = {
-		"RN/-R", "RP/+R", "LN/-R", "Vmid"};
+		"RN/-R", "RP/+R", "LN/-R", "Mute"};
 static const char *alc5632_hpl_out_input_sel[] = {
 		"Vmid", "HP Left Mix"};
 static const char *alc5632_hpr_out_input_sel[] = {
@@ -309,8 +309,8 @@ SND_SOC_DAPM_OUTPUT("SPKOUT"),
 SND_SOC_DAPM_OUTPUT("SPKOUTN"),
 SND_SOC_DAPM_INPUT("LINEINL"),
 SND_SOC_DAPM_INPUT("LINEINR"),
-SND_SOC_DAPM_INPUT("PHONENL"),
-SND_SOC_DAPM_INPUT("PHONENR"),
+SND_SOC_DAPM_INPUT("PHONEP"),
+SND_SOC_DAPM_INPUT("PHONEN"),
 SND_SOC_DAPM_INPUT("MIC1"),
 SND_SOC_DAPM_INPUT("MIC2"),
 SND_SOC_DAPM_VMID("Vmid"),
@@ -339,8 +339,8 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"I2S Mix", NULL,				"Right DAC"},
 	{"Line Mix", NULL,				"Right LineIn"},
 	{"Line Mix", NULL,				"Left LineIn"},
-	{"Phone Mix", NULL,				"Left Phone"},
-	{"Phone Mix", NULL,				"Right Phone"},
+	{"Phone Mix", NULL,				"Phone"},
+	{"Phone Mix", NULL,				"Phone ADMix"},
 	{"AUXOUTL", NULL,				"Left AuxOut"},
 	{"AUXOUTR", NULL,				"Right AuxOut"},
 
@@ -373,7 +373,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 
 	/* Left record mixer */
 	{"Left Capture Mix", "LineInL Capture Switch",	"LINEINL"},
-	{"Left Capture Mix", "Left Phone Capture Switch", "PHONENL"},
+	{"Left Capture Mix", "Left Phone Capture Switch", "PHONEN"},
 	{"Left Capture Mix", "Mic1 Capture Switch",	"MIC1 Pre Amp"},
 	{"Left Capture Mix", "Mic2 Capture Switch",	"MIC2 Pre Amp"},
 	{"Left Capture Mix", "HPMixerL Capture Switch", "HPL Mix"},
@@ -382,7 +382,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 
 	/*Right record mixer */
 	{"Right Capture Mix", "LineInR Capture Switch",	"LINEINR"},
-	{"Right Capture Mix", "Right Phone Capture Switch",	"PHONENR"},
+	{"Right Capture Mix", "Right Phone Capture Switch",	"PHONEP"},
 	{"Right Capture Mix", "Mic1 Capture Switch",	"MIC1 Pre Amp"},
 	{"Right Capture Mix", "Mic2 Capture Switch",	"MIC2 Pre Amp"},
 	{"Right Capture Mix", "HPMixerR Capture Switch", "HPR Mix"},
@@ -420,8 +420,8 @@ static const struct snd_soc_dapm_route intercon[] = {
 	/* input pga */
 	{"Left LineIn", NULL,				"LINEINL"},
 	{"Right LineIn", NULL,				"LINEINR"},
-	{"Left Phone", NULL,				"PHONENL"},
-	{"Right Phone", NULL,				"PHONENR"},
+	{"Left Phone", NULL,				"PHONEP"},
+	{"Right Phone", NULL,				"PHONEN"},
 	{"MIC1 Pre Amp", NULL,				"MIC1"},
 	{"MIC2 Pre Amp", NULL,				"MIC2"},
 	{"MIC1 PGA", NULL,				"MIC1 Pre Amp"},
@@ -436,7 +436,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"SpeakerOut N Mux", "RN/-R",			"SpeakerOut"},
 	{"SpeakerOut N Mux", "RP/+R",			"SpeakerOut"},
 	{"SpeakerOut N Mux", "LN/-R",			"SpeakerOut"},
-	{"SpeakerOut N Mux", "Vmid",			"Vmid"},
+	{"SpeakerOut N Mux", "Mute",			"Mute"},
 
 	{"SPKOUT", NULL,				"SpeakerOut"},
 	{"SPKOUTN", NULL,				"SpeakerOut N Mux"},

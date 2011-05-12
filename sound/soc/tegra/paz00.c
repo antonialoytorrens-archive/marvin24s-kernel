@@ -154,14 +154,12 @@ static const struct snd_soc_dapm_widget paz00_dapm_widgets[] = {
 };
 
 static const struct snd_soc_dapm_route paz00_audio_map[] = {
-	{"Headphone Jack", NULL, "HPOUTR"},
-	{"Headphone Jack", NULL, "HPOUTL"},
-	{"Int Spk", NULL, "ROP"},
-	{"Int Spk", NULL, "RON"},
-	{"Int Spk", NULL, "LOP"},
-	{"Int Spk", NULL, "LON"},
-	{"Mic Bias", NULL, "Mic Jack"},
-	{"IN1L", NULL, "Mic Bias"},
+	{"Headphone Jack", NULL, "HPR"},
+	{"Headphone Jack", NULL, "HPL"},
+	{"Int Spk", NULL, "SPKOUT"},
+	{"Int Spk", NULL, "SPKOUTN"},
+	{"Mic Bias1", NULL, "Mic Jack"},
+	{"IN1L", NULL, "Mic Bias1"},
 };
 
 static const struct snd_kcontrol_new paz00_controls[] = {
@@ -235,7 +233,7 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 			      paz00_mic_jack_pins);
 //	alc5632_mic_detect(codec, &paz00_mic_jack, SND_JACK_MICROPHONE, 0);
 
-	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias");
+	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias1");
 
 	snd_soc_dapm_nc_pin(dapm, "AUXOUTL");
 	snd_soc_dapm_nc_pin(dapm, "AUXOUTR");
