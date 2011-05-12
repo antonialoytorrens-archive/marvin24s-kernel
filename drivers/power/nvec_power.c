@@ -322,6 +322,7 @@ static void nvec_power_poll(struct work_struct *work)
 
 /* AC status via sys req */
 	nvec_write_async(power->nvec, buf, 2);
+	msleep(100);
 
 /* select a battery request function via round robin
    doing it all at once seems to overload the power supply */
@@ -331,7 +332,7 @@ static void nvec_power_poll(struct work_struct *work)
 
 //	printk("%02x %02x\n", buf[0], buf[1]);
 
-	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(1000));
+	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(2000));
 };
 
 static const int bat_init[] =
@@ -358,7 +359,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 		power->notifier.notifier_call = nvec_power_notifier;
 
 		INIT_DELAYED_WORK(&power->poller, nvec_power_poll);
-		schedule_delayed_work(&power->poller, 1000);
+		schedule_delayed_work(&power->poller, msecs_to_jiffies(2000));
 		break;
 	case BAT:
 		psy = &nvec_bat_psy;
