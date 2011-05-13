@@ -73,8 +73,10 @@ const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care 
 extern int nvec_ps2(struct nvec_chip *nvec);
 extern int nvec_kbd_init(struct nvec_chip *nvec);
 
-#define I2C_CNFG		0x00
-#define I2C_NEW_MASTER_SFM 	(1<<11)
+#define I2C_CNFG                       0x00
+#define I2C_CNFG_PACKET_MODE_EN                (1<<10)
+#define I2C_CNFG_NEW_MASTER_SFM                (1<<11)
+#define I2C_CNFG_DEBOUNCE_CNT_SHIFT    12
 
 #define I2C_SL_CNFG		0x20
 #define I2C_SL_NEWL		(1<<2)

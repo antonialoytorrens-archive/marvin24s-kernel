@@ -215,6 +215,28 @@ static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev 
 	return platform_device_add(pdev);
 }
 
+static void tegra_init_i2c_slave(struct nvec_platform_data *pdata, unsigned char *i2c_regs,
+					struct clk *i2c_clk)
+{
+	u32 val;
+
+	clk_enable(i2c_clk);
+	tegra_periph_reset_assert(i2c_clk);
+	udelay(2);
+	tegra_periph_reset_deassert(i2c_clk);
+
+	writel(pdata->i2c_addr>>1, i2c_regs + I2C_SL_ADDR1);
+	writel(0, i2c_regs + I2C_SL_ADDR2);
+
+	writel(0x1E, i2c_regs + I2C_SL_DELAY_COUNT);
+	val = I2C_CNFG_NEW_MASTER_SFM | I2C_CNFG_PACKET_MODE_EN |
+		(0x2 << I2C_CNFG_DEBOUNCE_CNT_SHIFT);
+	writel(val, i2c_regs + I2C_CNFG);
+	writel(I2C_SL_NEWL, i2c_regs + I2C_SL_CNFG);
+
+	clk_disable(i2c_clk);
+}
+
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
 	int err, i, ret;
@@ -245,20 +267,16 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		dev_err(nvec->dev, "failed to ioremap registers\n");
 		goto failed;
 	}
+
 	nvec->i2c_regs = i2c_regs;
 
-	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
+	i2c_clk = clk_get_sys(pdata->clock, NULL);
+	if(IS_ERR_OR_NULL(i2c_clk)) {
+		dev_err(nvec->dev, "failed to get clock tegra-i2c.2\n");
+		goto failed;
+	}
 
-	INIT_LIST_HEAD(&nvec->tx_data);
-	INIT_LIST_HEAD(&nvec->rx_data);
-	INIT_WORK(&nvec->tx_work, nvec_request_master);
-
-	writel(pdata->i2c_addr>>1, i2c_regs + I2C_SL_ADDR1);
-	writel(0, i2c_regs + I2C_SL_ADDR2);
-
-	writel(0x1E, i2c_regs + I2C_SL_DELAY_COUNT);
-	writel(I2C_NEW_MASTER_SFM, i2c_regs + I2C_CNFG);
-	writel(I2C_SL_NEWL, i2c_regs + I2C_SL_CNFG);
+	tegra_init_i2c_slave(pdata, i2c_regs, i2c_clk);
 
 	err = request_irq(nvec->irq, i2c_interrupt, IRQF_DISABLED, "nvec", nvec);
 	if(err) {
@@ -266,11 +284,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
-	i2c_clk = clk_get_sys(pdata->clock, NULL);
-	if(IS_ERR_OR_NULL(i2c_clk)) {
-		dev_err(nvec->dev, "failed to get clock tegra-i2c.2\n");
-		goto failed;
-	}
 	clk_enable(i2c_clk);
 	clk_set_rate(i2c_clk, 8*80000);
 
@@ -282,6 +295,12 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	tegra_gpio_enable(nvec->gpio);
 	gpio_direction_output(nvec->gpio, 1);
 	gpio_set_value(nvec->gpio, 1);
+
+	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
+
+	INIT_LIST_HEAD(&nvec->tx_data);
+	INIT_LIST_HEAD(&nvec->rx_data);
+	INIT_WORK(&nvec->tx_work, nvec_request_master);
 
 	/* enable event reporting */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
