@@ -23,6 +23,12 @@ typedef enum {
 	NVEC_PS2_EVT
 } nvec_event;
 
+typedef enum {
+       NVEC_WAIT,
+       NVEC_READ,
+       NVEC_WRITE
+} nvec_state;
+
 struct nvec_msg {
 	unsigned char *data;
 	unsigned short size;
@@ -51,13 +57,14 @@ struct nvec_chip {
 	struct device *dev;
 	int gpio;
 	int irq;
+	unsigned char *i2c_regs;
+	nvec_state state;
 	struct atomic_notifier_head notifier_list;
 	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
 	struct work_struct rx_work, tx_work;
-	unsigned char *i2c_regs;
-	unsigned char rcv_data[256];
-	unsigned char rcv_size;
+	struct nvec_msg *rx, *tx;
+	spinlock_t dispatch;
 };
 
 extern void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size);
@@ -73,10 +80,10 @@ const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care 
 extern int nvec_ps2(struct nvec_chip *nvec);
 extern int nvec_kbd_init(struct nvec_chip *nvec);
 
-#define I2C_CNFG                       0x00
-#define I2C_CNFG_PACKET_MODE_EN                (1<<10)
-#define I2C_CNFG_NEW_MASTER_SFM                (1<<11)
-#define I2C_CNFG_DEBOUNCE_CNT_SHIFT    12
+#define I2C_CNFG			0x00
+#define I2C_CNFG_PACKET_MODE_EN		(1<<10)
+#define I2C_CNFG_NEW_MASTER_SFM		(1<<11)
+#define I2C_CNFG_DEBOUNCE_CNT_SHIFT	12
 
 #define I2C_SL_CNFG		0x20
 #define I2C_SL_NEWL		(1<<2)

@@ -60,10 +60,10 @@ static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_t
 		return NOTIFY_OK;
 	}
 
-	dev_warn(nvec->dev, "unhandled event %ld, payload: ", event_type);
+	printk("unhandled msg type %ld, payload: ", event_type);
 	for (i = 0; i < msg[0]; i++)
-		dev_warn(nvec->dev, "%0x ", msg[i+2]);
-	dev_warn(nvec->dev, "\n");
+		printk("%0x ", msg[i+2]);
+	printk("\n");
 
 	return NOTIFY_OK;
 }
@@ -94,32 +94,52 @@ static void nvec_request_master(struct work_struct *work)
 	}
 }
 
-static int parse_msg(struct nvec_chip *nvec)
+
+static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
 	int i;
 
-	//Not an actual message
-	if(nvec->rcv_size < 2)
-		return -EINVAL;
-
-	if ((nvec->rcv_data[0] & 1<<7) == 0 && nvec->rcv_data[3])
-	{
-		dev_err(nvec->dev, "ec responded %02x %02x %02x %02x\n", nvec->rcv_data[0],
-			nvec->rcv_data[1], nvec->rcv_data[2], nvec->rcv_data[3]);
+	if((msg->data[0] & 1<<7) == 0 && msg->data[3]) {
+		dev_err(nvec->dev, "ec responded %02x %02x %02x %02x\n", msg->data[0],
+			msg->data[1], msg->data[2], msg->data[3]);
 		return -EINVAL;
 	}
 
-	if ((nvec->rcv_data[0] >> 7 ) == 1 && (nvec->rcv_data[0] & 0x0f) == 5)
+	if ((msg->data[0] >> 7 ) == 1 && (msg->data[0] & 0x0f) == 5)
 	{
 		dev_warn(nvec->dev, "ec system event ");
-		for (i=0; i < nvec->rcv_data[1]; i++)
-			dev_warn(nvec->dev, "%02x ", nvec->rcv_data[2+i]);
+		for (i=0; i < msg->data[1]; i++)
+			dev_warn(nvec->dev, "%02x ", msg->data[2+i]);
 		dev_warn(nvec->dev, "\n");
 	}
 
-	atomic_notifier_call_chain(&nvec->notifier_list, nvec->rcv_data[0] & 0x8f, nvec->rcv_data);
+	atomic_notifier_call_chain(&nvec->notifier_list, msg->data[0] & 0x8f, msg->data);
 
 	return 0;
+}
+
+
+/* RX worker */
+static void nvec_dispatch(struct work_struct *work)
+{
+	struct nvec_chip *nvec = container_of(work, struct nvec_chip, rx_work);
+	struct nvec_msg *msg;
+
+//	spin_lock(&nvec->dispatch);
+	while(!list_empty(&nvec->rx_data))
+	{
+		msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
+//		printk("msg size: %d msg pos: %d msg data: %d\n", msg->size, msg->pos, msg->data[0]);
+		parse_msg(nvec, msg);
+		list_del_init(&msg->node);
+		if((!msg) || (!msg->data))
+			dev_warn(nvec->dev, "attempt access zero pointer");
+		else {
+			kfree(msg->data);
+			kfree(msg);
+		}
+	}
+//	spin_unlock(&nvec->dispatch);
 }
 
 static irqreturn_t i2c_interrupt(int irq, void *dev)
@@ -133,23 +153,34 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 
 	status = readl(i2c_regs + I2C_SL_STATUS);
 
-	if(!(status & I2C_SL_IRQ)) {
+	if(!(status & I2C_SL_IRQ))
+	{
 		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
 		//Yup, handled. ahum.
 		goto handled;
 	}
-	if(status & END_TRANS && !(status & RCVD)) {
+	if(status & END_TRANS && !(status & RCVD))
+	{
 		//Reenable IRQ only when even has been sent
 		//printk("Write sequence ended !\n");
-                parse_msg(nvec);
+                //parse_msg(nvec);
+		nvec->state = NVEC_WAIT;
+		if(nvec->rx->size > 1)
+		{
+			list_add_tail(&nvec->rx->node, &nvec->rx_data);
+			schedule_work(&nvec->rx_work);
+		}
 		return IRQ_HANDLED;
-	} else if(status & RNW) {
+	} else if(status & RNW)
+	{
 		// Work around for AP20 New Slave Hw Bug. Give 1us extra.
 		// nvec/smbus/nvec_i2c_transport.c in NV`s crap for reference
 		if(status & RCVD)
 			udelay(3);
 
-		if(status & RCVD) {
+		if(status & RCVD)
+		{
+			nvec->state = NVEC_WRITE;
 			//Master wants something from us. New communication
 //			dev_dbg(nvec->dev, "New read comm!\n");
 		} else {
@@ -157,13 +188,14 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 //			dev_dbg(nvec->dev, "Read comm cont !\n");
 		}
 		//if(msg_pos<msg_size) {
-		if(list_empty(&nvec->tx_data)) {
+		if(list_empty(&nvec->tx_data))
+		{
 			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
 			to_send = 0x8a;
 			nvec_write_async(nvec, "\x07\x02", 2);
+//			to_send = 0x01;
 		} else {
-			msg = list_first_entry(&nvec->tx_data,
-				struct nvec_msg, node);	
+			msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
 			if(msg->pos < msg->size) {
 				to_send = msg->data[msg->pos];
 				msg->pos++;
@@ -172,11 +204,13 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 				to_send = 0x01;
 			}
 
-			if(msg->pos >= msg->size) {
-				list_del(&msg->node);
+			if(msg->pos >= msg->size)
+			{
+				list_del_init(&msg->node);
 				kfree(msg->data);
 				kfree(msg);
 				schedule_work(&nvec->tx_work);
+				nvec->state = NVEC_WAIT;
 			}
 		}
 		writel(to_send, i2c_regs + I2C_SL_RCVD);
@@ -191,16 +225,27 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		//Workaround?
 		if(status & RCVD) {
 			writel(0, i2c_regs + I2C_SL_RCVD);
-			nvec->rcv_size = 0;
 			goto handled;
 		}
-		dev_dbg(nvec->dev, "Got %02lx from Master !\n", received);
 
-		nvec->rcv_data[nvec->rcv_size] = received;
-		nvec->rcv_size++;
+		if (nvec->state == NVEC_WAIT)
+		{
+			nvec->state = NVEC_READ;
+			msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
+			msg->data = kzalloc(16, GFP_NOWAIT);
+			INIT_LIST_HEAD(&msg->node);
+			nvec->rx = msg;
+		} else
+			msg = nvec->rx;
+
+		BUG_ON(msg->pos > 16);
+
+		msg->data[msg->pos] = received;
+		msg->pos++;
+		msg->size = msg->pos;
+		dev_dbg(nvec->dev, "Got %02lx from Master (pos: %d)!\n", received, msg->pos);
 	}
 handled:
-
 	return IRQ_HANDLED;
 }
 
@@ -298,8 +343,10 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
+	spin_lock_init(&nvec->dispatch);
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_LIST_HEAD(&nvec->rx_data);
+	INIT_WORK(&nvec->rx_work, nvec_dispatch);
 	INIT_WORK(&nvec->tx_work, nvec_request_master);
 
 	/* enable event reporting */
