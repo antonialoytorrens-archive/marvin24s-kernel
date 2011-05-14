@@ -169,6 +169,9 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		{
 			list_add_tail(&nvec->rx->node, &nvec->rx_data);
 			schedule_work(&nvec->rx_work);
+		} else {
+			kfree(nvec->rx->data);
+			kfree(nvec->rx);
 		}
 		return IRQ_HANDLED;
 	} else if(status & RNW)
