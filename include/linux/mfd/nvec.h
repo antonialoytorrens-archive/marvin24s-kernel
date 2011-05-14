@@ -64,7 +64,8 @@ struct nvec_chip {
 	struct notifier_block nvec_status_notifier;
 	struct work_struct rx_work, tx_work;
 	struct nvec_msg *rx, *tx;
-	spinlock_t dispatch;
+	struct completion sync_write;
+	u16 sync_write_pending;
 };
 
 extern void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size);

@@ -118,6 +118,32 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 	return 0;
 }
 
+static int nvec_write_sync(struct nvec_chip *nvec, unsigned char *data, short size, struct nvec_msg *response)
+{
+	struct nvec_msg *msg;
+
+	if(!response)
+		return -1;
+
+	nvec->sync_write_pending = (data[1] << 8) + data[0];
+	nvec_write_async(nvec, data, size);
+	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n", nvec->sync_write_pending);
+
+	wait_for_completion(&nvec->sync_write);
+
+	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
+
+	msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
+
+	memcpy(response, msg, sizeof(struct nvec_msg));
+	memcpy(response->data, msg->data, msg->size);
+
+	list_del_init(&msg->node);
+	kfree(msg->data);
+	kfree(msg);
+
+	return 0;
+}
 
 /* RX worker */
 static void nvec_dispatch(struct work_struct *work)
@@ -125,21 +151,26 @@ static void nvec_dispatch(struct work_struct *work)
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, rx_work);
 	struct nvec_msg *msg;
 
-//	spin_lock(&nvec->dispatch);
 	while(!list_empty(&nvec->rx_data))
 	{
 		msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
-//		printk("msg size: %d msg pos: %d msg data: %d\n", msg->size, msg->pos, msg->data[0]);
-		parse_msg(nvec, msg);
-		list_del_init(&msg->node);
-		if((!msg) || (!msg->data))
-			dev_warn(nvec->dev, "attempt access zero pointer");
-		else {
-			kfree(msg->data);
-			kfree(msg);
+
+		if(nvec->sync_write_pending == (msg->data[2] << 8) + msg->data[0])
+		{
+			dev_dbg(nvec->dev, "sync write completed!\n");
+			nvec->sync_write_pending = 0;
+			complete(&nvec->sync_write);
+		} else {
+			parse_msg(nvec, msg);
+			list_del_init(&msg->node);
+			if((!msg) || (!msg->data))
+				dev_warn(nvec->dev, "attempt access zero pointer");
+			else {
+				kfree(msg->data);
+				kfree(msg);
+			}
 		}
 	}
-//	spin_unlock(&nvec->dispatch);
 }
 
 static irqreturn_t i2c_interrupt(int irq, void *dev)
@@ -235,13 +266,13 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		{
 			nvec->state = NVEC_READ;
 			msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
-			msg->data = kzalloc(16, GFP_NOWAIT);
+			msg->data = kzalloc(32, GFP_NOWAIT);
 			INIT_LIST_HEAD(&msg->node);
 			nvec->rx = msg;
 		} else
 			msg = nvec->rx;
 
-		BUG_ON(msg->pos > 16);
+		BUG_ON(msg->pos > 32);
 
 		msg->data[msg->pos] = received;
 		msg->pos++;
@@ -291,6 +322,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	struct clk *i2c_clk;
 	struct nvec_platform_data *pdata = pdev->dev.platform_data;
 	struct nvec_chip *nvec;
+	struct nvec_msg *msg;
 	unsigned char *i2c_regs;
 
 	nvec = kzalloc(sizeof(struct nvec_chip), GFP_KERNEL);
@@ -346,7 +378,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
-	spin_lock_init(&nvec->dispatch);
+	init_completion(&nvec->sync_write);
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_LIST_HEAD(&nvec->rx_data);
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);
@@ -369,9 +401,18 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
 
+	msg = kzalloc(sizeof(struct nvec_msg), GFP_KERNEL);
+	msg->data = kzalloc(32, GFP_KERNEL);
+
 	/* Get Firmware Version */
 	nvec_write_async(nvec, EC_GET_FIRMWARE_VERSION,
 		sizeof(EC_GET_FIRMWARE_VERSION));
+
+//	dev_warn(nvec->dev, "firmware: %02x %02x %02x %02x\n", msg->data[0],
+//			msg->data[1], msg->data[2], msg->data[3]);
+
+	kfree(msg->data);
+	kfree(msg);
 
 	/* unmute speakers? */
 	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
