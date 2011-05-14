@@ -153,7 +153,9 @@ static long trpc_sema_ioctl(struct file *file, unsigned int cmd,
 {
 	struct trpc_sema *info = file->private_data;
 	int ret;
+	int count;
 	long timeout;
+	unsigned long flags;
 
 	if (_IOC_TYPE(cmd) != TEGRA_SEMA_IOCTL_MAGIC ||
 	    _IOC_NR(cmd) < TEGRA_SEMA_IOCTL_MIN_NR ||
@@ -163,6 +165,16 @@ static long trpc_sema_ioctl(struct file *file, unsigned int cmd,
 		return -EINVAL;
 
 	switch (cmd) {
+	case TEGRA_SEMA_IOCTL_SET_CNT:
+		if (copy_from_user(&count, (void __user *)arg, sizeof(int)))
+			return -EFAULT;
+		if (count < 0)
+			return -EINVAL;
+		spin_lock_irqsave(&info->lock, flags);
+		info->count = count;
+		spin_unlock_irqrestore(&info->lock, flags);
+		ret = 0;
+		break;
 	case TEGRA_SEMA_IOCTL_WAIT:
 		if (copy_from_user(&timeout, (void __user *)arg, sizeof(long)))
 			return -EFAULT;

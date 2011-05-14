@@ -59,7 +59,15 @@ enum {
 	AVP_DBG_TRACE_LIB	= 1U << 6,
 };
 
-static u32 avp_debug_mask = 0;
+static u32 avp_debug_mask =
+	AVP_DBG_TRACE_XPC	|
+	/* AVP_DBG_TRACE_XPC_IRQ	| */
+	/* AVP_DBG_TRACE_XPC_MSG	| */
+	/* AVP_DBG_TRACE_TRPC_MSG	| */
+	AVP_DBG_TRACE_XPC_CONN	|
+	AVP_DBG_TRACE_TRPC_CONN	|
+	AVP_DBG_TRACE_LIB;
+
 module_param_named(debug_mask, avp_debug_mask, uint, S_IWUSR | S_IRUGO);
 
 #define DBG(flag, args...) \
@@ -111,7 +119,7 @@ struct avp_info {
 
 	struct trpc_node		*rpc_node;
 	struct miscdevice		misc_dev;
-	int				refcount;
+	int 				refcount;
 	struct mutex			open_lock;
 
 	spinlock_t			state_lock;
@@ -546,7 +554,7 @@ static int avp_node_try_connect(struct trpc_node *node,
 
 	len = strlen(port_name);
 	if (len > XPC_PORT_NAME_LEN) {
-		pr_err("%s: port name (%s) to long\n", __func__, port_name);
+		pr_err("%s: port name (%s) too long\n", __func__, port_name);
 		return -EINVAL;
 	}
 
@@ -880,6 +888,9 @@ static int avp_reset(struct avp_info *avp, unsigned long reset_addr)
 
 	writel(stub_code_phys, TEGRA_AVP_RESET_VECTOR_ADDR);
 
+	pr_debug("%s: TEGRA_AVP_RESET_VECTOR=%x\n", __func__, readl(TEGRA_AVP_RESET_VECTOR_ADDR));
+	pr_info("%s: Resetting AVP: reset_addr=%lx\n", __func__, reset_addr);
+
 	tegra_periph_reset_assert(avp->cop_clk);
 	udelay(10);
 	tegra_periph_reset_deassert(avp->cop_clk);
@@ -890,6 +901,8 @@ static int avp_reset(struct avp_info *avp, unsigned long reset_addr)
 	 * starts, so a dead kernel can be detected by polling this value */
 	timeout = jiffies + msecs_to_jiffies(2000);
 	while (time_before(jiffies, timeout)) {
+
+		pr_debug("%s: TEGRA_AVP_RESET_VECTOR=%x\n", __func__, readl(TEGRA_AVP_RESET_VECTOR_ADDR));
 		if (readl(TEGRA_AVP_RESET_VECTOR_ADDR) != stub_code_phys)
 			break;
 		cpu_relax();
@@ -946,6 +959,9 @@ static int avp_init(struct avp_info *avp, const char *fw_file)
 	}
 	pr_info("%s: read firmware from '%s' (%d bytes)\n", __func__,
 		fw_file, avp_fw->size);
+
+	pr_info("%s: Loading AVP kernel at vaddr=%p paddr=%lx\n",
+		__func__, avp->kernel_data, avp->kernel_phys);
 	memcpy(avp->kernel_data, avp_fw->data, avp_fw->size);
 	memset(avp->kernel_data + avp_fw->size, 0, SZ_1M - avp_fw->size);
 	wmb();
