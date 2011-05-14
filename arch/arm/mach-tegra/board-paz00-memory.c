@@ -260,12 +260,17 @@ void __init paz00_emc_init(void)
 	int ram_id;
 	void __iomem *apb_misc = IO_ADDRESS(TEGRA_APB_MISC_BASE);
 
-	/* TODO: Move this to use the apbio library in 2.6.38 */
+	/* ram_id: 0->Hynix, 1->Micron */
 	reg = readl(apb_misc + STRAP_OPT);
 	ram_id = (reg & RAM_ID_MASK) >> RAM_CODE_SHIFT;
-	
-	pr_warning("EMC table: ramd_id: %d, tegra_sku_id %d\n", ram_id, tegra_sku_id);
 
-//egra_init_emc(NULL, 0);
-	tegra_init_emc(paz00_emc[1].table, paz00_emc[1].table_size);
+	pr_warning("EMC table: ramd_id: %d, tegra_sku_id %d\n", ram_id, tegra_sku_id);
+	if(ram_id <= ARRAY_SIZE(paz00_emc))
+	{
+		pr_warning("EMC table: using %s\n", paz00_emc[ram_id].name);
+		tegra_init_emc(paz00_emc[ram_id].table, paz00_emc[ram_id].table_size);
+	} else {
+		pr_warning("EMC table: unknown RAM ID - Please report !!!\n");
+		tegra_init_emc(NULL, 0);
+	}
 }
