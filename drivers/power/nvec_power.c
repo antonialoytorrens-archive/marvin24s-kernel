@@ -79,15 +79,14 @@ static int nvec_power_notifier(struct notifier_block *nb,
 
 	if(res->sub_type == 0)
 	{
-		if (power->on != res->status)
+		if (power->on != res->plu)
 		{
-			power->on = res->status;
+			power->on = res->plu;
 			power_supply_changed(&nvec_psy);
 		}
 		return NOTIFY_STOP;
 	}
-
-        return NOTIFY_OK;
+	return NOTIFY_OK;
 }
 
 static int nvec_power_bat_notifier(struct notifier_block *nb,
