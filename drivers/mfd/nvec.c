@@ -154,6 +154,7 @@ static void nvec_dispatch(struct work_struct *work)
 	while(!list_empty(&nvec->rx_data))
 	{
 		msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
+		list_del_init(&msg->node);
 
 		if(nvec->sync_write_pending == (msg->data[2] << 8) + msg->data[0])
 		{
@@ -162,7 +163,6 @@ static void nvec_dispatch(struct work_struct *work)
 			complete(&nvec->sync_write);
 		} else {
 			parse_msg(nvec, msg);
-			list_del_init(&msg->node);
 			if((!msg) || (!msg->data))
 				dev_warn(nvec->dev, "attempt access zero pointer");
 			else {
