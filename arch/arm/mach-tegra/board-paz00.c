@@ -476,7 +476,10 @@ static void __init tegra_paz00_init(void)
 	paz00_i2c_init();
 	paz00_power_init();
 	paz00_panel_init();
-	paz00_emc_init();
+
+/* This is still a bit unstable
+   leave it off for now
+	paz00_emc_init(); */
 	paz00_wifi_init();
 }
 
