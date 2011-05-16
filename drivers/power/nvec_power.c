@@ -328,8 +328,10 @@ static struct power_supply nvec_psy = {
 static int counter = 0;
 static int const bat_iter[] =
 {
-	SLOT_STATUS, VOLTAGE, TIME_REMAINING, CURRENT, AVERAGE_CURRENT,
-	CAPACITY_REMAINING, TEMPERATURE,
+	SLOT_STATUS, VOLTAGE, CURRENT, AVERAGE_CURRENT,
+#ifdef EC_FULL_DIAG
+	CAPACITY_REMAINING, TEMPERATURE, TIME_REMAINING,
+#endif
 };
 
 static void nvec_power_poll(struct work_struct *work)
@@ -353,7 +355,7 @@ static void nvec_power_poll(struct work_struct *work)
 
 //	printk("%02x %02x\n", buf[0], buf[1]);
 
-	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(2000));
+	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(5000));
 };
 
 static int __devinit nvec_power_probe(struct platform_device *pdev)
@@ -372,7 +374,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 		power->notifier.notifier_call = nvec_power_notifier;
 
 		INIT_DELAYED_WORK(&power->poller, nvec_power_poll);
-		schedule_delayed_work(&power->poller, msecs_to_jiffies(2000));
+		schedule_delayed_work(&power->poller, msecs_to_jiffies(5000));
 		break;
 	case BAT:
 		psy = &nvec_bat_psy;
