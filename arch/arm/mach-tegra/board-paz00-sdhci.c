@@ -58,13 +58,12 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data1 = {
 	.cd_gpio = PAZ00_SD1_CD,
 	.wp_gpio = PAZ00_SD1_WP,
 	.power_gpio = PAZ00_SD1_POWER,
-	.is_8bit = 1,
 };
 
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data4 = {
 	.cd_gpio = -1,  /* no card detect on emmc */
-	.wp_gpio = PAZ00_SD4_WP,
-	.power_gpio = PAZ00_SD4_POWER,
+	.wp_gpio = -1,
+	.power_gpio = -1,
 	.is_8bit = 1,
 };
 
