@@ -89,6 +89,24 @@ static int nvec_power_notifier(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
+static const int bat_init[] =
+{
+	LAST_FULL_CHARGE_CAPACITY, DESIGN_CAPACITY, CRITICAL_CAPACITY,
+	MANUFACTURER, MODEL, TYPE,
+};
+
+static void get_bat_mfg_data(struct nvec_power *power)
+{
+	int i;
+	char buf[] = { '\x02', '\x00' };
+
+	for (i = 0; i < ARRAY_SIZE(bat_init); i++)
+	{
+		buf[1] = bat_init[i];
+		nvec_write_async(power->nvec, buf, 2);
+	}
+}
+
 static int nvec_power_bat_notifier(struct notifier_block *nb,
 				 unsigned long event_type, void *data)
 {
@@ -102,9 +120,13 @@ static int nvec_power_bat_notifier(struct notifier_block *nb,
 	switch(res->sub_type)
 	{
 		case SLOT_STATUS:
-			if (res->plc[0] & 1) {
+			if (res->plc[0] & 1)
+			{
 				if (power->bat_present == 0)
+				{
 					status_changed = 1;
+					get_bat_mfg_data(power);
+				}
 
 				power->bat_present = 1;
 
@@ -334,19 +356,11 @@ static void nvec_power_poll(struct work_struct *work)
 	schedule_delayed_work(to_delayed_work(work), msecs_to_jiffies(2000));
 };
 
-static const int bat_init[] =
-{
-	LAST_FULL_CHARGE_CAPACITY, DESIGN_CAPACITY, CRITICAL_CAPACITY,
-	MANUFACTURER, MODEL, TYPE,
-};
-
 static int __devinit nvec_power_probe(struct platform_device *pdev)
 {
 	struct power_supply *psy;
 	struct nvec_power *power = kzalloc(sizeof(struct nvec_power), GFP_NOWAIT);
 	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
-	char buf[] = { '\x02', '\x00' };
-	int i;
 
 	dev_set_drvdata(&pdev->dev, power);
 	power->nvec = nvec;
@@ -373,11 +387,7 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 	nvec_register_notifier(nvec, &power->notifier, NVEC_SYS);
 
 	if (pdev->id == BAT)
-		for (i = 0; i < ARRAY_SIZE(bat_init); i++)
-		{
-			buf[1] = bat_init[i];
-			nvec_write_async(power->nvec, buf, 2);
-		}
+		get_bat_mfg_data(power);
 
 	return power_supply_register(&pdev->dev, psy);
 }

@@ -65,6 +65,7 @@ struct nvec_chip {
 	struct work_struct rx_work, tx_work;
 	struct nvec_msg *rx, *tx;
 	struct completion sync_write;
+	spinlock_t list_lock;
 	u16 sync_write_pending;
 };
 
