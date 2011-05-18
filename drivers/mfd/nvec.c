@@ -21,6 +21,7 @@
 #include <mach/iomap.h>
 #include <mach/clk.h>
 #include <linux/mfd/nvec.h>
+#include <linux/semaphore.h>
 #include <linux/list.h>
 #include <linux/notifier.h>
 #include <linux/workqueue.h>
@@ -82,7 +83,6 @@ static void nvec_request_master(struct work_struct *work)
 	}
 }
 
-
 static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
 	int i;
@@ -108,12 +108,16 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 
 static struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec, unsigned char *data, short size)
 {
+	down(&nvec->sync_write_mutex);
+
 	nvec->sync_write_pending = (data[1] << 8) + data[0];
 	nvec_write_async(nvec, data, size);
 
 	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n", nvec->sync_write_pending);
 	wait_for_completion(&nvec->sync_write);
 	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
+
+	up(&nvec->sync_write_mutex);
 
 	return nvec->last_sync_msg;
 }
@@ -359,6 +363,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
 	init_completion(&nvec->sync_write);
+	sema_init(&nvec->sync_write_mutex, 1);
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_LIST_HEAD(&nvec->rx_data);
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);

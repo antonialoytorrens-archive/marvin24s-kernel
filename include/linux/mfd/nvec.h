@@ -1,6 +1,8 @@
 #ifndef __LINUX_MFD_NVEC
 #define __LINUX_MFD_NVEC
 
+#include <linux/semaphore.h>
+
 typedef enum {
 	NVEC_2BYTES,
 	NVEC_3BYTES,
@@ -64,8 +66,10 @@ struct nvec_chip {
 	struct notifier_block nvec_status_notifier;
 	struct work_struct rx_work, tx_work;
 	struct nvec_msg *rx, *tx;
+
+/* sync write stuff */
+	struct semaphore sync_write_mutex;
 	struct completion sync_write;
-	spinlock_t list_lock;
 	u16 sync_write_pending;
 	struct nvec_msg *last_sync_msg;
 };
