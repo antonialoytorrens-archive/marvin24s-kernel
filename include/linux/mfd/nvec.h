@@ -67,6 +67,7 @@ struct nvec_chip {
 	struct completion sync_write;
 	spinlock_t list_lock;
 	u16 sync_write_pending;
+	struct nvec_msg *last_sync_msg;
 };
 
 extern void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size);

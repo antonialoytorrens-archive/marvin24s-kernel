@@ -42,28 +42,14 @@ EXPORT_SYMBOL_GPL(nvec_register_notifier);
 static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_type,
 				void *data)
 {
-	unsigned char tmp, *msg = (unsigned char *)data;
-	struct nvec_chip *nvec = container_of(nb, struct nvec_chip, nvec_status_notifier);
+	unsigned char *msg = (unsigned char *)data;
 	int i;
 
 	if(event_type != NVEC_CNTL)
 		return NOTIFY_DONE;
 
-/* 1st byte is ctrl, 2nd is len => swap it */
-	tmp = msg[0];
-	msg[0] = msg[1];
-	msg[1] = tmp;
-
-	if(!strncmp(&msg[1],
-		    EC_GET_FIRMWARE_VERSION,
-				sizeof(EC_GET_FIRMWARE_VERSION))) {
-		dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
-			msg[4], msg[5], msg[6], msg[7]);
-		return NOTIFY_OK;
-	}
-
 	printk("unhandled msg type %ld, payload: ", event_type);
-	for (i = 0; i < msg[0]; i++)
+	for (i = 0; i < msg[1]; i++)
 		printk("%0x ", msg[i+2]);
 	printk("\n");
 
@@ -120,31 +106,16 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 	return 0;
 }
 
-static int nvec_write_sync(struct nvec_chip *nvec, unsigned char *data, short size, struct nvec_msg *response)
+static struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec, unsigned char *data, short size)
 {
-	struct nvec_msg *msg;
-
-	if(!response)
-		return -1;
-
 	nvec->sync_write_pending = (data[1] << 8) + data[0];
 	nvec_write_async(nvec, data, size);
+
 	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n", nvec->sync_write_pending);
-
 	wait_for_completion(&nvec->sync_write);
-
 	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
 
-	msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
-
-	memcpy(response, msg, sizeof(struct nvec_msg));
-	memcpy(response->data, msg->data, msg->size);
-
-	list_del_init(&msg->node);
-	kfree(msg->data);
-	kfree(msg);
-
-	return 0;
+	return nvec->last_sync_msg;
 }
 
 /* RX worker */
@@ -162,6 +133,7 @@ static void nvec_dispatch(struct work_struct *work)
 		{
 			dev_dbg(nvec->dev, "sync write completed!\n");
 			nvec->sync_write_pending = 0;
+			nvec->last_sync_msg = msg;
 			complete(&nvec->sync_write);
 		} else {
 			parse_msg(nvec, msg);
@@ -412,15 +384,12 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec_power_handle = nvec;
 	pm_power_off = nvec_power_off;
 
-	msg = kzalloc(sizeof(struct nvec_msg), GFP_KERNEL);
-	msg->data = kzalloc(32, GFP_KERNEL);
-
 	/* Get Firmware Version */
-	nvec_write_async(nvec, EC_GET_FIRMWARE_VERSION,
+	msg = nvec_write_sync(nvec, EC_GET_FIRMWARE_VERSION,
 		sizeof(EC_GET_FIRMWARE_VERSION));
 
-//	dev_warn(nvec->dev, "firmware: %02x %02x %02x %02x\n", msg->data[0],
-//			msg->data[1], msg->data[2], msg->data[3]);
+	dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
+			msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
 
 	kfree(msg->data);
 	kfree(msg);
