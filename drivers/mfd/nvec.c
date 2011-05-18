@@ -30,6 +30,8 @@ static unsigned char EC_DISABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x00'};
 static unsigned char EC_ENABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x01'};
 static unsigned char EC_GET_FIRMWARE_VERSION[] =	{'\x07','\x15'};
 
+static struct nvec_chip *nvec_power_handle;
+
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 				unsigned int events)
 {
@@ -316,6 +318,12 @@ static void tegra_init_i2c_slave(struct nvec_platform_data *pdata, unsigned char
 	clk_disable(i2c_clk);
 }
 
+static void nvec_power_off(void)
+{
+	nvec_write_async(nvec_power_handle, EC_DISABLE_EVENT_REPORTING, 3);
+	nvec_write_async(nvec_power_handle, "\x04\x01", 2);
+}
+
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
 	int err, i, ret;
@@ -400,6 +408,9 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
+
+	nvec_power_handle = nvec;
+	pm_power_off = nvec_power_off;
 
 	msg = kzalloc(sizeof(struct nvec_msg), GFP_KERNEL);
 	msg->data = kzalloc(32, GFP_KERNEL);
