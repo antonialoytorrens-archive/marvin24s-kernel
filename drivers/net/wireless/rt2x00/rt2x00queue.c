@@ -735,7 +735,6 @@ bool rt2x00queue_for_each_entry(struct data_queue *queue,
 				bool (*fn)(struct queue_entry *entry,
 					   void *data))
 {
-	unsigned long irqflags;
 	unsigned int index_start;
 	unsigned int index_end;
 	unsigned int i;
@@ -753,10 +752,10 @@ bool rt2x00queue_for_each_entry(struct data_queue *queue,
 	 * it should not be kicked during this run, since it
 	 * is part of another TX operation.
 	 */
-	spin_lock_irqsave(&queue->index_lock, irqflags);
+	spin_lock_bh(&queue->index_lock);
 	index_start = queue->index[start];
 	index_end = queue->index[end];
-	spin_unlock_irqrestore(&queue->index_lock, irqflags);
+	spin_unlock_bh(&queue->index_lock);
 
 	/*
 	 * Start from the TX done pointer, this guarentees that we will
@@ -787,7 +786,6 @@ struct queue_entry *rt2x00queue_get_entry(struct data_queue *queue,
 					  enum queue_index index)
 {
 	struct queue_entry *entry;
-	unsigned long irqflags;
 
 	if (unlikely(index >= Q_INDEX_MAX)) {
 		ERROR(queue->rt2x00dev,
@@ -795,11 +793,11 @@ struct queue_entry *rt2x00queue_get_entry(struct data_queue *queue,
 		return NULL;
 	}
 
-	spin_lock_irqsave(&queue->index_lock, irqflags);
+	spin_lock_bh(&queue->index_lock);
 
 	entry = &queue->entries[queue->index[index]];
 
-	spin_unlock_irqrestore(&queue->index_lock, irqflags);
+	spin_unlock_bh(&queue->index_lock);
 
 	return entry;
 }
@@ -808,7 +806,6 @@ EXPORT_SYMBOL_GPL(rt2x00queue_get_entry);
 void rt2x00queue_index_inc(struct queue_entry *entry, enum queue_index index)
 {
 	struct data_queue *queue = entry->queue;
-	unsigned long irqflags;
 
 	if (unlikely(index >= Q_INDEX_MAX)) {
 		ERROR(queue->rt2x00dev,
@@ -816,7 +813,7 @@ void rt2x00queue_index_inc(struct queue_entry *entry, enum queue_index index)
 		return;
 	}
 
-	spin_lock_irqsave(&queue->index_lock, irqflags);
+	spin_lock_bh(&queue->index_lock);
 
 	queue->index[index]++;
 	if (queue->index[index] >= queue->limit)
@@ -831,7 +828,7 @@ void rt2x00queue_index_inc(struct queue_entry *entry, enum queue_index index)
 		queue->count++;
 	}
 
-	spin_unlock_irqrestore(&queue->index_lock, irqflags);
+	spin_unlock_bh(&queue->index_lock);
 }
 
 void rt2x00queue_pause_queue(struct data_queue *queue)
@@ -1031,10 +1028,9 @@ EXPORT_SYMBOL_GPL(rt2x00queue_flush_queues);
 
 static void rt2x00queue_reset(struct data_queue *queue)
 {
-	unsigned long irqflags;
 	unsigned int i;
 
-	spin_lock_irqsave(&queue->index_lock, irqflags);
+	spin_lock_bh(&queue->index_lock);
 
 	queue->count = 0;
 	queue->length = 0;
@@ -1042,7 +1038,7 @@ static void rt2x00queue_reset(struct data_queue *queue)
 	for (i = 0; i < Q_INDEX_MAX; i++)
 		queue->index[i] = 0;
 
-	spin_unlock_irqrestore(&queue->index_lock, irqflags);
+	spin_unlock_bh(&queue->index_lock);
 }
 
 void rt2x00queue_init_queues(struct rt2x00_dev *rt2x00dev)
