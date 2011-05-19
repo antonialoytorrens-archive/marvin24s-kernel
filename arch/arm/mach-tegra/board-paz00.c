@@ -25,6 +25,9 @@
 #include <linux/dma-mapping.h>
 #include <linux/pda_power.h>
 #include <linux/io.h>
+#include <linux/i2c.h>
+#include <linux/i2c-tegra.h>
+#include <linux/platform_data/tegra_usb.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -34,6 +37,8 @@
 #include <mach/iomap.h>
 #include <mach/irqs.h>
 #include <mach/sdhci.h>
+#include <mach/usb_phy.h>
+#include <mach/gpio.h>
 
 #include "board.h"
 #include "board-paz00.h"
@@ -66,9 +71,61 @@ static struct platform_device debug_uart = {
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_sdhci_device1,
-	&tegra_sdhci_device2,
 	&tegra_sdhci_device4,
 };
+
+static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
+	.bus_clk_rate   = 400000,
+};
+
+static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
+	.bus_clk_rate   = 400000,
+};
+
+static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
+	.bus_clk_rate   = 400000,
+};
+
+static void paz00_i2c_init(void)
+{
+	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
+	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
+	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
+
+	platform_device_register(&tegra_i2c_device1);
+	platform_device_register(&tegra_i2c_device2);
+	platform_device_register(&tegra_i2c_device4);
+}
+
+static struct tegra_ulpi_config ulpi_phy_config = {
+		.reset_gpio = TEGRA_ULPI_RST,
+		.clk = "cdev2",
+};
+
+static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
+		[0] = {
+			.operating_mode = TEGRA_USB_OTG,
+			.power_down_on_bus_suspend = 1,
+		},
+		[1] = {
+			.phy_config = &ulpi_phy_config,
+			.operating_mode = TEGRA_USB_HOST,
+			.power_down_on_bus_suspend = 1,
+		},
+		[2] = {
+			.operating_mode = TEGRA_USB_HOST,
+			.power_down_on_bus_suspend = 1,
+		},
+};
+
+static void paz00_usb_init(void)
+{
+	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
+	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
+
+	platform_device_register(&tegra_ehci2_device);
+	platform_device_register(&tegra_ehci3_device);
+}
 
 static void __init tegra_paz00_fixup(struct machine_desc *desc,
 	struct tag *tags, char **cmdline, struct meminfo *mi)
@@ -78,12 +135,32 @@ static void __init tegra_paz00_fixup(struct machine_desc *desc,
 	mi->bank[0].size = 448 * SZ_1M;
 }
 
+static void __init paz00_wifi_init(void)
+{
+	int ret;
+
+	/* unlock hw rfkill */
+	ret = gpio_request_one(TEGRA_WIFI_PWRN, GPIOF_OUT_INIT_HIGH,
+			"wifi_pwrn");
+	if(ret) {
+		pr_warning("WIFI: could not request PWRN gpio!\n");
+		return;
+	}
+	gpio_export(TEGRA_WIFI_PWRN, 0);
+
+	/* export wifi led */
+	ret = gpio_request_one(TEGRA_WIFI_LED, GPIOF_OUT_INIT_HIGH,
+			"wifi_led");
+	if(ret)
+		pr_warning("WIFI: could not request LED gpio!\n");
+	gpio_export(TEGRA_WIFI_LED, 0);
+}
+
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "uartd",	"pll_p",	216000000,	true },
 	{ NULL,		NULL,		0,		0},
 };
-
 
 static struct tegra_sdhci_platform_data sdhci_pdata1 = {
 	.cd_gpio	= TEGRA_GPIO_SD1_CD,
@@ -91,16 +168,10 @@ static struct tegra_sdhci_platform_data sdhci_pdata1 = {
 	.power_gpio	= TEGRA_GPIO_SD1_POWER,
 };
 
-static struct tegra_sdhci_platform_data sdhci_pdata2 = {
+static struct tegra_sdhci_platform_data sdhci_pdata4 = {
 	.cd_gpio	= -1,
 	.wp_gpio	= -1,
 	.power_gpio	= -1,
-};
-
-static struct tegra_sdhci_platform_data sdhci_pdata4 = {
-	.cd_gpio	= TEGRA_GPIO_SD4_CD,
-	.wp_gpio	= TEGRA_GPIO_SD4_WP,
-	.power_gpio	= TEGRA_GPIO_SD4_POWER,
 	.is_8bit	= 1,
 };
 
@@ -111,13 +182,16 @@ static void __init tegra_paz00_init(void)
 	paz00_pinmux_init();
 
 	tegra_sdhci_device1.dev.platform_data = &sdhci_pdata1;
-	tegra_sdhci_device2.dev.platform_data = &sdhci_pdata2;
 	tegra_sdhci_device4.dev.platform_data = &sdhci_pdata4;
 
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
+
+	paz00_i2c_init();
+	paz00_usb_init();
+	paz00_wifi_init();
 }
 
-MACHINE_START(PAZ00, "paz00")
+MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 	.boot_params	= 0x00000100,
 	.fixup		= tegra_paz00_fixup,
 	.map_io         = tegra_map_common_io,
