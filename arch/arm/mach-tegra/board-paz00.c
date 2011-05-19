@@ -150,9 +150,17 @@ static void paz00_i2c_init(void)
 
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
+	&tegra_pmu_device,
+	&tegra_rtc_device,
 	&nvec_mfd,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
+	&tegra_spi_device1,
+	&tegra_spi_device2,
+	&tegra_spi_device3,
+	&tegra_spi_device4,
+	&tegra_gart_device,
+	&tegra_avp_device,
 };
 
 static struct tegra_ulpi_config ulpi_phy_config = {
