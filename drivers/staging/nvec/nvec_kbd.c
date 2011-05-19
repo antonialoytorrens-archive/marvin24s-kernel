@@ -2,7 +2,7 @@
 #include <linux/input.h>
 #include <linux/delay.h>
 #include "nvec-keytable.h"
-#include <linux/mfd/nvec.h>
+#include "nvec.h"
 
 #define ACK_KBD_EVENT {'\x05','\xed','\x01'}
 

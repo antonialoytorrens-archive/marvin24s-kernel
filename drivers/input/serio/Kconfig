@@ -226,13 +226,6 @@ config SERIO_AMS_DELTA
 	  To compile this driver as a module, choose M here;
 	  the module will be called ams_delta_serio.
 
-config SERIO_NVEC_PS2
-	bool "PS2 on nVidia EC"
-	depends on MFD_NVEC
-	help
-	  Say Y here to enable support for a Touchpad / Mouse connected
-	  to a nVidia compliant embedded controller.
-
 config SERIO_PS2MULT
 	tristate "TQC PS/2 multiplexer"
 	help

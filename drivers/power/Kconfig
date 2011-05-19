@@ -195,11 +195,4 @@ config CHARGER_GPIO
 	  This driver can be build as a module. If so, the module will be
 	  called gpio-charger.
 
-config	NVEC_POWER
-	bool "NVEC charger and battery"
-	depends on MFD_NVEC
-	help
-	  Say Y to enable support for battery and charger interface for
-	  nVidia compliant embedded controllers.
-
 endif # POWER_SUPPLY
