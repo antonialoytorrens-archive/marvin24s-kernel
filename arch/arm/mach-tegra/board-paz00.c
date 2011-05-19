@@ -45,6 +45,7 @@
 #include "clock.h"
 #include "devices.h"
 #include "gpio-names.h"
+#include "../../../drivers/staging/nvec/nvec.h"
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
@@ -66,12 +67,6 @@ static struct platform_device debug_uart = {
 	.dev = {
 		.platform_data = debug_uart_platform_data,
 	},
-};
-
-static struct platform_device *paz00_devices[] __initdata = {
-	&debug_uart,
-	&tegra_sdhci_device1,
-	&tegra_sdhci_device4,
 };
 
 static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
@@ -100,6 +95,41 @@ static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
 	.slave_addr	= 0xfc,
 };
 
+static struct nvec_subdev paz00_nvec_subdevs[] = {
+	{
+		.name = "nvec-kbd",
+	},
+	{
+		.name = "nvec-ps2",
+	},
+	{
+		.name = "nvec-power",
+		.id = 0,
+	},
+	{
+		.name = "nvec-power",
+		.id = 1,
+	}
+};
+
+static struct nvec_platform_data nvec_mfd_platform_data = {
+	.i2c_addr	= 0x8a,
+	.gpio		= TEGRA_NVEC_REQ,
+	.irq		= INT_I2C3,
+	.base		= TEGRA_I2C3_BASE,
+	.size		= TEGRA_I2C3_SIZE,
+	.clock		= "tegra-i2c.2",
+	.subdevs	= paz00_nvec_subdevs,
+	.num_subdevs	= ARRAY_SIZE(paz00_nvec_subdevs),
+};
+
+static struct platform_device nvec_mfd = {
+	.name = "nvec",
+	.dev = {
+		.platform_data = &nvec_mfd_platform_data,
+	},
+};
+
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
@@ -117,6 +147,13 @@ static void paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device4);
 }
+
+static struct platform_device *paz00_devices[] __initdata = {
+	&debug_uart,
+	&nvec_mfd,
+	&tegra_sdhci_device4,
+	&tegra_sdhci_device1,
+};
 
 static struct tegra_ulpi_config ulpi_phy_config = {
 		.reset_gpio = TEGRA_ULPI_RST,
