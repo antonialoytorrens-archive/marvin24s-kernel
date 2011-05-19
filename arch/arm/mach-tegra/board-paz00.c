@@ -267,8 +267,27 @@ static void paz00_i2c_init(void)
 	i2c_register_board_info(0, &alc5632_board_info, 1);
 
 	i2c_register_board_info(4, &atd7461_board_info, 1);
-
 }
+
+static struct resource tegra_rtc_resources[] = {
+	[0] = {
+		.start = TEGRA_RTC_BASE,
+		.end = TEGRA_RTC_BASE + TEGRA_RTC_SIZE - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = INT_RTC,
+		.end = INT_RTC,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device tegra_rtc_device = {
+	.name = "tegra_rtc",
+	.id   = -1,
+	.resource = tegra_rtc_resources,
+	.num_resources = ARRAY_SIZE(tegra_rtc_resources),
+};
 
 /* set wifi power gpio */
 static void __init paz00_wifi_init(void)
@@ -316,6 +335,7 @@ static void __init paz00_wifi_init(void)
 
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
+	&tegra_rtc_device,
 	&pmu_device,
 	&tegra_udc_device,
 //	&tegra_ehci1_device,
