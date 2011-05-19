@@ -75,15 +75,15 @@ static struct platform_device *paz00_devices[] __initdata = {
 };
 
 static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
-	.bus_clk_rate   = 400000,
+	.bus_clk_rate   = { 400000, 0 }
 };
 
 static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
-	.bus_clk_rate   = 400000,
+	.bus_clk_rate   = { 400000, 0 }
 };
 
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
-	.bus_clk_rate   = 400000,
+	.bus_clk_rate   = { 400000, 0 }
 };
 
 static void paz00_i2c_init(void)
@@ -187,6 +187,8 @@ static void __init tegra_paz00_init(void)
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
 	paz00_i2c_init();
+	paz00_power_init();
+	paz00_panel_init();
 	paz00_usb_init();
 	paz00_wifi_init();
 }
