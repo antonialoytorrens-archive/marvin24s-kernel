@@ -597,13 +597,6 @@ config MFD_TPS6586X
 	  This driver can also be built as a module.  If so, the module
 	  will be called tps6586x.
 
-config MFD_NVEC
-	bool "NV Tegra Embedded Controller SMBus Interface"
-	depends on I2C && GPIOLIB && ARCH_TEGRA
-	help
-	    Say Y here to enable support for a nVidia compliant embedded
-	    controller.
-
 config MFD_VX855
 	tristate "Support for VIA VX855/VX875 integrated south bridge"
 	depends on PCI

@@ -1,7 +1,7 @@
 #include <linux/slab.h>
 #include <linux/serio.h>
-#include <linux/mfd/nvec.h>
 #include <linux/delay.h>
+#include "nvec.h"
 
 #define START_STREAMING	{'\x06','\x03','\x01'}
 #define STOP_STREAMING	{'\x06','\x04'}

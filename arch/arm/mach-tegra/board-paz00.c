@@ -25,7 +25,7 @@
 #include <linux/io.h>
 #include <linux/tegra_usb.h>
 #include <linux/fsl_devices.h>
-#include <linux/mfd/nvec.h>
+#include "../../../drivers/staging/nvec/nvec.h"
 #include <linux/gpio.h>
 
 #include <sound/alc5632.h>

@@ -1,8 +1,6 @@
 // #define DEBUG
 
 /* ToDo list (incomplete, unorderd)
-	- add nvec_sync_write
-	- move parse_msg out of the interrupt (e.g. add rx workqueue)
 	- convert mouse, keyboard, and power to platform devices
 */
 
@@ -20,12 +18,12 @@
 #include <linux/clk.h>
 #include <mach/iomap.h>
 #include <mach/clk.h>
-#include <linux/mfd/nvec.h>
 #include <linux/semaphore.h>
 #include <linux/list.h>
 #include <linux/notifier.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
+#include "nvec.h"
 
 static unsigned char EC_DISABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x00'};
 static unsigned char EC_ENABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x01'};

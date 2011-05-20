@@ -2,10 +2,10 @@
 #include <linux/platform_device.h>
 #include <linux/err.h>
 #include <linux/power_supply.h>
-#include <linux/mfd/nvec.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/delay.h>
+#include "nvec.h"
 
 struct nvec_power
 {
