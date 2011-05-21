@@ -63,12 +63,15 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 	msg->data[0] = size;
 	memcpy(msg->data + 1, data, size);
 	msg->size = size + 1;
-	msg->pos = 0;
-	INIT_LIST_HEAD(&msg->node);
 
 	list_add_tail(&msg->node, &nvec->tx_data);
 
-	gpio_set_value(nvec->gpio, 0);
+	/* don't assert on pings,
+	   because transfer has already started in ISR*/
+	if ( !( (msg->data[0] == 2) &&
+		(msg->data[1] == 7) &&
+		(msg->data[2] == 2) ) )
+		gpio_set_value(nvec->gpio, 0);
 }
 EXPORT_SYMBOL(nvec_write_async);
 
@@ -154,66 +157,65 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 	unsigned long status;
 	unsigned long received;
 	unsigned char to_send;
+	unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
+	unsigned long flags;
 	struct nvec_msg *msg;
 	struct nvec_chip *nvec = (struct nvec_chip *)dev;
 	unsigned char *i2c_regs = nvec->i2c_regs;
 
 	status = readl(i2c_regs + I2C_SL_STATUS);
 
-	if(!(status & I2C_SL_IRQ))
+	if(!(status & irq_mask) && !((status & ~irq_mask) == 0))
 	{
 		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
 		//Yup, handled. ahum.
 		goto handled;
 	}
+
+	/* end of ec -> t20 transfer */
 	if(status & END_TRANS && !(status & RCVD))
 	{
-		//Reenable IRQ only when even has been sent
-		//printk("Write sequence ended !\n");
-                //parse_msg(nvec);
 		nvec->state = NVEC_WAIT;
 		if(nvec->rx->size > 1)
 		{
 			list_add_tail(&nvec->rx->node, &nvec->rx_data);
 			schedule_work(&nvec->rx_work);
 		} else {
+		/* only READ_REQUEST_CMD */
 			kfree(nvec->rx->data);
 			kfree(nvec->rx);
 		}
 		return IRQ_HANDLED;
-	} else if(status & RNW)
+	} else if(status & RNW) /* ec <- t20 transfer */
 	{
-		// Work around for AP20 New Slave Hw Bug. Give 1us extra.
-		// nvec/smbus/nvec_i2c_transport.c in NV`s crap for reference
-		if(status & RCVD)
-			udelay(3);
-
-		if(status & RCVD)
-		{
-			nvec->state = NVEC_WRITE;
-			//Master wants something from us. New communication
-//			dev_dbg(nvec->dev, "New read comm!\n");
-		} else {
-			//Master wants something from us from a communication we've already started
-//			dev_dbg(nvec->dev, "Read comm cont !\n");
-		}
-		//if(msg_pos<msg_size) {
-		if(list_empty(&nvec->tx_data))
-		{
+		if(list_empty(&nvec->tx_data)) {
 			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
 			to_send = 0x8a;
 			nvec_write_async(nvec, "\x07\x02", 2);
-//			to_send = 0x01;
 		} else {
+			if(status & RCVD)
+			{
+				/* Work around for AP20 New Slave Hw Bug. Give 1us extra ???
+				   nvec/smbus/nvec_i2c_transport.c in NV`s crap for reference
+				   ((1000 / 80) / 2) + 1 = 33 */
+				udelay(33);
+				nvec->state = NVEC_WRITE;
+				//Master wants something from us. New communication
+//					dev_dbg(nvec->dev, "New read comm!\n");
+			} else {
+				//Master wants something from us from a communication we've already started
+//					dev_dbg(nvec->dev, "Read comm cont !\n");
+			}
 			msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
 			if(msg->pos < msg->size) {
 				to_send = msg->data[msg->pos];
 				msg->pos++;
 			} else {
-				dev_err(nvec->dev, "nvec crap! %d\n", msg->size);
-				to_send = 0x01;
+				dev_err(nvec->dev, "tx buffer overflow %d\n", msg->size);
+				to_send = 0xff;
 			}
 
+			/* cleanup after transfer complete */
 			if(msg->pos >= msg->size)
 			{
 				list_del_init(&msg->node);
@@ -225,19 +227,25 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		}
 		writel(to_send, i2c_regs + I2C_SL_RCVD);
 
-		gpio_set_value(nvec->gpio, 1);
+		if(status & RCVD)
+			gpio_set_value(nvec->gpio, 1);
 
 		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
 
 		goto handled;
+	/* ec -> t20 transfer */
 	} else {
-		received = readl(i2c_regs + I2C_SL_RCVD);
-		//Workaround?
-		if(status & RCVD) {
+		if (status & RCVD)
+		{
+			local_irq_save(flags);
+			received = readl(i2c_regs + I2C_SL_RCVD);
 			writel(0, i2c_regs + I2C_SL_RCVD);
+			local_irq_restore(flags);
 			goto handled;
-		}
+		} else
+			received = readl(i2c_regs + I2C_SL_RCVD);
 
+		/* new transfer? */
 		if (nvec->state == NVEC_WAIT)
 		{
 			nvec->state = NVEC_READ;
