@@ -335,7 +335,7 @@ static void __init paz00_wifi_init(void)
 
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
-	&tegra_rtc_device,
+//	&tegra_rtc_device,
 	&pmu_device,
 	&tegra_udc_device,
 //	&tegra_ehci1_device,
