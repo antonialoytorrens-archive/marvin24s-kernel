@@ -27,6 +27,7 @@
 #include <linux/fsl_devices.h>
 #include "../../../drivers/staging/nvec/nvec.h"
 #include <linux/gpio.h>
+#include <linux/leds.h>
 
 #include <sound/alc5632.h>
 
@@ -289,48 +290,38 @@ static struct platform_device tegra_rtc_device = {
 	.num_resources = ARRAY_SIZE(tegra_rtc_resources),
 };
 
+static struct gpio_led gpio_leds[] = {
+	{
+		.name			= "wifi-led",
+		.default_trigger	= "rfkill0",
+		.gpio			= PAZ00_WIFI_LED,
+	},
+};
+
+static struct gpio_led_platform_data gpio_led_info = {
+	.leds		= gpio_leds,
+	.num_leds	= ARRAY_SIZE(gpio_leds),
+};
+
+static struct platform_device leds_gpio = {
+	.name   = "leds-gpio",
+	.id     = -1,
+	.dev    = {
+		.platform_data  = &gpio_led_info,
+	},
+};
+
 /* set wifi power gpio */
 static void __init paz00_wifi_init(void)
 {
 	int ret;
 
-/* unlock hw rfkill */
-
-	tegra_gpio_enable(PAZ00_WIFI_PWRN);
-
-	ret = gpio_request(PAZ00_WIFI_PWRN, "wlan_pwrn");
+	/* unlock hw rfkill */
+	ret = gpio_request_one(PAZ00_WIFI_PWRN, GPIOF_OUT_INIT_HIGH, "wifi_pwrn");
 	if (ret) {
 		pr_warning("WIFI: could not request WIFI PWR gpio!\n");
 		return;
 	}
-
-	ret = gpio_direction_output(PAZ00_WIFI_PWRN, 0);
-	if (ret) {
-		pr_warning("WIFI: could not set WIFI PWR gpio direction!\n");
-		return;
-	}
-
-	gpio_set_value(PAZ00_WIFI_PWRN, 1);
-	gpio_free(PAZ00_WIFI_PWRN);
-
-/* Light up the LED */
-
-	tegra_gpio_enable(PAZ00_WIFI_LED);
-
-	ret = gpio_request(PAZ00_WIFI_LED, "wlan_led");
-	if (ret) {
-		pr_warning("WIFI: could not request WIFI LED gpio!\n");
-		return;
-	}
-
-	ret = gpio_direction_output(PAZ00_WIFI_LED, 0);
-	if (ret) {
-		pr_warning("WIFI: could not set WIFI LED gpio direction!\n");
-		return;
-	}
-
-	gpio_set_value(PAZ00_WIFI_LED, 1);
-	gpio_free(PAZ00_WIFI_LED);
 }
 
 static struct platform_device *paz00_devices[] __initdata = {
@@ -347,6 +338,7 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device4,
 	&tegra_gart_device,
 	&nvec_mfd,
+	&leds_gpio,
 	&tegra_i2s_device1,
 	&tegra_das_device,
 	&tegra_pcm_device,
