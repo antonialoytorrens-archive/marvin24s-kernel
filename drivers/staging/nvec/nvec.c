@@ -158,6 +158,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 	unsigned long received;
 	unsigned char to_send;
 	unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
+	unsigned long flags;
 	struct nvec_msg *msg;
 	struct nvec_chip *nvec = (struct nvec_chip *)dev;
 	unsigned char *i2c_regs = nvec->i2c_regs;
@@ -234,12 +235,15 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		goto handled;
 	/* ec -> t20 transfer */
 	} else {
-		received = readl(i2c_regs + I2C_SL_RCVD);
-		//Workaround?
-		if(status & RCVD) {
+		if (status & RCVD)
+		{
+			local_irq_save(flags);
+			received = readl(i2c_regs + I2C_SL_RCVD);
 			writel(0, i2c_regs + I2C_SL_RCVD);
+			local_irq_restore(flags);
 			goto handled;
-		}
+		} else
+			received = readl(i2c_regs + I2C_SL_RCVD);
 
 		/* new transfer? */
 		if (nvec->state == NVEC_WAIT)
