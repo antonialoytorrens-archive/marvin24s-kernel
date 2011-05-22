@@ -237,9 +237,7 @@ static int dr_controller_setup(struct fsl_udc *udc)
 #if !defined(CONFIG_ARCH_MXC) && !defined(CONFIG_ARCH_TEGRA)
 	unsigned int ctrl;
 #endif
-#ifdef CONFIG_ARCH_TEGRA
 	unsigned long timeout;
-#endif
 	int status;
 
 	/* Config PHY interface */
