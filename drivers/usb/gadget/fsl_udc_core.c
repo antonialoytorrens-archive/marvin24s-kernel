@@ -2096,11 +2096,7 @@ EXPORT_SYMBOL(usb_gadget_unregister_driver);
 
 #include <linux/seq_file.h>
 
-#ifdef CONFIG_ARCH_TEGRA
-static const char proc_filename[] = "driver/fsl_tegra_udc";
-#else
 static const char proc_filename[] = "driver/fsl_usb2_udc";
-#endif
 
 static int fsl_proc_read(char *page, char **start, off_t off, int count,
 		int *eof, void *_dev)
