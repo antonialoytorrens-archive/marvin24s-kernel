@@ -834,7 +834,6 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 	struct fsl_udc *udc = ep->udc;
 	unsigned long flags;
 	enum dma_data_direction dir;
-	int is_iso = 0;
 	int status;
 
 	/* catch various bogus parameters */
@@ -857,7 +856,6 @@ fsl_ep_queue(struct usb_ep *_ep, struct usb_request *_req, gfp_t gfp_flags)
 			spin_unlock_irqrestore(&udc->lock, flags);
 			return -EMSGSIZE;
 		}
-		is_iso = 1;
 	}
 
 	dir = ep_is_in(ep) ? DMA_TO_DEVICE : DMA_FROM_DEVICE;
