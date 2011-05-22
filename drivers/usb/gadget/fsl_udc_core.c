@@ -48,22 +48,14 @@
 
 #include "fsl_usb2_udc.h"
 
-#ifdef CONFIG_ARCH_TEGRA
-#define	DRIVER_DESC	"NVidia Tegra High-Speed USB SOC Device Controller driver"
-#else
 #define	DRIVER_DESC	"Freescale High-Speed USB SOC Device Controller driver"
-#endif
 #define	DRIVER_AUTHOR	"Li Yang/Jiang Bo"
 #define	DRIVER_VERSION	"Apr 20, 2007"
 
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 #define	STATUS_BUFFER_SIZE	8
 
-#ifdef CONFIG_ARCH_TEGRA
-static const char driver_name[] = "fsl-tegra-udc";
-#else
 static const char driver_name[] = "fsl-usb2-udc";
-#endif
 static const char driver_desc[] = DRIVER_DESC;
 
 static struct usb_dr_device *dr_regs;
