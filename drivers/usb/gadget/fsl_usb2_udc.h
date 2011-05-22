@@ -472,7 +472,6 @@ struct fsl_ep {
 
 	char name[14];
 	unsigned stopped:1;
-	unsigned workaround;
 };
 
 #define EP_DIR_IN	1
@@ -485,6 +484,7 @@ struct fsl_udc {
 	struct fsl_ep *eps;
 	unsigned int max_ep;
 	unsigned int irq;
+	unsigned workaround;
 
 	struct usb_ctrlrequest local_setup_buff;
 	spinlock_t lock;
