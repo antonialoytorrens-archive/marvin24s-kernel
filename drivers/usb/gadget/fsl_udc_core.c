@@ -348,8 +348,6 @@ static void dr_controller_run(struct fsl_udc *udc)
 			cpu_relax();
 		}
 	}
-
-	return;
 }
 
 static void dr_controller_stop(struct fsl_udc *udc)
@@ -488,9 +486,6 @@ static void ep0_setup(struct fsl_udc *udc)
 			USB_MAX_CTRL_PAYLOAD, 0, 0);
 	dr_ep_setup(0, USB_RECV, USB_ENDPOINT_XFER_CONTROL);
 	dr_ep_setup(0, USB_SEND, USB_ENDPOINT_XFER_CONTROL);
-
-	return;
-
 }
 
 /***********************************************************************
