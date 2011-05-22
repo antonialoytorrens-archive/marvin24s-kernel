@@ -319,14 +319,13 @@ static int dr_controller_setup(struct fsl_udc *udc)
 	return 0;
 }
 
+#define FSL_UDC_RUN_TIMEOUT 1000
 /* Enable DR irq and set controller to run state */
 static void dr_controller_run(struct fsl_udc *udc)
 {
 	u32 temp;
-#ifdef CONFIG_ARCH_TEGRA
 	unsigned long timeout;
-#define FSL_UDC_RUN_TIMEOUT 1000
-#endif
+
 	/* Clear stopped bit */
 	udc->stopped = 0;
 
@@ -347,18 +346,18 @@ static void dr_controller_run(struct fsl_udc *udc)
 	temp |= USB_CMD_RUN_STOP;
 	fsl_writel(temp, &dr_regs->usbcmd);
 
-#ifdef CONFIG_ARCH_TEGRA
-	/* Wait for controller to start */
-	timeout = jiffies + FSL_UDC_RUN_TIMEOUT;
-	while ((fsl_readl(&dr_regs->usbcmd) & USB_CMD_RUN_STOP) !=
-	       USB_CMD_RUN_STOP) {
-		if (time_after(jiffies, timeout)) {
-			ERR("udc start timeout!\n");
-			return;
+	if(udc->workaround & FSL_USB2_WORKAROUND_RUN_TIMEOUT) {
+		/* Wait for controller to start */
+		timeout = jiffies + FSL_UDC_RUN_TIMEOUT;
+		while ((fsl_readl(&dr_regs->usbcmd) & USB_CMD_RUN_STOP) !=
+		       USB_CMD_RUN_STOP) {
+			if (time_after(jiffies, timeout)) {
+				ERR("udc start timeout!\n");
+				return;
+			}
+			cpu_relax();
 		}
-		cpu_relax();
 	}
-#endif
 
 	return;
 }

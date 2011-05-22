@@ -90,6 +90,7 @@ struct fsl_usb2_platform_data {
 #define FLS_USB2_WORKAROUND_ENGCM09152		(1 << 0)
 #define FSL_USB2_WORKAROUND_BUS_RESET		(1 << 1)
 #define FSL_USB2_WORKAROUND_SETUP_TIMEOUT	(1 << 2)
+#define FSL_USB2_WORKAROUND_RUN_TIMEOUT		(1 << 3)
 
 struct spi_device;
 
