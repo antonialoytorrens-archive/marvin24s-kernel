@@ -372,9 +372,12 @@ static struct resource tegra_usb3_resources[] = {
 
 static u64 tegra_udc_dmamask = DMA_BIT_MASK(32);
 
+/* When the bus reset is seen on Tegra, the PORTSCX_PORT_RESET bit
+ * is not set */
 static struct fsl_usb2_platform_data tegra_udc_pdata = {
 	.operating_mode	= FSL_USB2_DR_DEVICE,
 	.phy_mode	= FSL_USB2_PHY_UTMI,
+	.quirks		= FSL_QUIRK_BUS_RESET,
 };
 
 struct platform_device tegra_udc_device = {

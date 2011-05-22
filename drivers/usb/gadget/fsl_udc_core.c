@@ -1905,16 +1905,7 @@ static void reset_irq(struct fsl_udc *udc)
 	/* Write 1s to the flush register */
 	fsl_writel(0xffffffff, &dr_regs->endptflush);
 
-#if defined(CONFIG_ARCH_TEGRA)
-	/* When the bus reset is seen on Tegra, the PORTSCX_PORT_RESET bit
-	 * is not set */
-	VDBG("Bus reset");
-	/* Reset all the queues, include XD, dTD, EP queue
-	 * head and TR Queue */
-	reset_queues(udc);
-	udc->usb_state = USB_STATE_DEFAULT;
-#else
-	if (fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_RESET) {
+	if ((udc->quirks & FSL_QUIRK_BUS_RESET) || (fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_RESET)) {
 		VDBG("Bus reset");
 		/* Reset all the queues, include XD, dTD, EP queue
 		 * head and TR Queue */
@@ -1935,7 +1926,6 @@ static void reset_irq(struct fsl_udc *udc)
 		dr_controller_run(udc);
 		udc->usb_state = USB_STATE_ATTACHED;
 	}
-#endif
 }
 
 /*
@@ -2420,6 +2410,7 @@ static int __init struct_udc_setup(struct fsl_udc *udc,
 
 	pdata = pdev->dev.platform_data;
 	udc->phy_mode = pdata->phy_mode;
+	udc->quirks = pdata->quirks;
 
 	udc->eps = kzalloc(sizeof(struct fsl_ep) * udc->max_ep, GFP_KERNEL);
 	if (!udc->eps) {
