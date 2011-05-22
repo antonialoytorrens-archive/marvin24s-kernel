@@ -80,17 +80,15 @@ struct fsl_usb2_platform_data {
 	unsigned	invert_drvvbus:1;
 	unsigned	invert_pwr_fault:1;
 	void		*phy_config;
-	
-	unsigned	quirks;
 };
 
-#define FSL_QUIRK_BUS_RESET	0x01
 
 /* Flags in fsl_usb2_mph_platform_data */
 #define FSL_USB2_PORT0_ENABLED	0x00000001
 #define FSL_USB2_PORT1_ENABLED	0x00000002
 
 #define FLS_USB2_WORKAROUND_ENGCM09152	(1 << 0)
+#define FSL_USB2_WORKAROUND_BUS_RESET	(1 << 1)
 
 struct spi_device;
 

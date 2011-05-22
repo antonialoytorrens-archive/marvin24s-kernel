@@ -1905,7 +1905,7 @@ static void reset_irq(struct fsl_udc *udc)
 	/* Write 1s to the flush register */
 	fsl_writel(0xffffffff, &dr_regs->endptflush);
 
-	if ((udc->quirks & FSL_QUIRK_BUS_RESET) || (fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_RESET)) {
+	if ((udc->workaround & FSL_USB2_WORKAROUND_BUS_RESET) || (fsl_readl(&dr_regs->portsc1) & PORTSCX_PORT_RESET)) {
 		VDBG("Bus reset");
 		/* Reset all the queues, include XD, dTD, EP queue
 		 * head and TR Queue */
@@ -2410,7 +2410,7 @@ static int __init struct_udc_setup(struct fsl_udc *udc,
 
 	pdata = pdev->dev.platform_data;
 	udc->phy_mode = pdata->phy_mode;
-	udc->quirks = pdata->quirks;
+	udc->workaround = pdata->workaround;
 
 	udc->eps = kzalloc(sizeof(struct fsl_ep) * udc->max_ep, GFP_KERNEL);
 	if (!udc->eps) {

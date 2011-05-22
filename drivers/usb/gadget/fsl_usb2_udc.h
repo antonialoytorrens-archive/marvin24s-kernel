@@ -472,6 +472,7 @@ struct fsl_ep {
 
 	char name[14];
 	unsigned stopped:1;
+	unsigned workaround;
 };
 
 #define EP_DIR_IN	1
