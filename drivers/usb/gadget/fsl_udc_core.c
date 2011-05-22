@@ -274,18 +274,18 @@ static int dr_controller_setup(struct fsl_udc *udc)
 	tmp |= USB_MODE_SETUP_LOCK_OFF;
 	fsl_writel(tmp, &dr_regs->usbmode);
 
-#ifdef CONFIG_ARCH_TEGRA
-	/* Wait for controller to switch to device mode */
-	timeout = jiffies + FSL_UDC_RESET_TIMEOUT;
-	while ((fsl_readl(&dr_regs->usbmode) & USB_MODE_CTRL_MODE_DEVICE) !=
-	       USB_MODE_CTRL_MODE_DEVICE) {
-		if (time_after(jiffies, timeout)) {
-			ERR("udc device mode setup timeout!\n");
-			return -ETIMEDOUT;
+	if(udc->workaround & FSL_USB2_WORKAROUND_SETUP_TIMEOUT) {
+		/* Wait for controller to switch to device mode */
+		timeout = jiffies + FSL_UDC_RESET_TIMEOUT;
+		while ((fsl_readl(&dr_regs->usbmode) & USB_MODE_CTRL_MODE_DEVICE) !=
+		       USB_MODE_CTRL_MODE_DEVICE) {
+			if (time_after(jiffies, timeout)) {
+				ERR("udc device mode setup timeout!\n");
+				return -ETIMEDOUT;
+			}
+			cpu_relax();
 		}
-		cpu_relax();
 	}
-#endif
 
 	/* Clear the setup status */
 	fsl_writel(0, &dr_regs->usbsts);
