@@ -2669,11 +2669,9 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		otg_set_peripheral(udc_controller->transceiver, &udc_controller->gadget);
 	}
 #else
-#ifdef CONFIG_ARCH_TEGRA
 	/* Power down the phy if cable is not connected */
 	if (!(fsl_readl(&usb_sys_regs->vbus_wakeup) & USB_SYS_VBUS_STATUS))
 		fsl_udc_clk_suspend();
-#endif
 #endif
 
 	return 0;
