@@ -59,6 +59,7 @@ struct nvec_chip {
 	struct device *dev;
 	int gpio;
 	int irq;
+	int i2c_addr;
 	unsigned char *i2c_regs;
 	nvec_state state;
 	struct atomic_notifier_head notifier_list;
@@ -96,8 +97,8 @@ extern int nvec_kbd_init(struct nvec_chip *nvec);
 #define I2C_SL_NEWL		(1<<2)
 #define I2C_SL_NACK		(1<<1)
 #define I2C_SL_RESP		(1<<0)
-#define I2C_SL_IRQ		(1<<3)
 #define END_TRANS		(1<<4)
+#define I2C_SL_IRQ		(1<<3)
 #define RCVD			(1<<2)
 #define RNW			(1<<1)
 

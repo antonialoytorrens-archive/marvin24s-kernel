@@ -164,17 +164,21 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 	unsigned char *i2c_regs = nvec->i2c_regs;
 
 	status = readl(i2c_regs + I2C_SL_STATUS);
+	dev_dbg(nvec->dev, "irq status: %lx\n", status);
 
 	if(!(status & irq_mask) && !((status & ~irq_mask) == 0))
 	{
-		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
-		//Yup, handled. ahum.
+		dev_warn(nvec->dev, "unexpected irq mask %lx\n", status);
+		goto handled;
+	}
+
+	if((status & I2C_SL_IRQ) == 0) {
+		dev_warn(nvec->dev, "Spurious IRQ\n");
 		goto handled;
 	}
 
 	/* end of ec -> t20 transfer */
-	if(status & END_TRANS && !(status & RCVD))
-	{
+	if((status & END_TRANS) && !(status & RCVD)) {
 		nvec->state = NVEC_WAIT;
 		if(nvec->rx->size > 1)
 		{
@@ -182,12 +186,14 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 			schedule_work(&nvec->rx_work);
 		} else {
 		/* only READ_REQUEST_CMD */
+			if(nvec->rx->data[0] != 1)
+				dev_warn(nvec->dev, "single byte received %d\n", nvec->rx->data[0] & 0xff);
 			kfree(nvec->rx->data);
 			kfree(nvec->rx);
 		}
-		return IRQ_HANDLED;
-	} else if(status & RNW) /* ec <- t20 transfer */
-	{
+		goto handled;
+	}
+	if(status & RNW) { /* ec <- t20 transfer */
 		if(list_empty(&nvec->tx_data)) {
 			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
 			to_send = 0x8a;
@@ -235,33 +241,34 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		goto handled;
 	/* ec -> t20 transfer */
 	} else {
-		if (status & RCVD)
-		{
+		if (status & RCVD) {
 			local_irq_save(flags);
 			received = readl(i2c_regs + I2C_SL_RCVD);
 			writel(0, i2c_regs + I2C_SL_RCVD);
 			local_irq_restore(flags);
+			if(!(received == nvec->i2c_addr))
+				dev_warn(nvec->dev, "unexpected response from new slave");
 			goto handled;
-		} else
+		} else {
 			received = readl(i2c_regs + I2C_SL_RCVD);
 
-		/* new transfer? */
-		if (nvec->state == NVEC_WAIT)
-		{
-			nvec->state = NVEC_READ;
-			msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
-			msg->data = kzalloc(32, GFP_NOWAIT);
-			INIT_LIST_HEAD(&msg->node);
-			nvec->rx = msg;
-		} else
-			msg = nvec->rx;
+			/* new transfer? */
+			if (nvec->state == NVEC_WAIT) {
+				nvec->state = NVEC_READ;
+				msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
+				msg->data = kzalloc(32, GFP_NOWAIT);
+				INIT_LIST_HEAD(&msg->node);
+				nvec->rx = msg;
+			} else
+				msg = nvec->rx;
 
-		BUG_ON(msg->pos > 32);
+			BUG_ON(msg->pos > 32);
 
-		msg->data[msg->pos] = received;
-		msg->pos++;
-		msg->size = msg->pos;
-		dev_dbg(nvec->dev, "Got %02lx from Master (pos: %d)!\n", received, msg->pos);
+			msg->data[msg->pos] = received;
+			msg->pos++;
+			msg->size = msg->pos;
+			dev_dbg(nvec->dev, "Got %02lx from Master (pos: %d)!\n", received, msg->pos);
+		}
 	}
 handled:
 	return IRQ_HANDLED;
@@ -324,6 +331,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->dev = &pdev->dev;
 	nvec->gpio = pdata->gpio;
 	nvec->irq = pdata->irq;
+	nvec->i2c_addr = pdata->i2c_addr;
 
 /*
 	i2c_clk=clk_get_sys(NULL, "i2c");
