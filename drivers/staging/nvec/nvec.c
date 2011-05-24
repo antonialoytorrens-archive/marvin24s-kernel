@@ -415,9 +415,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	if(ret)
 		dev_err(nvec->dev, "error adding subdevices\n");
 
-#ifdef CONFIG_KEYBOARD_NVEC
-	nvec_kbd_init(nvec);
-#endif
 #ifdef CONFIG_SERIO_NVEC_PS2
 	nvec_ps2(nvec);
 #endif
