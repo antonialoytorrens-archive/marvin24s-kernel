@@ -3,33 +3,27 @@
 
 #include <linux/semaphore.h>
 
-typedef enum {
+enum {
 	NVEC_2BYTES,
 	NVEC_3BYTES,
 	NVEC_VAR_SIZE
-} nvec_size;
+};
 
-typedef enum {
-	NOT_REALLY,
-	YES,
-	NOT_AT_ALL,
-} how_care;
-
-typedef enum {
-	NVEC_SYS=1,
+enum {
+	NVEC_SYS = 1,
 	NVEC_BAT,
 	NVEC_KBD = 5,
 	NVEC_PS2,
 	NVEC_CNTL,
 	NVEC_KB_EVT = 0x80,
 	NVEC_PS2_EVT
-} nvec_event;
+};
 
-typedef enum {
-       NVEC_WAIT,
-       NVEC_READ,
-       NVEC_WRITE
-} nvec_state;
+enum {
+	NVEC_WAIT,
+	NVEC_READ,
+	NVEC_WRITE
+};
 
 struct nvec_msg {
 	unsigned char *data;
@@ -61,7 +55,7 @@ struct nvec_chip {
 	int irq;
 	int i2c_addr;
 	unsigned char *i2c_regs;
-	nvec_state state;
+	int state;
 	struct atomic_notifier_head notifier_list;
 	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
@@ -75,15 +69,14 @@ struct nvec_chip {
 	struct nvec_msg *last_sync_msg;
 };
 
-extern void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size);
+extern void nvec_write_async(struct nvec_chip *nvec,
+					unsigned char *data, short size);
 
 extern int nvec_register_notifier(struct nvec_chip *nvec,
-		 struct notifier_block *nb, unsigned int events);
+		struct notifier_block *nb, unsigned int events);
 
 extern int nvec_unregister_notifier(struct device *dev,
 		struct notifier_block *nb, unsigned int events);
-
-const char *nvec_send_msg(unsigned char *src, unsigned char *dst_size, how_care care_resp, void (*rt_handler)(unsigned char *data));
 
 extern int nvec_ps2(struct nvec_chip *nvec);
 extern int nvec_kbd_init(struct nvec_chip *nvec);
