@@ -1,3 +1,18 @@
+/*
+ * mouse driver for a NVIDIA compliant embedded controller
+ *
+ * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
+ *
+ * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
+ *           Ilya Petrov <ilya.muromec@gmail.com>
+ *           Marc Dietrich <marvin24@gmx.de>
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ */
+
 #include <linux/slab.h>
 #include <linux/serio.h>
 #include <linux/delay.h>
@@ -94,3 +109,7 @@ int __init nvec_ps2(struct nvec_chip *nvec)
 
 	return 0;
 }
+
+MODULE_DESCRIPTION("NVEC mouse driver");
+MODULE_AUTHOR("Marc Dietrich <marvin24@gmx.de>");
+MODULE_LICENSE("GPL");

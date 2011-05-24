@@ -1,3 +1,18 @@
+/*
+ * NVEC: NVIDIA compliant embedded controller interface
+ *
+ * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
+ *
+ * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
+ *           Ilya Petrov <ilya.muromec@gmail.com>
+ *           Marc Dietrich <marvin24@gmx.de>
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ */
+
 #ifndef __LINUX_MFD_NVEC
 #define __LINUX_MFD_NVEC
 

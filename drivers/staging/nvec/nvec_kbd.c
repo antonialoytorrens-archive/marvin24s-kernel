@@ -1,3 +1,17 @@
+/*
+ * keyboard driver for a NVIDIA compliant embedded controller
+ *
+ * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
+ *
+ * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
+ *           Marc Dietrich <marvin24@gmx.de>
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ */
+
 #include <linux/slab.h>
 #include <linux/input.h>
 #include <linux/delay.h>

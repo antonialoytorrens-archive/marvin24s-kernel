@@ -1,6 +1,17 @@
-/* ToDo list (incomplete, unorderd)
-	- convert mouse, keyboard, and power to platform devices
-*/
+/*
+ * NVEC: NVIDIA compliant embedded controller interface
+ *
+ * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
+ *
+ * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
+ *           Ilya Petrov <ilya.muromec@gmail.com>
+ *           Marc Dietrich <marvin24@gmx.de>
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ */
 
 /* #define DEBUG */
 
@@ -482,4 +493,8 @@ static int __init tegra_nvec_init(void)
 }
 
 module_init(tegra_nvec_init);
+
 MODULE_ALIAS("platform:nvec");
+MODULE_DESCRIPTION("NVIDIA compliant embedded controller interface");
+MODULE_AUTHOR("Marc Dietrich <marvin24@gmx.de>");
+MODULE_LICENSE("GPL");
