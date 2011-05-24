@@ -49,7 +49,7 @@ static struct mfd_cell nvec_devices[] = {
 		.id		= 1,
 	},
 	{
-		.name		= "nvec-ps2",
+		.name		= "nvec-mouse",
 		.id		= 1,
 	},
 	{
@@ -414,10 +414,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 			i2c_regs, 0);
 	if(ret)
 		dev_err(nvec->dev, "error adding subdevices\n");
-
-#ifdef CONFIG_SERIO_NVEC_PS2
-	nvec_ps2(nvec);
-#endif
 
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);

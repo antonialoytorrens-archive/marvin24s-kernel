@@ -91,8 +91,6 @@ extern int nvec_register_notifier(struct nvec_chip *nvec,
 extern int nvec_unregister_notifier(struct device *dev,
 		struct notifier_block *nb, unsigned int events);
 
-extern int nvec_ps2(struct nvec_chip *nvec);
-
 #define I2C_CNFG			0x00
 #define I2C_CNFG_PACKET_MODE_EN		(1<<10)
 #define I2C_CNFG_NEW_MASTER_SFM		(1<<11)
