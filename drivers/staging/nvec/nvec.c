@@ -34,6 +34,7 @@
 #include <linux/notifier.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
+#include <linux/mfd/core.h>
 #include "nvec.h"
 
 static unsigned char EC_DISABLE_EVENT_REPORTING[] = {'\x04', '\x00', '\x00'};
@@ -41,6 +42,25 @@ static unsigned char EC_ENABLE_EVENT_REPORTING[] =  {'\x04', '\x00', '\x01'};
 static unsigned char EC_GET_FIRMWARE_VERSION[] =    {'\x07', '\x15'};
 
 static struct nvec_chip *nvec_power_handle;
+
+static struct mfd_cell nvec_devices[] = {
+	{
+		.name		= "nvec-kbd",
+		.id		= 1,
+	},
+	{
+		.name		= "nvec-ps2",
+		.id		= 1,
+	},
+	{
+		.name		= "nvec-power",
+		.id		= 1,
+	},
+	{
+		.name		= "nvec-power",
+		.id		= 2,
+	},
+};
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 				unsigned int events)
@@ -287,18 +307,6 @@ handled:
 	return IRQ_HANDLED;
 }
 
-static int __devinit nvec_add_subdev(struct nvec_chip *nvec,
-				struct nvec_subdev *subdev)
-{
-	struct platform_device *pdev;
-
-	pdev = platform_device_alloc(subdev->name, subdev->id);
-	pdev->dev.parent = nvec->dev;
-	pdev->dev.platform_data = subdev->platform_data;
-
-	return platform_device_add(pdev);
-}
-
 static void tegra_init_i2c_slave(struct nvec_platform_data *pdata,
 				unsigned char *i2c_regs, struct clk *i2c_clk)
 {
@@ -329,12 +337,13 @@ static void nvec_power_off(void)
 
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
-	int err, i, ret;
+	int err, ret;
 	struct clk *i2c_clk;
 	struct nvec_platform_data *pdata = pdev->dev.platform_data;
 	struct nvec_chip *nvec;
 	struct nvec_msg *msg;
-	unsigned char *i2c_regs;
+//	unsigned char *i2c_regs;
+	void __iomem *i2c_regs;
 
 	nvec = kzalloc(sizeof(struct nvec_chip), GFP_KERNEL);
 	if (nvec == NULL) {
@@ -346,7 +355,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->gpio = pdata->gpio;
 	nvec->irq = pdata->irq;
 	nvec->i2c_addr = pdata->i2c_addr;
-
 /*
 	i2c_clk=clk_get_sys(NULL, "i2c");
 	if(IS_ERR_OR_NULL(i2c_clk))
@@ -401,14 +409,18 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
 				sizeof(EC_ENABLE_EVENT_REPORTING));
 
+
+	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
+			i2c_regs, 0);
+	if(ret)
+		dev_err(nvec->dev, "error adding subdevices\n");
+
+#ifdef CONFIG_KEYBOARD_NVEC
 	nvec_kbd_init(nvec);
+#endif
 #ifdef CONFIG_SERIO_NVEC_PS2
 	nvec_ps2(nvec);
 #endif
-
-	/* setup subdevs */
-	for (i = 0; i < pdata->num_subdevs; i++)
-		ret = nvec_add_subdev(nvec, &pdata->subdevs[i]);
 
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);

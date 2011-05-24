@@ -54,14 +54,12 @@ struct nvec_subdev {
 };
 
 struct nvec_platform_data {
-	int num_subdevs;
 	int i2c_addr;
 	int gpio;
 	int irq;
 	int base;
 	int size;
 	char clock[16];
-	struct nvec_subdev *subdevs;
 };
 
 struct nvec_chip {
@@ -69,7 +67,7 @@ struct nvec_chip {
 	int gpio;
 	int irq;
 	int i2c_addr;
-	unsigned char *i2c_regs;
+	void __iomem *i2c_regs;
 	int state;
 	struct atomic_notifier_head notifier_list;
 	struct list_head rx_data, tx_data;
