@@ -229,12 +229,18 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 			to_send = 0x8a;
 			nvec_write_async(nvec, "\x07\x02", 2);
 		} else {
+			msg = list_first_entry(&nvec->tx_data,
+							struct nvec_msg, node);
 			if (status & RCVD) {
 				/* Work around for AP20 New Slave Hw Bug.
 				   Give 1us extra ???
 				   ((1000 / 80) / 2) + 1 = 33 */
 				udelay(33);
 				nvec->state = NVEC_WRITE;
+
+				/* force retransmit if something went wrong */
+				msg->pos = 0;
+
 				/* Master wants something from us.
 				   New communication
 					dev_dbg(nvec->dev, "New read comm!\n"); */
@@ -243,8 +249,6 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 				   communication we've already started
 					dev_dbg(nvec->dev, "Read comm cont !\n"); */
 			}
-			msg = list_first_entry(&nvec->tx_data,
-							struct nvec_msg, node);
 			if (msg->pos < msg->size) {
 				to_send = msg->data[msg->pos];
 				msg->pos++;
