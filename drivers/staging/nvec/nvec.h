@@ -82,6 +82,9 @@ struct nvec_chip {
 	struct nvec_msg *last_sync_msg;
 };
 
+extern struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
+					unsigned char *data, short size);
+
 extern void nvec_write_async(struct nvec_chip *nvec,
 					unsigned char *data, short size);
 

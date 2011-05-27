@@ -97,11 +97,8 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 
 	list_add_tail(&msg->node, &nvec->tx_data);
 
-	/* don't assert on pings,
-	   because transfer has already started in ISR*/
-	if (!((msg->data[0] == 2) &&
-		(msg->data[1] == 7) &&
-		(msg->data[2] == 2)))
+	/* don't assert if transfer is still in progress */
+	if (nvec->state == NVEC_WAIT)
 		gpio_set_value(nvec->gpio, 0);
 }
 EXPORT_SYMBOL(nvec_write_async);
@@ -137,7 +134,7 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 	return 0;
 }
 
-static struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
+struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 		unsigned char *data, short size)
 {
 	down(&nvec->sync_write_mutex);
@@ -213,6 +210,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		if (nvec->rx->size > 1) {
 			list_add_tail(&nvec->rx->node, &nvec->rx_data);
 			schedule_work(&nvec->rx_work);
+			schedule_work(&nvec->tx_work);
 		} else {
 		/* only READ_REQUEST_CMD */
 			if (nvec->rx->data[0] != 1)
@@ -224,6 +222,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		goto handled;
 	}
 	if (status & RNW) { /* ec <- t20 transfer */
+		nvec->state = NVEC_WRITE;
 		if (list_empty(&nvec->tx_data)) {
 			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
 			to_send = 0x8a;
@@ -236,10 +235,13 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 				   Give 1us extra ???
 				   ((1000 / 80) / 2) + 1 = 33 */
 				udelay(33);
-				nvec->state = NVEC_WRITE;
 
 				/* force retransmit if something went wrong */
-				msg->pos = 0;
+				if(msg->pos > 0) {
+					dev_warn(nvec->dev, "new transaction"
+					"during send trying to retransmit!\n");
+					msg->pos = 0;
+				}
 
 				/* Master wants something from us.
 				   New communication
@@ -253,7 +255,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 				to_send = msg->data[msg->pos];
 				msg->pos++;
 			} else {
-				dev_err(nvec->dev, "tx buffer overflow %d\n",
+				dev_err(nvec->dev, "tx buffer underflow %d\n",
 							msg->size);
 				to_send = 0xff;
 			}
@@ -414,11 +416,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 				sizeof(EC_ENABLE_EVENT_REPORTING));
 
 
-	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
-			i2c_regs, 0);
-	if(ret)
-		dev_err(nvec->dev, "error adding subdevices\n");
-
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
 
@@ -434,6 +431,11 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	kfree(msg->data);
 	kfree(msg);
+
+	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
+			i2c_regs, 0);
+	if(ret)
+		dev_err(nvec->dev, "error adding subdevices\n");
 
 	/* unmute speakers? */
 	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
