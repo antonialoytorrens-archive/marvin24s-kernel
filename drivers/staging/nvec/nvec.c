@@ -144,8 +144,11 @@ struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 
 	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n",
 					nvec->sync_write_pending);
-	wait_for_completion(&nvec->sync_write);
-	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
+	if (wait_for_completion_timeout(&nvec->sync_write,
+				msecs_to_jiffies(2000)) == 0)
+		dev_warn(nvec->dev, "timeout waiting for sync write to complete\n");
+	else
+		dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
 
 	up(&nvec->sync_write_mutex);
 
