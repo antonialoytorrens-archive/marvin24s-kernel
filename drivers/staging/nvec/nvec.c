@@ -30,12 +30,16 @@
 #include <linux/workqueue.h>
 #include <linux/clk.h>
 #include <linux/semaphore.h>
+#include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/notifier.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/mfd/core.h>
 #include "nvec.h"
+
+
+#define FREE_MSG(msg) if((msg) && (msg->data)) { kfree(msg->data); kfree(msg); }
 
 static unsigned char EC_DISABLE_EVENT_REPORTING[] = {'\x04', '\x00', '\x00'};
 static unsigned char EC_ENABLE_EVENT_REPORTING[] =  {'\x04', '\x00', '\x01'};
@@ -98,17 +102,47 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 	list_add_tail(&msg->node, &nvec->tx_data);
 
 	/* don't assert if transfer is still in progress */
-	if (nvec->state == NVEC_WAIT)
+	schedule_work(&nvec->tx_work);
+/*	if(wait_for_completion_timeout(&nvec->ec_transfer, msecs_to_jiffies(1000)))
 		gpio_set_value(nvec->gpio, 0);
+	else
+		dev_warn(nvec->dev, "timeout waiting for ec transfer\n"); */
 }
 EXPORT_SYMBOL(nvec_write_async);
+
+struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
+		unsigned char *data, short size)
+{
+	down(&nvec->sync_write_mutex);
+
+	nvec->sync_write_pending = (data[1] << 8) + data[0];
+	nvec_write_async(nvec, data, size);
+
+	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n",
+					nvec->sync_write_pending);
+	if (wait_for_completion_timeout(&nvec->sync_write,
+				msecs_to_jiffies(2000)) == 0)
+		dev_warn(nvec->dev, "timeout waiting for sync write to complete\n");
+	else
+		dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
+
+	up(&nvec->sync_write_mutex);
+
+	return nvec->last_sync_msg;
+}
 
 static void nvec_request_master(struct work_struct *work)
 {
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
 
-	if (!list_empty(&nvec->tx_data))
-		gpio_set_value(nvec->gpio, 0);
+	if(mutex_trylock(&nvec->async_write_mutex))
+		if (!list_empty(&nvec->tx_data)) {
+			if(wait_for_completion_timeout(&nvec->ec_transfer, msecs_to_jiffies(1000)))
+				gpio_set_value(nvec->gpio, 0);
+			else
+				dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
+		}
+	mutex_unlock(&nvec->async_write_mutex);
 }
 
 static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
@@ -134,27 +168,6 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 	return 0;
 }
 
-struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
-		unsigned char *data, short size)
-{
-	down(&nvec->sync_write_mutex);
-
-	nvec->sync_write_pending = (data[1] << 8) + data[0];
-	nvec_write_async(nvec, data, size);
-
-	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n",
-					nvec->sync_write_pending);
-	if (wait_for_completion_timeout(&nvec->sync_write,
-				msecs_to_jiffies(2000)) == 0)
-		dev_warn(nvec->dev, "timeout waiting for sync write to complete\n");
-	else
-		dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
-
-	up(&nvec->sync_write_mutex);
-
-	return nvec->last_sync_msg;
-}
-
 /* RX worker */
 static void nvec_dispatch(struct work_struct *work)
 {
@@ -173,12 +186,7 @@ static void nvec_dispatch(struct work_struct *work)
 			complete(&nvec->sync_write);
 		} else {
 			parse_msg(nvec, msg);
-			if ((!msg) || (!msg->data))
-				dev_warn(nvec->dev, "attempt access zero pointer");
-			else {
-				kfree(msg->data);
-				kfree(msg);
-			}
+			FREE_MSG(msg);
 		}
 	}
 }
@@ -213,14 +221,13 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		if (nvec->rx->size > 1) {
 			list_add_tail(&nvec->rx->node, &nvec->rx_data);
 			schedule_work(&nvec->rx_work);
-			schedule_work(&nvec->tx_work);
+//			complete(&nvec->ec_transfer);
 		} else {
 		/* only READ_REQUEST_CMD */
 			if (nvec->rx->data[0] != 1)
 				dev_warn(nvec->dev, "single byte received %d\n",
 						nvec->rx->data[0] & 0xff);
-			kfree(nvec->rx->data);
-			kfree(nvec->rx);
+			FREE_MSG(nvec->rx);
 		}
 		goto handled;
 	}
@@ -241,7 +248,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 
 				/* force retransmit if something went wrong */
 				if(msg->pos > 0) {
-					dev_warn(nvec->dev, "new transaction"
+					dev_warn(nvec->dev, "new transaction "
 					"during send trying to retransmit!\n");
 					msg->pos = 0;
 				}
@@ -266,8 +273,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 			/* cleanup after transfer complete */
 			if (msg->pos >= msg->size) {
 				list_del_init(&msg->node);
-				kfree(msg->data);
-				kfree(msg);
+				FREE_MSG(msg);
 				schedule_work(&nvec->tx_work);
 				nvec->state = NVEC_WAIT;
 			}
@@ -276,6 +282,9 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 
 		if (status & RCVD)
 			gpio_set_value(nvec->gpio, 1);
+
+//		if(nvec->state == NVEC_WAIT)
+//			complete(&nvec->ec_transfer);
 
 		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
 
@@ -313,6 +322,8 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		}
 	}
 handled:
+	if(status & END_TRANS)
+		complete(&nvec->ec_transfer);
 	return IRQ_HANDLED;
 }
 
@@ -408,7 +419,10 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
 	init_completion(&nvec->sync_write);
+	init_completion(&nvec->ec_transfer);
+	complete(&nvec->ec_transfer);
 	sema_init(&nvec->sync_write_mutex, 1);
+	mutex_init(&nvec->async_write_mutex);
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_LIST_HEAD(&nvec->rx_data);
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);
@@ -432,8 +446,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
 			msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
 
-	kfree(msg->data);
-	kfree(msg);
+	FREE_MSG(msg);
 
 	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
 			i2c_regs, 0);
