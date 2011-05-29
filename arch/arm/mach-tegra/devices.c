@@ -380,7 +380,8 @@ static struct fsl_usb2_platform_data tegra_udc_pdata = {
 	.workaround	= FSL_USB2_WORKAROUND_BUS_RESET |
 			  FSL_USB2_WORKAROUND_SETUP_TIMEOUT |
 			  FSL_USB2_WORKAROUND_RUN_TIMEOUT |
-			  FSL_USB2_WORKAROUND_SEPARATE_PHY,
+			  FSL_USB2_WORKAROUND_SEPARATE_PHY |
+			  FSL_USB2_WORKAROUND_HW_QUEUEHEADS,
 };
 
 struct platform_device tegra_udc_device = {

@@ -2236,10 +2236,10 @@ static int fsl_proc_read(char *page, char **start, off_t off, int count,
 static void fsl_udc_release(struct device *dev)
 {
 	complete(udc_controller->done);
-#ifndef CONFIG_ARCH_TEGRA
-	dma_free_coherent(dev->parent, udc_controller->ep_qh_size,
-			udc_controller->ep_qh, udc_controller->ep_qh_dma);
-#endif
+	if(udc_controller->workaround & FSL_USB2_WORKAROUND_HW_QUEUEHEADS)
+		dma_free_coherent(dev->parent, udc_controller->ep_qh_size,
+				  udc_controller->ep_qh,
+				  udc_controller->ep_qh_dma);
 	kfree(udc_controller);
 }
 
@@ -2266,29 +2266,28 @@ static int __init struct_udc_setup(struct fsl_udc *udc,
 		return -1;
 	}
 
-#ifdef CONFIG_ARCH_TEGRA
-	/* Tegra uses hardware queue heads */
 	size = udc->max_ep * sizeof(struct ep_queue_head);
-	udc->ep_qh = (struct ep_queue_head *)((u8 *)dr_regs + QH_OFFSET);
-	udc->ep_qh_dma = platform_get_resource(pdev, IORESOURCE_MEM, 0)->start +
-		QH_OFFSET;
-#else
-	/* initialized QHs, take care of alignment */
-	size = udc->max_ep * sizeof(struct ep_queue_head);
-	if (size < QH_ALIGNMENT)
-		size = QH_ALIGNMENT;
-	else if ((size % QH_ALIGNMENT) != 0) {
-		size += QH_ALIGNMENT + 1;
-		size &= ~(QH_ALIGNMENT - 1);
+	if(udc->workaround & FSL_USB2_WORKAROUND_HW_QUEUEHEADS) {
+		/* Tegra uses hardware queue heads */
+		udc->ep_qh = (struct ep_queue_head *)((u8 *)dr_regs + QH_OFFSET);
+		udc->ep_qh_dma = platform_get_resource(pdev, IORESOURCE_MEM, 0)->start +
+			QH_OFFSET;
+	} else {
+		/* initialized QHs, take care of alignment */
+		if (size < QH_ALIGNMENT)
+			size = QH_ALIGNMENT;
+		else if ((size % QH_ALIGNMENT) != 0) {
+			size += QH_ALIGNMENT + 1;
+			size &= ~(QH_ALIGNMENT - 1);
+		}
+		udc->ep_qh = dma_alloc_coherent(&pdev->dev, size,
+						&udc->ep_qh_dma, GFP_KERNEL);
+		if (!udc->ep_qh) {
+			ERR("malloc QHs for udc failed\n");
+			kfree(udc->eps);
+			return -1;
+		}
 	}
-	udc->ep_qh = dma_alloc_coherent(&pdev->dev, size,
-					&udc->ep_qh_dma, GFP_KERNEL);
-	if (!udc->ep_qh) {
-		ERR("malloc QHs for udc failed\n");
-		kfree(udc->eps);
-		return -1;
-	}
-#endif
 
 	udc->ep_qh_size = size;
 
@@ -2302,9 +2301,8 @@ static int __init struct_udc_setup(struct fsl_udc *udc,
 				GFP_KERNEL);
 	if (!udc->status_req->req.buf) {
 		ERR("alloc status_req buffer failed\n");
-#ifndef CONFIG_ARCH_TEGRA
-		dma_free_coherent(&pdev->dev, size, udc->ep_qh, udc->ep_qh_dma);
-#endif
+		if(udc->workaround & FSL_USB2_WORKAROUND_HW_QUEUEHEADS)
+			dma_free_coherent(&pdev->dev, size, udc->ep_qh, udc->ep_qh_dma);
 		kfree(udc->eps);
 		return -ENOMEM;
 	}
