@@ -96,23 +96,6 @@ static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
 	.slave_addr	= 0xfc,
 };
 
-static struct nvec_subdev paz00_nvec_subdevs[] = {
-	{
-		.name = "nvec-kbd",
-	},
-	{
-		.name = "nvec-ps2",
-	},
-	{
-		.name = "nvec-power",
-		.id = 0,
-	},
-	{
-		.name = "nvec-power",
-		.id = 1,
-	}
-};
-
 static struct nvec_platform_data nvec_mfd_platform_data = {
 	.i2c_addr	= 0x8a,
 	.gpio		= TEGRA_NVEC_REQ,
@@ -120,8 +103,6 @@ static struct nvec_platform_data nvec_mfd_platform_data = {
 	.base		= TEGRA_I2C3_BASE,
 	.size		= TEGRA_I2C3_SIZE,
 	.clock		= "tegra-i2c.2",
-	.subdevs	= paz00_nvec_subdevs,
-	.num_subdevs	= ARRAY_SIZE(paz00_nvec_subdevs),
 };
 
 static struct platform_device nvec_mfd = {

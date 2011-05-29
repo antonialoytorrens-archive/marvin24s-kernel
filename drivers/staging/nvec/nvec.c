@@ -1,11 +1,24 @@
-// #define DEBUG
+/*
+ * NVEC: NVIDIA compliant embedded controller interface
+ *
+ * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
+ *
+ * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
+ *           Ilya Petrov <ilya.muromec@gmail.com>
+ *           Marc Dietrich <marvin24@gmx.de>
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ */
 
-/* ToDo list (incomplete, unorderd)
-	- convert mouse, keyboard, and power to platform devices
-*/
+/* #define DEBUG */
 
-#include <asm/io.h>
 #include <asm/irq.h>
+#include <mach/iomap.h>
+#include <mach/clk.h>
+#include <linux/io.h>
 #include <linux/completion.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
@@ -16,20 +29,42 @@
 #include <linux/input.h>
 #include <linux/workqueue.h>
 #include <linux/clk.h>
-#include <mach/iomap.h>
-#include <mach/clk.h>
 #include <linux/semaphore.h>
+#include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/notifier.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
+#include <linux/mfd/core.h>
 #include "nvec.h"
 
-static unsigned char EC_DISABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x00'};
-static unsigned char EC_ENABLE_EVENT_REPORTING[] =	{'\x04','\x00','\x01'};
-static unsigned char EC_GET_FIRMWARE_VERSION[] =	{'\x07','\x15'};
+
+#define FREE_MSG(msg) if((msg) && (msg->data)) { kfree(msg->data); kfree(msg); }
+
+static unsigned char EC_DISABLE_EVENT_REPORTING[] = {'\x04', '\x00', '\x00'};
+static unsigned char EC_ENABLE_EVENT_REPORTING[] =  {'\x04', '\x00', '\x01'};
+static unsigned char EC_GET_FIRMWARE_VERSION[] =    {'\x07', '\x15'};
 
 static struct nvec_chip *nvec_power_handle;
+
+static struct mfd_cell nvec_devices[] = {
+	{
+		.name		= "nvec-kbd",
+		.id		= 1,
+	},
+	{
+		.name		= "nvec-mouse",
+		.id		= 1,
+	},
+	{
+		.name		= "nvec-power",
+		.id		= 1,
+	},
+	{
+		.name		= "nvec-power",
+		.id		= 2,
+	},
+};
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 				unsigned int events)
@@ -38,19 +73,19 @@ int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 }
 EXPORT_SYMBOL_GPL(nvec_register_notifier);
 
-static int nvec_status_notifier(struct notifier_block *nb, unsigned long event_type,
-				void *data)
+static int nvec_status_notifier(struct notifier_block *nb,
+				unsigned long event_type, void *data)
 {
 	unsigned char *msg = (unsigned char *)data;
 	int i;
 
-	if(event_type != NVEC_CNTL)
+	if (event_type != NVEC_CNTL)
 		return NOTIFY_DONE;
 
-	printk("unhandled msg type %ld, payload: ", event_type);
+	printk(KERN_WARNING "unhandled msg type %ld, payload: ", event_type);
 	for (i = 0; i < msg[1]; i++)
-		printk("%0x ", msg[i+2]);
-	printk("\n");
+		printk(KERN_WARNING "%0x ", msg[i+2]);
+	printk(KERN_WARNING "\n");
 
 	return NOTIFY_OK;
 }
@@ -66,61 +101,71 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 
 	list_add_tail(&msg->node, &nvec->tx_data);
 
-	/* don't assert on pings,
-	   because transfer has already started in ISR*/
-	if ( !( (msg->data[0] == 2) &&
-		(msg->data[1] == 7) &&
-		(msg->data[2] == 2) ) )
+	/* don't assert if transfer is still in progress */
+	schedule_work(&nvec->tx_work);
+/*	if(wait_for_completion_timeout(&nvec->ec_transfer, msecs_to_jiffies(1000)))
 		gpio_set_value(nvec->gpio, 0);
+	else
+		dev_warn(nvec->dev, "timeout waiting for ec transfer\n"); */
 }
 EXPORT_SYMBOL(nvec_write_async);
 
-static void nvec_request_master(struct work_struct *work)
-{
-	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
-
-	if(!list_empty(&nvec->tx_data)) {
-		gpio_set_value(nvec->gpio, 0);
-	}
-}
-
-static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
-{
-	int i;
-
-	if((msg->data[0] & 1<<7) == 0 && msg->data[3]) {
-		dev_err(nvec->dev, "ec responded %02x %02x %02x %02x\n", msg->data[0],
-			msg->data[1], msg->data[2], msg->data[3]);
-		return -EINVAL;
-	}
-
-	if ((msg->data[0] >> 7 ) == 1 && (msg->data[0] & 0x0f) == 5)
-	{
-		dev_warn(nvec->dev, "ec system event ");
-		for (i=0; i < msg->data[1]; i++)
-			dev_warn(nvec->dev, "%02x ", msg->data[2+i]);
-		dev_warn(nvec->dev, "\n");
-	}
-
-	atomic_notifier_call_chain(&nvec->notifier_list, msg->data[0] & 0x8f, msg->data);
-
-	return 0;
-}
-
-static struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec, unsigned char *data, short size)
+struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
+		unsigned char *data, short size)
 {
 	down(&nvec->sync_write_mutex);
 
 	nvec->sync_write_pending = (data[1] << 8) + data[0];
 	nvec_write_async(nvec, data, size);
 
-	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n", nvec->sync_write_pending);
-	wait_for_completion(&nvec->sync_write);
-	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
+	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n",
+					nvec->sync_write_pending);
+	if (wait_for_completion_timeout(&nvec->sync_write,
+				msecs_to_jiffies(2000)) == 0)
+		dev_warn(nvec->dev, "timeout waiting for sync write to complete\n");
+	else
+		dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
 
 	up(&nvec->sync_write_mutex);
 
 	return nvec->last_sync_msg;
+}
+
+static void nvec_request_master(struct work_struct *work)
+{
+	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
+
+	if(mutex_trylock(&nvec->async_write_mutex))
+		if (!list_empty(&nvec->tx_data)) {
+			if(wait_for_completion_timeout(&nvec->ec_transfer, msecs_to_jiffies(1000)))
+				gpio_set_value(nvec->gpio, 0);
+			else
+				dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
+		}
+	mutex_unlock(&nvec->async_write_mutex);
+}
+
+static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
+{
+	int i;
+
+	if ((msg->data[0] & 1<<7) == 0 && msg->data[3]) {
+		dev_err(nvec->dev, "ec responded %02x %02x %02x %02x\n",
+			msg->data[0], msg->data[1], msg->data[2], msg->data[3]);
+		return -EINVAL;
+	}
+
+	if ((msg->data[0] >> 7) == 1 && (msg->data[0] & 0x0f) == 5) {
+		dev_warn(nvec->dev, "ec system event ");
+		for (i = 0; i < msg->data[1]; i++)
+			dev_warn(nvec->dev, "%02x ", msg->data[2+i]);
+		dev_warn(nvec->dev, "\n");
+	}
+
+	atomic_notifier_call_chain(&nvec->notifier_list, msg->data[0] & 0x8f,
+		msg->data);
+
+	return 0;
 }
 
 /* RX worker */
@@ -129,25 +174,19 @@ static void nvec_dispatch(struct work_struct *work)
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, rx_work);
 	struct nvec_msg *msg;
 
-	while(!list_empty(&nvec->rx_data))
-	{
+	while (!list_empty(&nvec->rx_data)) {
 		msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
 		list_del_init(&msg->node);
 
-		if(nvec->sync_write_pending == (msg->data[2] << 8) + msg->data[0])
-		{
+		if (nvec->sync_write_pending ==
+					(msg->data[2] << 8) + msg->data[0]) {
 			dev_dbg(nvec->dev, "sync write completed!\n");
 			nvec->sync_write_pending = 0;
 			nvec->last_sync_msg = msg;
 			complete(&nvec->sync_write);
 		} else {
 			parse_msg(nvec, msg);
-			if((!msg) || (!msg->data))
-				dev_warn(nvec->dev, "attempt access zero pointer");
-			else {
-				kfree(msg->data);
-				kfree(msg);
-			}
+			FREE_MSG(msg);
 		}
 	}
 }
@@ -164,122 +203,132 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 	unsigned char *i2c_regs = nvec->i2c_regs;
 
 	status = readl(i2c_regs + I2C_SL_STATUS);
+	dev_dbg(nvec->dev, "irq status: %lx\n", status);
 
-	if(!(status & irq_mask) && !((status & ~irq_mask) == 0))
-	{
-		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
-		//Yup, handled. ahum.
+	if (!(status & irq_mask) && !((status & ~irq_mask) == 0)) {
+		dev_warn(nvec->dev, "unexpected irq mask %lx\n", status);
+		goto handled;
+	}
+
+	if ((status & I2C_SL_IRQ) == 0) {
+		dev_warn(nvec->dev, "Spurious IRQ\n");
 		goto handled;
 	}
 
 	/* end of ec -> t20 transfer */
-	if(status & END_TRANS && !(status & RCVD))
-	{
+	if ((status & END_TRANS) && !(status & RCVD)) {
 		nvec->state = NVEC_WAIT;
-		if(nvec->rx->size > 1)
-		{
+		if (nvec->rx->size > 1) {
 			list_add_tail(&nvec->rx->node, &nvec->rx_data);
 			schedule_work(&nvec->rx_work);
+//			complete(&nvec->ec_transfer);
 		} else {
 		/* only READ_REQUEST_CMD */
-			kfree(nvec->rx->data);
-			kfree(nvec->rx);
+			if (nvec->rx->data[0] != 1)
+				dev_warn(nvec->dev, "single byte received %d\n",
+						nvec->rx->data[0] & 0xff);
+			FREE_MSG(nvec->rx);
 		}
-		return IRQ_HANDLED;
-	} else if(status & RNW) /* ec <- t20 transfer */
-	{
-		if(list_empty(&nvec->tx_data)) {
+		goto handled;
+	}
+	if (status & RNW) { /* ec <- t20 transfer */
+		nvec->state = NVEC_WRITE;
+		if (list_empty(&nvec->tx_data)) {
 			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
 			to_send = 0x8a;
 			nvec_write_async(nvec, "\x07\x02", 2);
 		} else {
-			if(status & RCVD)
-			{
-				/* Work around for AP20 New Slave Hw Bug. Give 1us extra ???
-				   nvec/smbus/nvec_i2c_transport.c in NV`s crap for reference
+			msg = list_first_entry(&nvec->tx_data,
+							struct nvec_msg, node);
+			if (status & RCVD) {
+				/* Work around for AP20 New Slave Hw Bug.
+				   Give 1us extra ???
 				   ((1000 / 80) / 2) + 1 = 33 */
 				udelay(33);
-				nvec->state = NVEC_WRITE;
-				//Master wants something from us. New communication
-//					dev_dbg(nvec->dev, "New read comm!\n");
+
+				/* force retransmit if something went wrong */
+				if(msg->pos > 0) {
+					dev_warn(nvec->dev, "new transaction "
+					"during send trying to retransmit!\n");
+					msg->pos = 0;
+				}
+
+				/* Master wants something from us.
+				   New communication
+					dev_dbg(nvec->dev, "New read comm!\n"); */
 			} else {
-				//Master wants something from us from a communication we've already started
-//					dev_dbg(nvec->dev, "Read comm cont !\n");
+				/* Master wants something from us from a
+				   communication we've already started
+					dev_dbg(nvec->dev, "Read comm cont !\n"); */
 			}
-			msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
-			if(msg->pos < msg->size) {
+			if (msg->pos < msg->size) {
 				to_send = msg->data[msg->pos];
 				msg->pos++;
 			} else {
-				dev_err(nvec->dev, "tx buffer overflow %d\n", msg->size);
+				dev_err(nvec->dev, "tx buffer underflow %d\n",
+							msg->size);
 				to_send = 0xff;
 			}
 
 			/* cleanup after transfer complete */
-			if(msg->pos >= msg->size)
-			{
+			if (msg->pos >= msg->size) {
 				list_del_init(&msg->node);
-				kfree(msg->data);
-				kfree(msg);
+				FREE_MSG(msg);
 				schedule_work(&nvec->tx_work);
 				nvec->state = NVEC_WAIT;
 			}
 		}
 		writel(to_send, i2c_regs + I2C_SL_RCVD);
 
-		if(status & RCVD)
+		if (status & RCVD)
 			gpio_set_value(nvec->gpio, 1);
+
+//		if(nvec->state == NVEC_WAIT)
+//			complete(&nvec->ec_transfer);
 
 		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
 
 		goto handled;
 	/* ec -> t20 transfer */
 	} else {
-		if (status & RCVD)
-		{
+		if (status & RCVD) {
 			local_irq_save(flags);
 			received = readl(i2c_regs + I2C_SL_RCVD);
 			writel(0, i2c_regs + I2C_SL_RCVD);
 			local_irq_restore(flags);
+			if (!(received == nvec->i2c_addr))
+				dev_warn(nvec->dev, "unexpected response from new slave");
 			goto handled;
-		} else
+		} else {
 			received = readl(i2c_regs + I2C_SL_RCVD);
 
-		/* new transfer? */
-		if (nvec->state == NVEC_WAIT)
-		{
-			nvec->state = NVEC_READ;
-			msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
-			msg->data = kzalloc(32, GFP_NOWAIT);
-			INIT_LIST_HEAD(&msg->node);
-			nvec->rx = msg;
-		} else
-			msg = nvec->rx;
+			/* new transfer? */
+			if (nvec->state == NVEC_WAIT) {
+				nvec->state = NVEC_READ;
+				msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
+				msg->data = kzalloc(32, GFP_NOWAIT);
+				INIT_LIST_HEAD(&msg->node);
+				nvec->rx = msg;
+			} else
+				msg = nvec->rx;
 
-		BUG_ON(msg->pos > 32);
+			BUG_ON(msg->pos > 32);
 
-		msg->data[msg->pos] = received;
-		msg->pos++;
-		msg->size = msg->pos;
-		dev_dbg(nvec->dev, "Got %02lx from Master (pos: %d)!\n", received, msg->pos);
+			msg->data[msg->pos] = received;
+			msg->pos++;
+			msg->size = msg->pos;
+			dev_dbg(nvec->dev, "Got %02lx from Master (pos: %d)!\n",
+					received, msg->pos);
+		}
 	}
 handled:
+	if(status & END_TRANS)
+		complete(&nvec->ec_transfer);
 	return IRQ_HANDLED;
 }
 
-static int __devinit nvec_add_subdev(struct nvec_chip *nvec, struct nvec_subdev *subdev)
-{
-	struct platform_device *pdev;
-
-	pdev = platform_device_alloc(subdev->name, subdev->id);
-	pdev->dev.parent = nvec->dev;
-	pdev->dev.platform_data = subdev->platform_data;
-
-	return platform_device_add(pdev);
-}
-
-static void tegra_init_i2c_slave(struct nvec_platform_data *pdata, unsigned char *i2c_regs,
-					struct clk *i2c_clk)
+static void tegra_init_i2c_slave(struct nvec_platform_data *pdata,
+				unsigned char *i2c_regs, struct clk *i2c_clk)
 {
 	u32 val;
 
@@ -308,15 +357,16 @@ static void nvec_power_off(void)
 
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
-	int err, i, ret;
+	int err, ret;
 	struct clk *i2c_clk;
 	struct nvec_platform_data *pdata = pdev->dev.platform_data;
 	struct nvec_chip *nvec;
 	struct nvec_msg *msg;
-	unsigned char *i2c_regs;
+//	unsigned char *i2c_regs;
+	void __iomem *i2c_regs;
 
 	nvec = kzalloc(sizeof(struct nvec_chip), GFP_KERNEL);
-	if(nvec == NULL) {
+	if (nvec == NULL) {
 		dev_err(&pdev->dev, "failed to reserve memory\n");
 		return -ENOMEM;
 	}
@@ -324,7 +374,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->dev = &pdev->dev;
 	nvec->gpio = pdata->gpio;
 	nvec->irq = pdata->irq;
-
+	nvec->i2c_addr = pdata->i2c_addr;
 /*
 	i2c_clk=clk_get_sys(NULL, "i2c");
 	if(IS_ERR_OR_NULL(i2c_clk))
@@ -333,7 +383,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		clk_enable(i2c_clk);
 */
 	i2c_regs = ioremap(pdata->base, pdata->size);
-	if(!i2c_regs) {
+	if (!i2c_regs) {
 		dev_err(nvec->dev, "failed to ioremap registers\n");
 		goto failed;
 	}
@@ -341,7 +391,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->i2c_regs = i2c_regs;
 
 	i2c_clk = clk_get_sys(pdata->clock, NULL);
-	if(IS_ERR_OR_NULL(i2c_clk)) {
+	if (IS_ERR_OR_NULL(i2c_clk)) {
 		dev_err(nvec->dev, "failed to get clock tegra-i2c.2\n");
 		goto failed;
 	}
@@ -349,7 +399,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	tegra_init_i2c_slave(pdata, i2c_regs, i2c_clk);
 
 	err = request_irq(nvec->irq, i2c_interrupt, IRQF_DISABLED, "nvec", nvec);
-	if(err) {
+	if (err) {
 		dev_err(nvec->dev, "couldn't request irq");
 		goto failed;
 	}
@@ -359,7 +409,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	/* Set the gpio to low when we've got something to say */
 	err = gpio_request(nvec->gpio, "nvec gpio");
-	if(err < 0)
+	if (err < 0)
 		dev_err(nvec->dev, "couldn't request gpio\n");
 
 	tegra_gpio_enable(nvec->gpio);
@@ -369,7 +419,10 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
 	init_completion(&nvec->sync_write);
+	init_completion(&nvec->ec_transfer);
+	complete(&nvec->ec_transfer);
 	sema_init(&nvec->sync_write_mutex, 1);
+	mutex_init(&nvec->async_write_mutex);
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_LIST_HEAD(&nvec->rx_data);
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);
@@ -379,15 +432,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
 				sizeof(EC_ENABLE_EVENT_REPORTING));
 
-	nvec_kbd_init(nvec);
-#ifdef CONFIG_SERIO_NVEC_PS2
-	nvec_ps2(nvec);
-#endif
-
-        /* setup subdevs */
-	for (i = 0; i < pdata->num_subdevs; i++) {
-		ret = nvec_add_subdev(nvec, &pdata->subdevs[i]);
-	}
 
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
@@ -402,8 +446,12 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
 			msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
 
-	kfree(msg->data);
-	kfree(msg);
+	FREE_MSG(msg);
+
+	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
+			i2c_regs, 0);
+	if(ret)
+		dev_err(nvec->dev, "error adding subdevices\n");
 
 	/* unmute speakers? */
 	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
@@ -423,7 +471,7 @@ failed:
 
 static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 {
-	// TODO: unregister
+	/* TODO: unregister */
 	return 0;
 }
 
@@ -440,8 +488,8 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 	return 0;
 }
 
-static int tegra_nvec_resume(struct platform_device *pdev) {
-
+static int tegra_nvec_resume(struct platform_device *pdev)
+{
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 
 	dev_dbg(nvec->dev, "resuming\n");
@@ -455,8 +503,7 @@ static int tegra_nvec_resume(struct platform_device *pdev) {
 #define tegra_nvec_resume NULL
 #endif
 
-static struct platform_driver nvec_device_driver =
-{
+static struct platform_driver nvec_device_driver = {
 	.probe = tegra_nvec_probe,
 	.remove = __devexit_p(tegra_nvec_remove),
 	.suspend = tegra_nvec_suspend,
@@ -464,7 +511,7 @@ static struct platform_driver nvec_device_driver =
 	.driver = {
 		.name = "nvec",
 		.owner = THIS_MODULE,
-	}
+	},
 };
 
 static int __init tegra_nvec_init(void)
@@ -473,4 +520,8 @@ static int __init tegra_nvec_init(void)
 }
 
 module_init(tegra_nvec_init);
+
 MODULE_ALIAS("platform:nvec");
+MODULE_DESCRIPTION("NVIDIA compliant embedded controller interface");
+MODULE_AUTHOR("Marc Dietrich <marvin24@gmx.de>");
+MODULE_LICENSE("GPL");
