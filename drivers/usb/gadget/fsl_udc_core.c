@@ -2362,9 +2362,10 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 	int ret = -ENODEV;
 	unsigned int i;
 	u32 dccparams;
-#if defined(CONFIG_ARCH_TEGRA)
+	struct fsl_usb2_platform_data *pdata;
 	struct resource *res_sys = NULL;
-#endif
+
+	pdata = pdev->dev.platform_data;
 
 	if (strcmp(pdev->name, driver_name)) {
 		VDBG("Wrong device");
@@ -2399,10 +2400,10 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		goto err_release_mem_region;
 	}
 
-#if defined(CONFIG_ARCH_TEGRA)
 	/* If the PHY registers are NOT provided as a seperate aperture, then
 	 * we should be using the registers inside the controller aperture. */
-	res_sys = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if(pdata->workaround & FSL_USB2_WORKAROUND_SEPARATE_PHY)
+		res_sys = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (res_sys)  {
 		usb_sys_regs = ioremap(res_sys->start, resource_size(res_sys));
 		if (!usb_sys_regs)
@@ -2411,12 +2412,6 @@ static int __init fsl_udc_probe(struct platform_device *pdev)
 		usb_sys_regs = (struct usb_sys_interface *)
 			((u32)dr_regs + USB_DR_SYS_OFFSET);
 	}
-#endif
-
-#if !defined(CONFIG_ARCH_MXC) && !defined(CONFIG_ARCH_TEGRA)
-	usb_sys_regs = (struct usb_sys_interface *)
-			((u32)dr_regs + USB_DR_SYS_OFFSET);
-#endif
 
 	/* Initialize USB clocks */
 	ret = fsl_udc_clk_init(pdev);
