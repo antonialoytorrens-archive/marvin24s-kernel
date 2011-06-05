@@ -130,21 +130,6 @@ static void paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device4);
 }
 
-static struct platform_device *paz00_devices[] __initdata = {
-	&debug_uart,
-	&tegra_pmu_device,
-//	&tegra_rtc_device,
-	&nvec_mfd,
-	&tegra_sdhci_device4,
-	&tegra_sdhci_device1,
-	&tegra_spi_device1,
-	&tegra_spi_device2,
-	&tegra_spi_device3,
-	&tegra_spi_device4,
-	&tegra_gart_device,
-	&tegra_avp_device,
-};
-
 static struct tegra_ulpi_config ulpi_phy_config = {
 		.reset_gpio = TEGRA_ULPI_RST,
 		.clk = "cdev2",
@@ -183,6 +168,43 @@ static void __init tegra_paz00_fixup(struct machine_desc *desc,
 	mi->bank[0].size = 448 * SZ_1M;
 }
 
+static struct gpio_led gpio_leds[] = {
+	{
+		.name			= "wifi-led",
+		.default_trigger	= "rfkill0",
+		.gpio			= TEGRA_WIFI_LED,
+	},
+};
+
+static struct gpio_led_platform_data gpio_led_info = {
+		.leds           = gpio_leds,
+		.num_leds       = ARRAY_SIZE(gpio_leds),
+};
+
+static struct platform_device leds_gpio = {
+	.name   = "leds-gpio",
+	.id     = -1,
+	.dev    = {
+		.platform_data  = &gpio_led_info,
+	},
+};
+
+static struct platform_device *paz00_devices[] __initdata = {
+	&debug_uart,
+	&tegra_pmu_device,
+//	&tegra_rtc_device,
+	&nvec_mfd,
+	&tegra_sdhci_device4,
+	&tegra_sdhci_device1,
+	&tegra_spi_device1,
+	&tegra_spi_device2,
+	&tegra_spi_device3,
+	&tegra_spi_device4,
+	&leds_gpio,
+	&tegra_gart_device,
+	&tegra_avp_device,
+};
+
 static void __init paz00_wifi_init(void)
 {
 	int ret;
@@ -195,13 +217,6 @@ static void __init paz00_wifi_init(void)
 		return;
 	}
 	gpio_export(TEGRA_WIFI_PWRN, 0);
-
-	/* export wifi led */
-	ret = gpio_request_one(TEGRA_WIFI_LED, GPIOF_OUT_INIT_HIGH,
-			"wifi_led");
-	if(ret)
-		pr_warning("WIFI: could not request LED gpio!\n");
-	gpio_export(TEGRA_WIFI_LED, 0);
 }
 
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
