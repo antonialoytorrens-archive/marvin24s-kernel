@@ -29,7 +29,7 @@
 #include "msdos.h"
 
 #include <asm/unaligned.h>
-
+#include <asm/div64.h>
 
 char *partition_list = NULL;
 
@@ -238,7 +238,7 @@ parse_tegrapart(struct parsed_partitions *state)
 	char *pstart;
 	int pstate;
 	char name[8];
-	u32 offset, size, blocksize, kblocksize;
+	u64 offset, size, blocksize, kblocksize;
 	int done;
 	int ret=0;
 
@@ -289,9 +289,10 @@ parse_tegrapart(struct parsed_partitions *state)
 				pstate = STATE_NAME;
 				pstart = ptr+1;
 
-				offset = offset*blocksize/kblocksize;
-				size   = size*blocksize/kblocksize;
-
+				offset = offset*blocksize;
+				size   = size*blocksize;
+				do_div(offset, kblocksize);
+				do_div(size, kblocksize);
 
 				if (!strcasecmp(name, "mbr")) {
 					printk(KERN_INFO "parse_tegrapart: mbr start=%d\n", offset);
