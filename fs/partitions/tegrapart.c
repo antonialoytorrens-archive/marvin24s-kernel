@@ -295,11 +295,11 @@ parse_tegrapart(struct parsed_partitions *state)
 				do_div(size, kblocksize);
 
 				if (!strcasecmp(name, "mbr")) {
-					printk(KERN_INFO "parse_tegrapart: mbr start=%d\n", offset);
+					printk(KERN_INFO "parse_tegrapart: mbr start=%llu\n", offset);
 					return tegra_msdos_parse(state, state->bdev, offset);
 				}
 
-				printk(KERN_INFO "parse_tegrapart: part #%d [%s] start=%d size=%d\n",
+				printk(KERN_INFO "parse_tegrapart: part #%d [%s] start=%llu size=%llu\n",
 						state->next, name, offset, size);
 
 				put_partition(state, state->next++, offset, size);
