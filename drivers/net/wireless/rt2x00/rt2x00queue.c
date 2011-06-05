@@ -614,7 +614,7 @@ int rt2x00queue_write_tx_frame(struct data_queue *queue, struct sk_buff *skb,
 	else if (test_bit(REQUIRE_DMA, &queue->rt2x00dev->cap_flags))
 		rt2x00queue_align_frame(skb);
 
-	spin_lock_bh(&queue->tx_lock);
+	spin_lock(&queue->tx_lock);
 
 	if (unlikely(rt2x00queue_full(queue))) {
 		ERROR(queue->rt2x00dev,
@@ -657,7 +657,7 @@ int rt2x00queue_write_tx_frame(struct data_queue *queue, struct sk_buff *skb,
 	rt2x00queue_kick_tx_queue(queue, &txdesc);
 
 out:
-	spin_unlock_bh(&queue->tx_lock);
+	spin_unlock(&queue->tx_lock);
 	return ret;
 }
 
