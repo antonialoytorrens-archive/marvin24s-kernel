@@ -34,12 +34,6 @@ enum {
 	NVEC_PS2_EVT
 };
 
-enum {
-	NVEC_WAIT,
-	NVEC_READ,
-	NVEC_WRITE
-};
-
 struct nvec_msg {
 	unsigned char *data;
 	unsigned short size;
@@ -68,13 +62,13 @@ struct nvec_chip {
 	int irq;
 	int i2c_addr;
 	void __iomem *i2c_regs;
-	int state;
 	struct atomic_notifier_head notifier_list;
 	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
 	struct work_struct rx_work, tx_work;
 	struct nvec_msg *rx, *tx;
 	struct mutex async_write_mutex;
+	struct mutex dispatch_mutex;
 	struct completion ec_transfer;
 
 /* sync write stuff */
