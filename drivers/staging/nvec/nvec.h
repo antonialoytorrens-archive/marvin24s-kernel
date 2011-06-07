@@ -66,6 +66,7 @@ struct nvec_chip {
 	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
 	struct work_struct rx_work, tx_work;
+	struct workqueue_struct *wq;
 	struct nvec_msg *rx, *tx;
 	struct mutex async_write_mutex;
 	struct mutex dispatch_mutex;

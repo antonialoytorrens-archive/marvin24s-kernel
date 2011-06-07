@@ -102,12 +102,7 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 
 	list_add_tail(&msg->node, &nvec->tx_data);
 
-	/* don't assert if transfer is still in progress */
-	schedule_work(&nvec->tx_work);
-/*	if(wait_for_completion_timeout(&nvec->ec_transfer, msecs_to_jiffies(1000)))
-		gpio_set_value(nvec->gpio, 0);
-	else
-		dev_warn(nvec->dev, "timeout waiting for ec transfer\n"); */
+	queue_work(nvec->wq, &nvec->tx_work);
 }
 EXPORT_SYMBOL(nvec_write_async);
 
@@ -267,13 +262,13 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 				dev_dbg(nvec->dev, "everything transfered - msg unqueued\n");
 				list_del_init(&msg->node);
 				FREE_MSG(msg);
-				schedule_work(&nvec->tx_work);
+				queue_work(nvec->wq, &nvec->tx_work);
 			} else {
 				dev_warn(nvec->dev, "received END_TRANS during send\n");
 			}
 			goto handled;
-		} else { /* 0x1a, 0xa, ec <- t20 continues */
-//			dev_dbg(nvec->dev, "ec <- t20 comm continues\n");
+		} else { /* 0x0a, ec <- t20 continues */
+			dev_dbg(nvec->dev, "ec <- t20 comm continues\n");
 		}
 
 		if (msg->pos < msg->size) {
@@ -312,7 +307,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 		if (status & END_TRANS) { /* status = 0x18 */
 			if (nvec->rx->size > 1) {
 				list_add_tail(&nvec->rx->node, &nvec->rx_data);
-				schedule_work(&nvec->rx_work);
+				queue_work(nvec->wq, &nvec->rx_work);
 				complete(&nvec->ec_transfer);
 			} else {
 				dev_warn(nvec->dev, "single byte received %d\n",
@@ -352,6 +347,7 @@ static void tegra_init_i2c_slave(struct nvec_platform_data *pdata,
 	writel(0x1E, i2c_regs + I2C_SL_DELAY_COUNT);
 	val = I2C_CNFG_NEW_MASTER_SFM | I2C_CNFG_PACKET_MODE_EN |
 		(0x2 << I2C_CNFG_DEBOUNCE_CNT_SHIFT);
+
 	writel(val, i2c_regs + I2C_CNFG);
 	writel(I2C_SL_NEWL, i2c_regs + I2C_SL_CNFG);
 
@@ -435,6 +431,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&nvec->rx_data);
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);
 	INIT_WORK(&nvec->tx_work, nvec_request_master);
+	nvec->wq = alloc_workqueue("nvec", WQ_HIGHPRI | WQ_NON_REENTRANT, 1);
 
 	/* enable event reporting */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
