@@ -26,6 +26,7 @@
 #include <linux/gpio.h>
 #include <linux/serio.h>
 #include <linux/delay.h>
+#include <linux/time.h>
 #include <linux/input.h>
 #include <linux/workqueue.h>
 #include <linux/clk.h>
@@ -204,9 +205,12 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 	unsigned char to_send;
 	unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
 	unsigned long flags;
+	struct timespec start_time, end_time, diff_time;
 	struct nvec_msg *msg;
 	struct nvec_chip *nvec = (struct nvec_chip *)dev;
 	unsigned char *i2c_regs = nvec->i2c_regs;
+
+	getnstimeofday(&start_time);
 
 	status = readl(i2c_regs + I2C_SL_STATUS);
 	dev_dbg(nvec->dev, "irq status: %lx\n", status);
@@ -245,7 +249,12 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 			/* Work around for AP20 New Slave Hw Bug.
 			   Give 1us extra ???
 			   ((1000 / 80) / 2) + 1 = 33 */
-			udelay(33);
+			getnstimeofday(&end_time);
+			diff_time = timespec_sub(end_time, start_time);
+			flags = timespec_to_ns(&diff_time);
+			if (flags < 33000)
+				ndelay(33000 - flags);
+			dev_dbg(nvec->dev, "isr time: %llu nsec\n", timespec_to_ns(&diff_time));
 
 			/* force retransmit if something went wrong */
 			if(msg->pos > 0) {
@@ -281,9 +290,6 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 			gpio_set_value(nvec->gpio, 1);
 			dev_dbg(nvec->dev, "gpio -> high\n");
 		}
-
-//		if(nvec->state == NVEC_WAIT)
-//			complete(&nvec->ec_transfer);
 
 		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
 
