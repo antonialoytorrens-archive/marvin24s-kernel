@@ -477,7 +477,16 @@ failed:
 
 static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 {
-	/* TODO: unregister */
+	struct nvec_chip *nvec = platform_get_drvdata(pdev);
+
+	nvec_write_async(nvec, EC_DISABLE_EVENT_REPORTING, 3);
+	mfd_remove_devices(nvec->dev);
+	free_irq(nvec->irq, &i2c_interrupt);
+	iounmap(nvec->i2c_regs);
+	gpio_free(nvec->gpio);
+	destroy_workqueue(nvec->wq);
+	kfree(nvec);
+
 	return 0;
 }
 
