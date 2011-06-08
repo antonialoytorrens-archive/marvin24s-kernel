@@ -191,22 +191,10 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.is_dvc		= true,
 };
 
-static struct nvec_platform_data nvec_mfd_platform_data = {
+static struct nvec_platform_data paz00_nvec_platform_data = {
 	.i2c_addr = 0x8a,
-	.gpio = PAZ00_NVEC_REQ, // FIXME: move to res?
-	.irq = INT_I2C3,
-	.base = TEGRA_I2C3_BASE,
-	.size = TEGRA_I2C3_SIZE,
-	.clock = "tegra-i2c.2",
+	.gpio = PAZ00_NVEC_REQ,
 };
-
-static struct platform_device nvec_mfd = {
-	.name = "nvec",
-	.dev = {
-		.platform_data = &nvec_mfd_platform_data,
-	},
-};
-
 
 static struct alc5632_platform_data alc5632_pdata = {
 	.add_ctrl = 0x0400,
@@ -240,10 +228,13 @@ static void paz00_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
+	tegra_i2c_device3.name = "nvec";
+	tegra_i2c_device3.dev.platform_data = &paz00_nvec_platform_data;
 	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
+	platform_device_register(&tegra_i2c_device3);
 	platform_device_register(&tegra_i2c_device4);
 
 	i2c_register_board_info(0, &alc5632_board_info, 1);
@@ -318,7 +309,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device3,
 	&tegra_spi_device4,
 	&tegra_gart_device,
-	&nvec_mfd,
 	&leds_gpio,
 	&tegra_i2s_device1,
 	&tegra_das_device,
