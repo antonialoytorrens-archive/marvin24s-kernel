@@ -46,6 +46,11 @@ static struct dentry *ieee80211_debugfs_dir;
 /* for the cleanup, scan and event works */
 struct workqueue_struct *cfg80211_wq;
 
+static bool cfg80211_disable_40mhz_24ghz;
+module_param(cfg80211_disable_40mhz_24ghz, bool, 0644);
+MODULE_PARM_DESC(cfg80211_disable_40mhz_24ghz,
+		 "Disable 40MHz support in the 2.4GHz band");
+
 /* requires cfg80211_mutex to be held! */
 struct cfg80211_registered_device *cfg80211_rdev_by_wiphy_idx(int wiphy_idx)
 {
@@ -451,6 +456,18 @@ int wiphy_register(struct wiphy *wiphy)
 			return -EINVAL;
 
 		/*
+		 * Since cfg80211_disable_40mhz_24ghz is global, we can
+		 * modify the sband's ht data even if the driver uses a
+		 * global structure for that.
+		 */
+		if (cfg80211_disable_40mhz_24ghz &&
+		    band == IEEE80211_BAND_2GHZ &&
+		    sband->ht_cap.ht_supported) {
+			sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SUP_WIDTH_20_40;
+			sband->ht_cap.cap &= ~IEEE80211_HT_CAP_SGI_40;
+		}
+
+		/*
 		 * Since we use a u32 for rate bitmaps in
 		 * ieee80211_get_response_rate, we cannot
 		 * have more than 32 legacy rates.
@@ -718,13 +735,6 @@ static int cfg80211_netdev_notifier_call(struct notifier_block * nb,
 			wdev->ps = false;
 		/* allow mac80211 to determine the timeout */
 		wdev->ps_timeout = -1;
-		if (rdev->ops->set_power_mgmt)
-			if (rdev->ops->set_power_mgmt(wdev->wiphy, dev,
-						      wdev->ps,
-						      wdev->ps_timeout)) {
-				/* assume this means it's off */
-				wdev->ps = false;
-			}
 
 		if (!dev->ethtool_ops)
 			dev->ethtool_ops = &cfg80211_ethtool_ops;
@@ -813,6 +823,19 @@ static int cfg80211_netdev_notifier_call(struct notifier_block * nb,
 		rdev->opencount++;
 		mutex_unlock(&rdev->devlist_mtx);
 		cfg80211_unlock_rdev(rdev);
+
+		/*
+		 * Configure power management to the driver here so that its
+		 * correctly set also after interface type changes etc.
+		 */
+		if (wdev->iftype == NL80211_IFTYPE_STATION &&
+		    rdev->ops->set_power_mgmt)
+			if (rdev->ops->set_power_mgmt(wdev->wiphy, dev,
+						      wdev->ps,
+						      wdev->ps_timeout)) {
+				/* assume this means it's off */
+				wdev->ps = false;
+			}
 		break;
 	case NETDEV_UNREGISTER:
 		/*

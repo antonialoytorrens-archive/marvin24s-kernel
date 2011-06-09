@@ -90,20 +90,11 @@ enum rx_mgmt_action {
 	/* no action required */
 	RX_MGMT_NONE,
 
-	/* caller must call cfg80211_send_rx_auth() */
-	RX_MGMT_CFG80211_AUTH,
-
-	/* caller must call cfg80211_send_rx_assoc() */
-	RX_MGMT_CFG80211_ASSOC,
-
 	/* caller must call cfg80211_send_deauth() */
 	RX_MGMT_CFG80211_DEAUTH,
 
 	/* caller must call cfg80211_send_disassoc() */
 	RX_MGMT_CFG80211_DISASSOC,
-
-	/* caller must tell cfg80211 about internal error */
-	RX_MGMT_CFG80211_ASSOC_ERROR,
 };
 
 /* utils */
@@ -145,6 +136,9 @@ void ieee80211_sta_reset_conn_monitor(struct ieee80211_sub_if_data *sdata)
 {
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 
+	if (unlikely(!sdata->u.mgd.associated))
+		return;
+
 	if (sdata->local->hw.flags & IEEE80211_HW_CONNECTION_MONITOR)
 		return;
 
@@ -172,6 +166,7 @@ static u32 ieee80211_enable_ht(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_supported_band *sband;
 	struct sta_info *sta;
 	u32 changed = 0;
+	int hti_cfreq;
 	u16 ht_opmode;
 	bool enable_ht = true;
 	enum nl80211_channel_type prev_chantype;
@@ -185,10 +180,27 @@ static u32 ieee80211_enable_ht(struct ieee80211_sub_if_data *sdata,
 	if (!sband->ht_cap.ht_supported)
 		enable_ht = false;
 
-	/* check that channel matches the right operating channel */
-	if (local->hw.conf.channel->center_freq !=
-	    ieee80211_channel_to_frequency(hti->control_chan))
-		enable_ht = false;
+	if (enable_ht) {
+		hti_cfreq = ieee80211_channel_to_frequency(hti->control_chan,
+							   sband->band);
+		/* check that channel matches the right operating channel */
+		if (local->hw.conf.channel->center_freq != hti_cfreq) {
+			/* Some APs mess this up, evidently.
+			 * Netgear WNDR3700 sometimes reports 4 higher than
+			 * the actual channel, for instance.
+			 */
+			printk(KERN_DEBUG
+			       "%s: Wrong control channel in association"
+			       " response: configured center-freq: %d"
+			       " hti-cfreq: %d  hti->control_chan: %d"
+			       " band: %d.  Disabling HT.\n",
+			       sdata->name,
+			       local->hw.conf.channel->center_freq,
+			       hti_cfreq, hti->control_chan,
+			       sband->band);
+			enable_ht = false;
+		}
+	}
 
 	if (enable_ht) {
 		channel_type = NL80211_CHAN_HT20;
@@ -440,7 +452,8 @@ void ieee80211_sta_process_chanswitch(struct ieee80211_sub_if_data *sdata,
 		container_of((void *)bss, struct cfg80211_bss, priv);
 	struct ieee80211_channel *new_ch;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	int new_freq = ieee80211_channel_to_frequency(sw_elem->new_ch_num);
+	int new_freq = ieee80211_channel_to_frequency(sw_elem->new_ch_num,
+						      cbss->channel->band);
 
 	ASSERT_MGD_MTX(ifmgd);
 
@@ -642,6 +655,14 @@ void ieee80211_recalc_ps(struct ieee80211_local *local, s32 latency)
 	list_for_each_entry(sdata, &local->interfaces, list) {
 		if (!ieee80211_sdata_running(sdata))
 			continue;
+		if (sdata->vif.type == NL80211_IFTYPE_AP) {
+			/* If an AP vif is found, then disable PS
+			 * by setting the count to zero thereby setting
+			 * ps_sdata to NULL.
+			 */
+			count = 0;
+			break;
+		}
 		if (sdata->vif.type != NL80211_IFTYPE_STATION)
 			continue;
 		found = sdata;
@@ -729,8 +750,6 @@ void ieee80211_dynamic_ps_enable_work(struct work_struct *work)
 			     dynamic_ps_enable_work);
 	struct ieee80211_sub_if_data *sdata = local->ps_sdata;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	unsigned long flags;
-	int q;
 
 	/* can only happen when PS was just disabled anyway */
 	if (!sdata)
@@ -739,36 +758,19 @@ void ieee80211_dynamic_ps_enable_work(struct work_struct *work)
 	if (local->hw.conf.flags & IEEE80211_CONF_PS)
 		return;
 
-	/*
-	 * transmission can be stopped by others which leads to
-	 * dynamic_ps_timer expiry. Postpond the ps timer if it
-	 * is not the actual idle state.
-	 */
-	spin_lock_irqsave(&local->queue_stop_reason_lock, flags);
-	for (q = 0; q < local->hw.queues; q++) {
-		if (local->queue_stop_reasons[q]) {
-			spin_unlock_irqrestore(&local->queue_stop_reason_lock,
-					       flags);
-			mod_timer(&local->dynamic_ps_timer, jiffies +
-				  msecs_to_jiffies(
-				  local->hw.conf.dynamic_ps_timeout));
-			return;
-		}
-	}
-	spin_unlock_irqrestore(&local->queue_stop_reason_lock, flags);
-
 	if ((local->hw.flags & IEEE80211_HW_PS_NULLFUNC_STACK) &&
 	    (!(ifmgd->flags & IEEE80211_STA_NULLFUNC_ACKED))) {
 		netif_tx_stop_all_queues(sdata->dev);
-		/*
-		 * Flush all the frames queued in the driver before
-		 * going to power save
-		 */
-		drv_flush(local, false);
-		ieee80211_send_nullfunc(local, sdata, 1);
 
-		/* Flush once again to get the tx status of nullfunc frame */
-		drv_flush(local, false);
+		if (drv_tx_frames_pending(local))
+			mod_timer(&local->dynamic_ps_timer, jiffies +
+				  msecs_to_jiffies(
+				  local->hw.conf.dynamic_ps_timeout));
+		else {
+			ieee80211_send_nullfunc(local, sdata, 1);
+			/* Flush to get the tx status of nullfunc frame */
+			drv_flush(local, false);
+		}
 	}
 
 	if (!((local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS) &&
@@ -779,7 +781,7 @@ void ieee80211_dynamic_ps_enable_work(struct work_struct *work)
 		ieee80211_hw_config(local, IEEE80211_CONF_CHANGE_PS);
 	}
 
-	netif_tx_wake_all_queues(sdata->dev);
+	netif_tx_start_all_queues(sdata->dev);
 }
 
 void ieee80211_dynamic_ps_timer(unsigned long data)
@@ -1101,12 +1103,6 @@ void ieee80211_sta_rx_notify(struct ieee80211_sub_if_data *sdata,
 	 * AP we're connected to.
 	 */
 	if (is_multicast_ether_addr(hdr->addr1))
-		return;
-
-	/*
-	 * In case we receive frames after disassociation.
-	 */
-	if (!sdata->u.mgd.associated)
 		return;
 
 	ieee80211_sta_reset_conn_monitor(sdata);
@@ -1597,7 +1593,8 @@ static void ieee80211_rx_bss_info(struct ieee80211_sub_if_data *sdata,
 	}
 
 	if (elems->ds_params && elems->ds_params_len == 1)
-		freq = ieee80211_channel_to_frequency(elems->ds_params[0]);
+		freq = ieee80211_channel_to_frequency(elems->ds_params[0],
+						      rx_status->band);
 	else
 		freq = rx_status->freq;
 
@@ -2189,7 +2186,6 @@ void ieee80211_sta_restart(struct ieee80211_sub_if_data *sdata)
 		add_timer(&ifmgd->chswitch_timer);
 	ieee80211_sta_reset_beacon_monitor(sdata);
 	ieee80211_restart_sta_timer(sdata);
-	ieee80211_queue_work(&sdata->local->hw, &sdata->u.mgd.monitor_work);
 }
 #endif
 
@@ -2333,6 +2329,7 @@ int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
 	else
 		wk->type = IEEE80211_WORK_DIRECT_PROBE;
 	wk->chan = req->bss->channel;
+	wk->chan_type = NL80211_CHAN_NO_HT;
 	wk->sdata = sdata;
 	wk->done = ieee80211_probe_auth_done;
 
@@ -2482,6 +2479,7 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 		memcpy(wk->assoc.prev_bssid, req->prev_bssid, ETH_ALEN);
 
 	wk->chan = req->bss->channel;
+	wk->chan_type = NL80211_CHAN_NO_HT;
 	wk->sdata = sdata;
 	wk->done = ieee80211_assoc_done;
 	if (!bss->dtim_period &&

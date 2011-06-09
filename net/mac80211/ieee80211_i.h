@@ -225,6 +225,7 @@ struct ieee80211_if_ap {
 	struct sk_buff_head ps_bc_buf;
 	atomic_t num_sta_ps; /* number of stations in PS mode */
 	int dtim_count;
+	bool dtim_bc_mc;
 };
 
 struct ieee80211_if_wds {
@@ -487,8 +488,9 @@ struct ieee80211_if_mesh {
 	struct mesh_config mshcfg;
 	u32 mesh_seqnum;
 	bool accepting_plinks;
-	const u8 *vendor_ie;
-	u8 vendor_ie_len;
+	const u8 *ie;
+	u8 ie_len;
+	bool is_secure;
 };
 
 #ifdef CONFIG_MAC80211_MESH
@@ -654,8 +656,6 @@ struct tpt_led_trigger {
  *	well be on the operating channel
  * @SCAN_HW_SCANNING: The hardware is scanning for us, we have no way to
  *	determine if we are on the operating channel or not
- * @SCAN_OFF_CHANNEL: We're off our operating channel for scanning,
- *	gets only set in conjunction with SCAN_SW_SCANNING
  * @SCAN_COMPLETED: Set for our scan work function when the driver reported
  *	that the scan completed.
  * @SCAN_ABORTED: Set for our scan work function when the driver reported
@@ -664,7 +664,6 @@ struct tpt_led_trigger {
 enum {
 	SCAN_SW_SCANNING,
 	SCAN_HW_SCANNING,
-	SCAN_OFF_CHANNEL,
 	SCAN_COMPLETED,
 	SCAN_ABORTED,
 };
@@ -767,6 +766,9 @@ struct ieee80211_local {
 
 	int tx_headroom; /* required headroom for hardware/radiotap */
 
+	/* count for keys needing tailroom space allocation */
+	int crypto_tx_tailroom_needed_cnt;
+
 	/* Tasklet and skb queue to process calls from IRQ mode. All frames
 	 * added to skb_queue will be processed, but frames in
 	 * skb_queue_unreliable may be dropped if the total length of these
@@ -811,8 +813,8 @@ struct ieee80211_local {
 
 	struct rate_control_ref *rate_ctrl;
 
-	struct crypto_blkcipher *wep_tx_tfm;
-	struct crypto_blkcipher *wep_rx_tfm;
+	struct crypto_cipher *wep_tx_tfm;
+	struct crypto_cipher *wep_rx_tfm;
 	u32 wep_iv;
 
 	/* see iface.c */
@@ -959,6 +961,7 @@ struct ieee80211_local {
 	unsigned int hw_roc_duration;
 	u32 hw_roc_cookie;
 	bool hw_roc_for_tx;
+	unsigned long hw_offchan_tx_cookie;
 
 	/* dummy netdev for use w/ NAPI */
 	struct net_device napi_dev;
@@ -1068,8 +1071,6 @@ void ieee80211_bss_info_change_notify(struct ieee80211_sub_if_data *sdata,
 void ieee80211_configure_filter(struct ieee80211_local *local);
 u32 ieee80211_reset_erp_info(struct ieee80211_sub_if_data *sdata);
 
-extern bool ieee80211_disable_40mhz_24ghz;
-
 /* STA code */
 void ieee80211_sta_setup_sdata(struct ieee80211_sub_if_data *sdata);
 int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
@@ -1147,10 +1148,14 @@ void ieee80211_rx_bss_put(struct ieee80211_local *local,
 			  struct ieee80211_bss *bss);
 
 /* off-channel helpers */
-void ieee80211_offchannel_stop_beaconing(struct ieee80211_local *local);
-void ieee80211_offchannel_stop_station(struct ieee80211_local *local);
+bool ieee80211_cfg_on_oper_channel(struct ieee80211_local *local);
+void ieee80211_offchannel_enable_all_ps(struct ieee80211_local *local,
+					bool tell_ap);
+void ieee80211_offchannel_stop_vifs(struct ieee80211_local *local,
+				    bool offchannel_ps_enable);
 void ieee80211_offchannel_return(struct ieee80211_local *local,
-				 bool enable_beaconing);
+				 bool enable_beaconing,
+				 bool offchannel_ps_disable);
 void ieee80211_hw_roc_setup(struct ieee80211_local *local);
 
 /* interface handling */
