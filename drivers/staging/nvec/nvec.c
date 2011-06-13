@@ -298,10 +298,15 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 			if (!(received == nvec->i2c_addr))
 				dev_warn(nvec->dev, "unexpected response from new slave");
 
-			msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
-			msg->data = kzalloc(32, GFP_NOWAIT);
-			INIT_LIST_HEAD(&msg->node);
-			nvec->rx = msg;
+			/* reuse the buffer if only EC_REQUEST was received */
+			if (nvec->rx && (nvec->rx->size == 1) && (nvec->rx->data[0] == 1)) {
+				nvec->rx->size = 0;
+				nvec->rx->pos = 0;
+			} else {
+				msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
+				msg->data = kzalloc(32, GFP_NOWAIT);
+				nvec->rx = msg;
+			}
 			goto handled;
 		}
 		if (status & END_TRANS) { /* status = 0x18 */
