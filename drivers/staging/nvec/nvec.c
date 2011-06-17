@@ -134,13 +134,18 @@ EXPORT_SYMBOL(nvec_write_sync);
 static void nvec_request_master(struct work_struct *work)
 {
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
+	struct nvec_msg *msg;
 
 	mutex_lock(&nvec->async_write_mutex);
 	if (!list_empty(&nvec->tx_data)) {
-		gpio_set_value(nvec->gpio, 0);
-		dev_dbg(nvec->dev, "gpio -> low\n");
-		if (!(wait_for_completion_timeout(&nvec->ec_transfer, msecs_to_jiffies(1000))))
-			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
+		msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
+		/* poor man's way to see if we are sending */
+		if (msg->pos == 0) {
+			gpio_set_value(nvec->gpio, 0);
+			dev_dbg(nvec->dev, "gpio -> low\n");
+			if (!(wait_for_completion_timeout(&nvec->ec_transfer, msecs_to_jiffies(1000))))
+				dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
+		}
 	}
 	mutex_unlock(&nvec->async_write_mutex);
 }
@@ -424,24 +429,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->irq = res->start;
 	nvec->i2c_clk = i2c_clk;
 
-	tegra_init_i2c_slave(nvec);
-
-	err = request_irq(nvec->irq, i2c_interrupt, IRQF_DISABLED, "nvec", nvec);
-	if (err) {
-		dev_err(nvec->dev, "couldn't request irq");
-		goto failed;
-	}
-
-	clk_enable(i2c_clk);
-
-	err = gpio_request(nvec->gpio, "nvec gpio");
-	if (err < 0)
-		dev_err(nvec->dev, "couldn't request gpio\n");
-
-	gpio_direction_output(nvec->gpio, 1);
-	gpio_set_value(nvec->gpio, 1);
-	tegra_gpio_enable(nvec->gpio);
-
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
 	init_completion(&nvec->sync_write);
@@ -454,6 +441,23 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);
 	INIT_WORK(&nvec->tx_work, nvec_request_master);
 	nvec->wq = alloc_workqueue("nvec", WQ_HIGHPRI | WQ_NON_REENTRANT, 1);
+
+	tegra_init_i2c_slave(nvec);
+
+	err = gpio_request(nvec->gpio, "nvec gpio");
+	if (err < 0)
+		dev_err(nvec->dev, "couldn't request gpio\n");
+	gpio_direction_output(nvec->gpio, 1);
+	gpio_set_value(nvec->gpio, 1);
+	tegra_gpio_enable(nvec->gpio);
+
+	err = request_irq(nvec->irq, i2c_interrupt, IRQF_DISABLED, "nvec", nvec);
+	if (err) {
+		dev_err(nvec->dev, "couldn't request irq");
+		goto failed;
+	}
+
+	clk_enable(i2c_clk);
 
 	/* enable event reporting */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
