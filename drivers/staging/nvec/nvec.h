@@ -68,6 +68,7 @@ struct nvec_chip {
 	struct mutex async_write_mutex;
 	struct mutex dispatch_mutex;
 	struct completion ec_transfer;
+	spinlock_t tx_lock, rx_lock;
 
 /* sync write stuff */
 	struct mutex sync_write_mutex;
