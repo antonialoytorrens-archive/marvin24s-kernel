@@ -70,7 +70,7 @@ struct nvec_chip {
 	struct completion ec_transfer;
 
 /* sync write stuff */
-	struct semaphore sync_write_mutex;
+	struct mutex sync_write_mutex;
 	struct completion sync_write;
 	u16 sync_write_pending;
 	struct nvec_msg *last_sync_msg;

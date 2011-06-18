@@ -109,7 +109,7 @@ EXPORT_SYMBOL(nvec_write_async);
 struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 		unsigned char *data, short size)
 {
-	down(&nvec->sync_write_mutex);
+	mutex_lock(&nvec->sync_write_mutex);
 
 	nvec->sync_write_pending = (data[1] << 8) + data[0];
 	nvec_write_async(nvec, data, size);
@@ -119,12 +119,13 @@ struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 	if (!(wait_for_completion_timeout(&nvec->sync_write,
 				msecs_to_jiffies(2000)))) {
 		dev_warn(nvec->dev, "timeout waiting for sync write to complete\n");
+		mutex_unlock(&nvec->sync_write_mutex);
 		return NULL;
 	}
 
 	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
 
-	up(&nvec->sync_write_mutex);
+	mutex_unlock(&nvec->sync_write_mutex);
 
 	return nvec->last_sync_msg;
 }
@@ -310,6 +311,7 @@ static irqreturn_t i2c_interrupt(int irq, void *dev)
 			} else {
 				msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
 				msg->data = kzalloc(32, GFP_NOWAIT);
+				INIT_LIST_HEAD(&msg->node);
 				nvec->rx = msg;
 			}
 			goto handled;
@@ -363,6 +365,8 @@ static void tegra_init_i2c_slave(struct nvec_chip *nvec)
 
 	writel(nvec->i2c_addr>>1, nvec->base + I2C_SL_ADDR1);
 	writel(0, nvec->base + I2C_SL_ADDR2);
+
+	enable_irq(nvec->irq);
 
 	clk_disable(nvec->i2c_clk);
 }
@@ -429,21 +433,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->irq = res->start;
 	nvec->i2c_clk = i2c_clk;
 
-	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
-
-	init_completion(&nvec->sync_write);
-	init_completion(&nvec->ec_transfer);
-	sema_init(&nvec->sync_write_mutex, 1);
-	mutex_init(&nvec->async_write_mutex);
-	mutex_init(&nvec->dispatch_mutex);
-	INIT_LIST_HEAD(&nvec->tx_data);
-	INIT_LIST_HEAD(&nvec->rx_data);
-	INIT_WORK(&nvec->rx_work, nvec_dispatch);
-	INIT_WORK(&nvec->tx_work, nvec_request_master);
-	nvec->wq = alloc_workqueue("nvec", WQ_HIGHPRI | WQ_NON_REENTRANT, 1);
-
-	tegra_init_i2c_slave(nvec);
-
 	err = gpio_request(nvec->gpio, "nvec gpio");
 	if (err < 0)
 		dev_err(nvec->dev, "couldn't request gpio\n");
@@ -451,11 +440,27 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	gpio_set_value(nvec->gpio, 1);
 	tegra_gpio_enable(nvec->gpio);
 
-	err = request_irq(nvec->irq, i2c_interrupt, IRQF_DISABLED, "nvec", nvec);
+	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
+
+	init_completion(&nvec->sync_write);
+	init_completion(&nvec->ec_transfer);
+	mutex_init(&nvec->sync_write_mutex);
+	mutex_init(&nvec->async_write_mutex);
+	mutex_init(&nvec->dispatch_mutex);
+	INIT_LIST_HEAD(&nvec->rx_data);
+	INIT_LIST_HEAD(&nvec->tx_data);
+	INIT_WORK(&nvec->rx_work, nvec_dispatch);
+	INIT_WORK(&nvec->tx_work, nvec_request_master);
+	nvec->wq = alloc_workqueue("nvec", WQ_HIGHPRI | WQ_NON_REENTRANT, 1);
+
+	err = request_irq(nvec->irq, i2c_interrupt, 0, "nvec", nvec);
 	if (err) {
 		dev_err(nvec->dev, "couldn't request irq");
 		goto failed;
 	}
+	disable_irq(nvec->irq);
+
+	tegra_init_i2c_slave(nvec);
 
 	clk_enable(i2c_clk);
 
