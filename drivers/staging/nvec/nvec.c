@@ -57,14 +57,14 @@ static struct mfd_cell nvec_devices[] = {
 		.name		= "nvec-mouse",
 		.id		= 1,
 	},
-/*	{
+	{
 		.name		= "nvec-power",
 		.id		= 1,
 	},
 	{
 		.name		= "nvec-power",
 		.id		= 2,
-	}, */
+	},
 };
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
@@ -150,6 +150,7 @@ static void nvec_request_master(struct work_struct *work)
 		gpio_set_value(nvec->gpio, 0);
 		if (!(wait_for_completion_interruptible_timeout(&nvec->ec_transfer, msecs_to_jiffies(5000)))) {
 			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
+			gpio_set_value(nvec->gpio, 1);
 			msg->pos = 0;
 		} else {
 			list_del_init(&msg->node);
@@ -207,6 +208,7 @@ static void nvec_dispatch(struct work_struct *work)
 			complete(&nvec->sync_write);
 		} else {
 			parse_msg(nvec, msg);
+			msg->used = 0;
 		}
 		spin_lock_irqsave(&nvec->rx_lock, flags);
 	}
@@ -313,7 +315,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 //		printk("snd: %x ", to_send);
 
 		if (nvec->tx->pos == nvec->tx->size) {
-			complete(&nvec->ec_transfer);
+//			complete(&nvec->ec_transfer);
 		}
 
 		nvec->rx->pos = 0;
@@ -334,6 +336,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			if (status & RCVD) { /* new transaction, 0x0c, 0x1c */
 				nvec->rx->pos = 0;
 				nvec->rx->size = 0;
+				nvec->rx->used = 1;
 				if (!(received == nvec->i2c_addr))
 					dev_warn(nvec->dev, "unexpected response from new slave");
 			} else if (nvec->rx->pos == 0) {   /* first byte of new transaction */
@@ -366,7 +369,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			}
 //			printk("rec: %lx pos: %d ", received, nvec->rx->pos);
 		} else {
-			/* implement NACK here ! */
+			/* FIXME: implement NACK here ! */
 			received = readl(base + I2C_SL_RCVD);
 			dev_err(nvec->dev, "no rx buffer available!\n");
 		}
@@ -378,12 +381,17 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			    list_add_tail(&nvec->rx->node, &nvec->rx_data);
 			    nvec->rx_pos++;
 			    nvec->rx_pos &= RX_BUF_MASK;
-			    nvec->rx = &nvec->rx_buffer[nvec->rx_pos];
+			    if (nvec->rx_buffer[nvec->rx_pos].used) {
+				    dev_err(nvec->dev, "next buffer full!");
+				    nvec->rx = NULL;
+			    } else
+				    nvec->rx = &nvec->rx_buffer[nvec->rx_pos];
 			spin_unlock_irqrestore(&nvec->rx_lock, flags);
 
 //			printk("END\n");
-//			if (nvec->ev_type == 0)
-//				complete(&nvec->ec_transfer);
+			/* only complete on responses */
+			if (nvec->ev_type == 0)
+				complete(&nvec->ec_transfer);
 			queue_work(nvec->wq, &nvec->rx_work);
 		}
 	}
@@ -391,7 +399,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 handled:
 //	dev_dbg(nvec->dev, "irq mask %lx\n", status);
 //	printk("sta: %lx - ", status);
-	writel(status, base + I2C_SL_STATUS);
+//	writel(status, base + I2C_SL_STATUS);
 	return IRQ_HANDLED;
 }
 
@@ -533,8 +541,12 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	msg = nvec_write_sync(nvec, EC_GET_FIRMWARE_VERSION,
 		sizeof(EC_GET_FIRMWARE_VERSION));
 
-	dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
-		msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
+	if (msg) {
+		dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
+			msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
+
+		msg->used = 0;
+	}
 
 	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
 			base, 0);

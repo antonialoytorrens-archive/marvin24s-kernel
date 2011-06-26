@@ -113,6 +113,7 @@ static void get_bat_mfg_data(struct nvec_power *power)
 	for (i = 0; i < ARRAY_SIZE(bat_init); i++) {
 		buf[1] = bat_init[i];
 		nvec_write_async(power->nvec, buf, 2);
+		msleep(100);
 	}
 }
 
@@ -391,8 +392,8 @@ static int __devinit nvec_power_probe(struct platform_device *pdev)
 
 	nvec_register_notifier(nvec, &power->notifier, NVEC_SYS);
 
-	if (pdev->id == BAT)
-		get_bat_mfg_data(power);
+//	if (pdev->id == BAT)
+//		get_bat_mfg_data(power);
 
 	return power_supply_register(&pdev->dev, psy);
 }
