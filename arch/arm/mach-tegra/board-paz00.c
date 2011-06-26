@@ -96,20 +96,9 @@ static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
 	.slave_addr	= 0xfc,
 };
 
-static struct nvec_platform_data nvec_mfd_platform_data = {
+static struct nvec_platform_data paz00_nvec_platform_data = {
 	.i2c_addr	= 0x8a,
 	.gpio		= TEGRA_NVEC_REQ,
-	.irq		= INT_I2C3,
-	.base		= TEGRA_I2C3_BASE,
-	.size		= TEGRA_I2C3_SIZE,
-	.clock		= "tegra-i2c.2",
-};
-
-static struct platform_device nvec_mfd = {
-	.name = "nvec",
-	.dev = {
-		.platform_data = &nvec_mfd_platform_data,
-	},
 };
 
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
@@ -123,6 +112,8 @@ static void paz00_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
+	tegra_i2c_device3.name = "nvec";
+	tegra_i2c_device3.dev.platform_data = &paz00_nvec_platform_data;
 	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
 	platform_device_register(&tegra_i2c_device1);
@@ -193,7 +184,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_pmu_device,
 //	&tegra_rtc_device,
-	&nvec_mfd,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
 	&tegra_spi_device1,

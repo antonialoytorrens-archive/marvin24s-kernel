@@ -18,10 +18,15 @@
 
 #include <linux/semaphore.h>
 
+#define RX_BUF_ORDER	4
+#define RX_BUF_SIZE	(1 << RX_BUF_ORDER)
+#define RX_BUF_MASK	(RX_BUF_SIZE - 1)
+#define MAX_PKT_SIZE	200
+
 enum {
 	NVEC_2BYTES,
 	NVEC_3BYTES,
-	NVEC_VAR_SIZE
+	NVEC_VAR_SIZE,
 };
 
 enum {
@@ -31,14 +36,17 @@ enum {
 	NVEC_PS2,
 	NVEC_CNTL,
 	NVEC_KB_EVT = 0x80,
-	NVEC_PS2_EVT
+	NVEC_PS2_EVT,
 };
 
 struct nvec_msg {
-	unsigned char *data;
+	struct list_head node;
+	unsigned char data[MAX_PKT_SIZE];
 	unsigned short size;
 	unsigned short pos;
-	struct list_head node;
+/* only used for rx */
+	unsigned short used;
+	unsigned short valid;
 };
 
 struct nvec_subdev {
@@ -50,10 +58,6 @@ struct nvec_subdev {
 struct nvec_platform_data {
 	int i2c_addr;
 	int gpio;
-	int irq;
-	int base;
-	int size;
-	char clock[16];
 };
 
 struct nvec_chip {
@@ -61,18 +65,29 @@ struct nvec_chip {
 	int gpio;
 	int irq;
 	int i2c_addr;
-	void __iomem *i2c_regs;
+	void __iomem *base;
+	struct clk *i2c_clk;
 	struct atomic_notifier_head notifier_list;
 	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
 	struct work_struct rx_work, tx_work;
-	struct nvec_msg *rx, *tx;
-	struct mutex async_write_mutex;
-	struct mutex dispatch_mutex;
+	struct workqueue_struct *wq;
+
+	struct nvec_msg *rx;
+	struct nvec_msg rx_buffer[RX_BUF_SIZE];
+	int rx_pos; 				/* points to the position in rx buffer */
+	int ev_len, ev_type;
+
+	struct nvec_msg *tx;
+	struct nvec_msg tx_scratch;
 	struct completion ec_transfer;
 
+	struct mutex async_write_mutex;
+	struct mutex dispatch_mutex;
+	spinlock_t tx_lock, rx_lock;
+
 /* sync write stuff */
-	struct semaphore sync_write_mutex;
+	struct mutex sync_write_mutex;
 	struct completion sync_write;
 	u16 sync_write_pending;
 	struct nvec_msg *last_sync_msg;
