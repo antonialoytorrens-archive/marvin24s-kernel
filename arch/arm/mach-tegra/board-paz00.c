@@ -118,6 +118,7 @@ static void paz00_i2c_init(void)
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
+	platform_device_register(&tegra_i2c_device3);
 	platform_device_register(&tegra_i2c_device4);
 }
 
