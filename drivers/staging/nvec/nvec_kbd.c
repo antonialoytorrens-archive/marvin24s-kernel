@@ -125,10 +125,6 @@ static int __devinit nvec_kbd_probe(struct platform_device *pdev)
 	nvec_write_async(nvec, "\x05\x03\x01\x01", 4);
 	nvec_write_async(nvec, "\x05\x04\x01", 3);
 	nvec_write_async(nvec, "\x06\x01\xff\x03", 4);
-/*	FIXME
-	wait until keyboard reset is finished
-	or until we have a sync write */
-	mdelay(1000);
 
 	return 0;
 
