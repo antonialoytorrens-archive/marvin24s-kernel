@@ -357,7 +357,7 @@ static struct tegra_suspend_platform_data paz00_suspend = {
 	.separate_req = true,
 	.corereq_high = false,
 	.sysclkreq_high = true,
-	.suspend_mode = TEGRA_SUSPEND_LP1,
+	.suspend_mode = TEGRA_SUSPEND_LP0,
 };
 
 static void __init tegra_paz00_init(void)
