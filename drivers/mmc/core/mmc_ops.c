@@ -433,6 +433,7 @@ int mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(mmc_switch);
 
 int mmc_send_status(struct mmc_card *card, u32 *status)
 {
