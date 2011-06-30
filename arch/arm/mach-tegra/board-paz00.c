@@ -34,12 +34,15 @@
 #include <asm/mach/time.h>
 #include <asm/setup.h>
 
+#include <sound/alc5632.h>
+
 #include <mach/iomap.h>
 #include <mach/irqs.h>
 #include <mach/sdhci.h>
 #include <mach/usb_phy.h>
 #include <mach/gpio.h>
 #include <mach/suspend.h>
+#include <mach/paz00_audio.h>
 
 #include "board.h"
 #include "board-paz00.h"
@@ -101,6 +104,29 @@ static struct nvec_platform_data paz00_nvec_platform_data = {
 	.gpio		= TEGRA_NVEC_REQ,
 };
 
+static struct alc5632_platform_data alc5632_pdata = {
+	.add_ctrl = 0x0400,
+	.jack_det_ctrl = -1,
+};
+
+static struct paz00_audio_platform_data audio_pdata = {
+/* speaker enable goes via nvec */
+	.gpio_hp_det	= TEGRA_HP_DET,
+};
+
+static struct platform_device audio_device = {
+	.name	= "tegra-snd-paz00",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &audio_pdata,
+	},
+};
+
+static struct i2c_board_info __initdata alc5632_board_info = {
+	I2C_BOARD_INFO("alc5632", 0x1e),
+	.platform_data = &alc5632_pdata,
+};
+
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
@@ -120,6 +146,8 @@ static void paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device3);
 	platform_device_register(&tegra_i2c_device4);
+
+	i2c_register_board_info(0, &alc5632_board_info, 1);
 }
 
 static struct tegra_ulpi_config ulpi_phy_config = {
@@ -193,6 +221,10 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device4,
 	&leds_gpio,
 	&tegra_gart_device,
+	&tegra_i2s_device1,
+	&tegra_das_device,
+	&tegra_pcm_device,
+	&audio_device,
 	&tegra_avp_device,
 };
 
@@ -225,6 +257,11 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	{ "pll_p_out4",	"pll_p",	24000000,	true },
 	{ "pll_c_out1",	"pll_c",	240000000,	true },
 	{ "pll_c",	"clk_m",        600000000,      true },
+	
+/* these are used for audio */
+	{ "cdev1",	"pll_a_out0",	11289600,	true},
+	{ "audio_2x",	"audio",	22579200,	false},
+	{ "i2s1",	"pll_a_out0",	11289600,	false},
 
 	{ NULL,		NULL,		0,		0},
 };

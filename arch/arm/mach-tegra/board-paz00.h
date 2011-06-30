@@ -42,6 +42,9 @@
 /* EC */
 #define TEGRA_NVEC_REQ			TEGRA_GPIO_PV2
 
+/* Audio */
+#define TEGRA_HP_DET			TEGRA_GPIO_PW2
+
 void paz00_pinmux_init(void);
 int paz00_power_init(void);
 int paz00_panel_init(void);
