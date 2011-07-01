@@ -440,6 +440,13 @@ static void tegra_init_i2c_slave(struct nvec_chip *nvec)
 	clk_disable(nvec->i2c_clk);
 }
 
+static void nvec_disable_i2c_slave(struct nvec_chip *nvec)
+{
+	disable_irq(nvec->irq);
+	writel(I2C_SL_NEWL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
+	clk_disable(nvec->i2c_clk);
+}
+
 static void nvec_power_off(void)
 {
 	nvec_write_async(nvec_power_handle, EC_DISABLE_EVENT_REPORTING, 3);
@@ -605,6 +612,7 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 	dev_dbg(nvec->dev, "suspending\n");
 	nvec_write_async(nvec, EC_DISABLE_EVENT_REPORTING, 3);
 	nvec_write_async(nvec, "\x04\x02", 2);
+	nvec_disable_i2c_slave(nvec);
 
 	return 0;
 }
@@ -614,6 +622,7 @@ static int tegra_nvec_resume(struct platform_device *pdev)
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 
 	dev_dbg(nvec->dev, "resuming\n");
+	tegra_init_i2c_slave(nvec);
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
 
 	return 0;
