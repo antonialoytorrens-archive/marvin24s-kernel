@@ -28,8 +28,8 @@
 #include <mach/iomap.h>
 #include "board-paz00.h"
 
-#define    PMC_CTRL                0x0
-#define    PMC_CTRL_INTR_LOW       (1<<7)
+#define PMC_CTRL                0x0
+#define PMC_CTRL_INTR_LOW       (1<<7)
 
 static struct regulator_consumer_supply tps658621_sm0_supply[] = {
 	REGULATOR_SUPPLY("vdd_core", NULL),
@@ -107,34 +107,36 @@ static struct regulator_consumer_supply tps658621_soc_supply[] = {
 };
 */
 
-#define REGULATOR_INIT(_id, _minmv, _maxmv)				\
+#define REGULATOR_INIT(_id, _minmv, _maxmv, _always_on)			\
 	{								\
 		.constraints = {					\
 			.min_uV = (_minmv)*1000,			\
 			.max_uV = (_maxmv)*1000,			\
 			.valid_modes_mask = (REGULATOR_MODE_NORMAL |	\
-					     REGULATOR_MODE_STANDBY),	\
+					     REGULATOR_MODE_FAST),	\
 			.valid_ops_mask = (REGULATOR_CHANGE_MODE |	\
 					   REGULATOR_CHANGE_STATUS |	\
 					   REGULATOR_CHANGE_VOLTAGE),	\
+			.always_on = _always_on,			\
+			.apply_uV = (_minmv == _maxmv),			\
 		},							\
 		.num_consumer_supplies = ARRAY_SIZE(tps658621_##_id##_supply),\
 		.consumer_supplies = tps658621_##_id##_supply,		\
 	}
 
-static struct regulator_init_data sm0_data = REGULATOR_INIT(sm0, 725, 1200);    // 1200
-static struct regulator_init_data sm1_data = REGULATOR_INIT(sm1, 725, 1000);    // 1000
-static struct regulator_init_data sm2_data = REGULATOR_INIT(sm2, 3000, 3700);   // 3700
-static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3300); // 3300
-static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725, 1100);  // 1100
-static struct regulator_init_data ldo2_data = REGULATOR_INIT(ldo2, 725, 1200);  // 1200
-static struct regulator_init_data ldo3_data = REGULATOR_INIT(ldo3, 1250, 3300); // 3300
-static struct regulator_init_data ldo4_data = REGULATOR_INIT(ldo4, 1700, 1800); // 1800
-static struct regulator_init_data ldo5_data = REGULATOR_INIT(ldo5, 1250, 2850); // 2850
-static struct regulator_init_data ldo6_data = REGULATOR_INIT(ldo6, 1250, 2850); // 2850
-static struct regulator_init_data ldo7_data = REGULATOR_INIT(ldo7, 1250, 3300); // 3300
-static struct regulator_init_data ldo8_data = REGULATOR_INIT(ldo8, 1250, 1800); // 1800
-static struct regulator_init_data ldo9_data = REGULATOR_INIT(ldo9, 1250, 2850); // 2850
+static struct regulator_init_data sm0_data  = REGULATOR_INIT(sm0,  725,  1200, true);
+static struct regulator_init_data sm1_data  = REGULATOR_INIT(sm1,  725,  1000, true);
+static struct regulator_init_data sm2_data  = REGULATOR_INIT(sm2,  3000, 3700, true);
+static struct regulator_init_data ldo0_data = REGULATOR_INIT(ldo0, 1250, 3300, false);
+static struct regulator_init_data ldo1_data = REGULATOR_INIT(ldo1, 725,  1100, true);
+static struct regulator_init_data ldo2_data = REGULATOR_INIT(ldo2, 725,  1200, false);
+static struct regulator_init_data ldo3_data = REGULATOR_INIT(ldo3, 1250, 3300, false);
+static struct regulator_init_data ldo4_data = REGULATOR_INIT(ldo4, 1700, 1800, true);
+static struct regulator_init_data ldo5_data = REGULATOR_INIT(ldo5, 1250, 2850, true);
+static struct regulator_init_data ldo6_data = REGULATOR_INIT(ldo6, 1250, 2850, false);
+static struct regulator_init_data ldo7_data = REGULATOR_INIT(ldo7, 1250, 3300, false);
+static struct regulator_init_data ldo8_data = REGULATOR_INIT(ldo8, 1250, 1800, false);
+static struct regulator_init_data ldo9_data = REGULATOR_INIT(ldo9, 1250, 2850, true);
 /*
 static struct regulator_init_data soc_data = REGULATOR_INIT(soc, 1250, 3300);
 static struct regulator_init_data buck_data = REGULATOR_INIT(buck, 1250, 3300); 
@@ -185,9 +187,9 @@ static struct tps6586x_subdev_info tps_devs[] = {
 };
 
 static struct tps6586x_platform_data tps_platform = {
-	.num_subdevs = ARRAY_SIZE(tps_devs),
-	.subdevs = tps_devs,
-	.gpio_base = TEGRA_NR_GPIOS,
+	.num_subdevs	= ARRAY_SIZE(tps_devs),
+	.subdevs	= tps_devs,
+	.gpio_base	= TEGRA_NR_GPIOS,
 };
 
 static struct i2c_board_info __initdata paz00_regulators[] = {
@@ -207,7 +209,7 @@ int __init paz00_regulator_init(void)
 	pmc_ctrl = readl(pmc + PMC_CTRL);
 	writel(pmc_ctrl | PMC_CTRL_INTR_LOW, pmc + PMC_CTRL);
 
-//	regulator_has_full_constraints();
+	regulator_has_full_constraints();
 
 	i2c_register_board_info(4, paz00_regulators, 1);
 	return 0;
