@@ -57,12 +57,19 @@
 #ifdef PRINT_ATAGS
 
 #define ATAG_NVIDIA             0x41000801
+#define MAX_MEMHDL		8
 
 struct tag_tegra {
 	__u32 bootarg_len;
 	__u32 bootarg_key;
 	__u32 bootarg_nvkey;
 	__u32 bootarg[];
+};
+
+struct memhdl {
+	__u32 id;
+	__u32 start;
+	__u32 size;
 };
 
 enum {
@@ -75,10 +82,16 @@ enum {
 	WARMBOOT,
 };
 
+int num_memhdl = 0;
+
+struct memhdl nv_memhdl[MAX_MEMHDL];
+
+
 static int __init parse_tag_nvidia(const struct tag *tag)
 {
 	int i;
 	struct tag_tegra *nvtag = (struct tag_tegra *)tag;
+	__u32 id;
 
 	switch(nvtag->bootarg_nvkey) {
 		case RM:
@@ -100,11 +113,26 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 			printk("CARVEOUT       ");
 			break;
 		case WARMBOOT:
+			id = nvtag->bootarg[1];
+			for(i=0; i<num_memhdl; i++) {
+				if (nv_memhdl[i].id == id) {
+					tegra_lp0_vec_start = nv_memhdl[i].start;
+					tegra_lp0_vec_size = nv_memhdl[i].size;
+				}
+			}
 			printk("WARMBOOT       ");
 			break;
 		default:
-			if(nvtag->bootarg_nvkey & 0x10000)
-				printk("PreMemHdl %4d ", nvtag->bootarg_nvkey & 0xFFFF);
+			if(nvtag->bootarg_nvkey & 0x10000) {
+				id = nvtag->bootarg_nvkey;
+				if (num_memhdl < MAX_MEMHDL) {
+					nv_memhdl[num_memhdl].id = id;
+					nv_memhdl[num_memhdl].start = nvtag->bootarg[1];
+					nv_memhdl[num_memhdl].size = nvtag->bootarg[2];
+					num_memhdl++;
+				}
+				printk("PreMemHdl %4d ", id & 0xffff);
+			}
 			else
 				printk("unknown (%d) ", nvtag->bootarg_nvkey);
 			break;
