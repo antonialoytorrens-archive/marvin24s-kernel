@@ -122,6 +122,14 @@ __tagtable(ATAG_NVIDIA, parse_tag_nvidia);
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
+		.membase	= IO_ADDRESS(TEGRA_UARTA_BASE),
+		.mapbase	= TEGRA_UARTA_BASE,
+		.irq		= INT_UARTA,
+		.flags		= UPF_BOOT_AUTOCONF,
+		.iotype		= UPIO_MEM,
+		.regshift	= 2,
+		.uartclk	= 216000000,
+	}, {
 		.membase	= IO_ADDRESS(TEGRA_UARTD_BASE),
 		.mapbase	= TEGRA_UARTD_BASE,
 		.irq		= INT_UARTD,
@@ -319,7 +327,7 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 
 /* these are switched on by bootloader */
 	{ "audio",	"pll_a_out0",	11289600,	true },
-	{ "uarta",	"clk_m",	12000000,	true },
+	{ "uarta",	"pll_p",	216000000,	true },
 	{ "i2c3_i2c",	"pll_p_out3",	72000000,	true },
 	{ "clk_d",	"clk_m",	24000000,	true },
 	{ "pll_a_out0",	"pll_a",	11289600,	true },
