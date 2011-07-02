@@ -97,6 +97,6 @@ static void __exit nvec_led_exit(void)
 module_exit(nvec_led_exit);
 
 MODULE_AUTHOR("Ilya Petrov <ilya.muromec@gmail.com>");
-MODULE_DESCRIPTION("Regulator driven LED driver");
+MODULE_DESCRIPTION("Tegra NVEC LED driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS("platform:leds-regulator");
+MODULE_ALIAS("platform:nvec-leds");
