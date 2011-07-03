@@ -413,6 +413,7 @@ static void __init tegra_paz00_init(void)
 	paz00_power_init();
 	paz00_panel_init();
 	paz00_usb_init();
+	paz00_emc_init();
 	paz00_wifi_init();
 }
 

@@ -46,6 +46,7 @@
 #define TEGRA_HP_DET			TEGRA_GPIO_PW2
 
 void paz00_pinmux_init(void);
+void paz00_emc_init(void);
 int paz00_power_init(void);
 int paz00_panel_init(void);
 
