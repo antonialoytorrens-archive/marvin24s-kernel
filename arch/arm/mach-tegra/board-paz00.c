@@ -272,7 +272,8 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 		},
 		[2] = {
 			.operating_mode = TEGRA_USB_HOST,
-			.power_down_on_bus_suspend = 1,
+			//don't power down phy to keep hotplug working
+			.power_down_on_bus_suspend = 0,
 		},
 };
 
