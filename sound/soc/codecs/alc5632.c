@@ -301,8 +301,7 @@ SND_SOC_DAPM_PGA("MIC2 Pre Amp", ALC5632_PWR_MANAG_ADD3, 0, 0, NULL, 0),
 SND_SOC_DAPM_MICBIAS("Mic Bias1", ALC5632_PWR_MANAG_ADD1, 3, 0),
 SND_SOC_DAPM_MICBIAS("Mic Bias2", ALC5632_PWR_MANAG_ADD1, 2, 0),
 
-SND_SOC_DAPM_OUTPUT("AUXOUTL"),
-SND_SOC_DAPM_OUTPUT("AUXOUTR"),
+SND_SOC_DAPM_OUTPUT("AUXOUT"),
 SND_SOC_DAPM_OUTPUT("HPL"),
 SND_SOC_DAPM_OUTPUT("HPR"),
 SND_SOC_DAPM_OUTPUT("SPKOUT"),
@@ -322,8 +321,6 @@ static const struct soc_enum alc5632_amp_enum =
 static const struct snd_kcontrol_new alc5632_amp_mux_controls =
 	SOC_DAPM_ENUM("Route", alc5632_amp_enum);
 
-/* move these to soc/tegra/paz00.c
-   they are wrong anyway, even for alc5423 !
 static const struct snd_soc_dapm_widget alc5632_dapm_amp_widgets[] = {
 SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
 	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
@@ -331,7 +328,6 @@ SND_SOC_DAPM_PGA("AB Amp", ALC5632_PWR_MANAG_ADD2, 15, 0, NULL, 0),
 SND_SOC_DAPM_MUX("AB-D Amp Mux", SND_SOC_NOPM, 0, 0,
 	&alc5632_amp_mux_controls),
 };
-*/
 
 static const struct snd_soc_dapm_route intercon[] = {
 	/* virtual mixer - mixes left & right channels */
@@ -341,8 +337,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"Line Mix", NULL,				"Left LineIn"},
 	{"Phone Mix", NULL,				"Phone"},
 	{"Phone Mix", NULL,				"Phone ADMix"},
-	{"AUXOUTL", NULL,				"Left AuxOut"},
-	{"AUXOUTR", NULL,				"Right AuxOut"},
+	{"AUXOUT", NULL,				"Aux Out"},
 
 	/* HP mixer */
 	{"HPL Mix", "ADC2HP_L Playback Switch",		"Left Capture Mix"},
@@ -353,7 +348,10 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"HP Mix", "PHONE2HP Playback Switch",		"Phone Mix"},
 	{"HP Mix", "MIC12HP Playback Switch",		"MIC1 PGA"},
 	{"HP Mix", "MIC22HP Playback Switch",		"MIC2 PGA"},
-	{"HP Mix", "DAC2HP Playback Switch",		"I2S Mix"},
+
+	{"HP Mix", "DACR2HP Playback Switch",		"I2S Mix"},
+	{"HP Mix", "DACL2HP Playback Switch",		"I2S Mix"},
+
 
 	/* speaker mixer */
 	{"Speaker Mix", "LI2SPK Playback Switch",	"Line Mix"},
@@ -366,7 +364,7 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"Mono Mix", "ADC2MONO_L Playback Switch",	"Left Capture Mix"},
 	{"Mono Mix", "ADC2MONO_R Playback Switch",	"Right Capture Mix"},
 	{"Mono Mix", "LI2MONO Playback Switch",		"Line Mix"},
-	{"Mono Mix", "PHONE2MONO Playback Switch",	"Phone Mix"},
+	{"Mono Mix", "VOICE2MONO Playback Switch",	"Phone Mix"},
 	{"Mono Mix", "MIC12MONO Playback Switch",	"MIC1 PGA"},
 	{"Mono Mix", "MIC22MONO Playback Switch",	"MIC2 PGA"},
 	{"Mono Mix", "DAC2MONO Playback Switch",	"I2S Mix"},
@@ -414,14 +412,12 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"Left Headphone", NULL,			"Left Headphone Mux"},
 	{"HPR", NULL,					"Right Headphone"},
 	{"Right Headphone", NULL,			"Right Headphone Mux"},
-	{"Left AuxOut", NULL,				"AuxOut Mux"},
-	{"Right AuxOut", NULL,				"AuxOut Mux"},
+	{"Aux Out", NULL,				"AuxOut Mux"},
 
 	/* input pga */
 	{"Left LineIn", NULL,				"LINEINL"},
 	{"Right LineIn", NULL,				"LINEINR"},
-	{"Left Phone", NULL,				"PHONEP"},
-	{"Right Phone", NULL,				"PHONEN"},
+	{"Phone", NULL,				"PHONEP"},
 	{"MIC1 Pre Amp", NULL,				"MIC1"},
 	{"MIC2 Pre Amp", NULL,				"MIC2"},
 	{"MIC1 PGA", NULL,				"MIC1 Pre Amp"},
@@ -433,17 +429,27 @@ static const struct snd_soc_dapm_route intercon[] = {
 	/* right ADC */
 	{"Right ADC", NULL,				"Right Capture Mix"},
 
-	{"SpeakerOut N Mux", "RN/-R",			"SpeakerOut"},
-	{"SpeakerOut N Mux", "RP/+R",			"SpeakerOut"},
-	{"SpeakerOut N Mux", "LN/-R",			"SpeakerOut"},
-	{"SpeakerOut N Mux", "Mute",			"Mute"},
+	{"SpeakerOut N Mux", "RN/-R",			"Left Speaker"},
+	{"SpeakerOut N Mux", "RP/+R",			"Left Speaker"},
+	{"SpeakerOut N Mux", "LN/-R",			"Left Speaker"},
+	{"SpeakerOut N Mux", "Mute",			"Vmid"},
 
-	{"SPKOUT", NULL,				"SpeakerOut"},
+	{"SpeakerOut N Mux", "RN/-R",			"Right Speaker"},
+	{"SpeakerOut N Mux", "RP/+R",			"Right Speaker"},
+	{"SpeakerOut N Mux", "LN/-R",			"Right Speaker"},
+	{"SpeakerOut N Mux", "Mute",			"Vmid"},
+
+
+	{"SPKOUT", NULL,				"Left Speaker"},
+	{"SPKOUT", NULL,				"Right Speaker"},
+
 	{"SPKOUTN", NULL,				"SpeakerOut N Mux"},
 };
 
 static const struct snd_soc_dapm_route intercon_spk[] = {
-	{"SpeakerOut", NULL,				"SpeakerOut Mux"},
+	{"Right Speaker", NULL,				"SpeakerOut Mux"},
+	{"Left Speaker", NULL,				"SpeakerOut Mux"},
+
 };
 
 static const struct snd_soc_dapm_route intercon_amp_spk[] = {
@@ -778,7 +784,11 @@ static int alc5632_mute(struct snd_soc_dai *dai, int mute)
 	ALC5632_PWR_ADD3_MIC1_BOOST_AD )
 
 #define ALC5632_ADD1_POWER_EN \
-	(ALC5632_PWR_ADD1_ZERO_CROSS | ALC5632_PWR_ADD1_SOFTGEN_EN \
+	( ALC5632_PWR_ADD1_SPK_AMP_EN \
+        | ALC5632_PWR_ADD1_DAC_REF \
+        | ALC5632_PWR_ADD1_DAC_L_EN \
+        | ALC5632_PWR_ADD1_DAC_R_EN \
+        | ALC5632_PWR_ADD1_SOFTGEN_EN \
 	| ALC5632_PWR_ADD1_MAIN_I2S_EN | ALC5632_PWR_ADD1_HP_OUT_AMP \
 	| ALC5632_PWR_ADD1_HP_OUT_ENH_AMP \
 	| ALC5632_PWR_ADD1_MAIN_BIAS )
@@ -952,10 +962,6 @@ static void androids_init(struct snd_soc_codec *codec)
 	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS,
 		ALC5632_PWR_DEFAULT);
 
-	/* output amp set to weak | 0x9008 @ 1c */
-	snd_soc_update_bits(codec, ALC5632_OUTPUT_MIXER_CTRL,
-		ALC5632_OUTPUT_MIXER_WEEK, ALC5632_OUTPUT_MIXER_WEEK);
-
 	/* enable pwr on main bias | 0x0c22 @ 3a */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
 		ALC5632_PWR_ADD1_MAIN_BIAS, ALC5632_PWR_ADD1_MAIN_BIAS);
@@ -969,62 +975,17 @@ static void androids_init(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, ALC5632_DIGI_BOOST_CTRL,
 		ALC5632_MIC_BOOST_RANGE, ALC5632_MIC_BOOST_COMP(24));
 
-	/* setup ouput mixers | 0x5488 @ 1c */
+	/* setup ouput mixers | 0x348 @ 1c */
 	snd_soc_write(codec, ALC5632_OUTPUT_MIXER_CTRL,
-		( ALC5632_OUTPUT_MIXER_RP | ALC5632_OUTPUT_MIXER_WEEK |
-		  ALC5632_OUTPUT_MIXER_HP | ALC5632_OUTPUT_MIXER_AUX_SPK |
-		  0x08 ) );
+		( ALC5632_OUTPUT_MIXER_HP_R | 
+                  ALC5632_OUTPUT_MIXER_HP_L |
+                  ALC5632_OUTPUT_MIXER_AUX_HP_LR | 0x08 ) );
 
 	/* setup output volume for speaker and headphone to 4.5 db | 0x8383 @ 02 */
 	snd_soc_update_bits(codec, ALC5632_SPK_OUT_VOL, ALC5632_ADC_REC_GAIN_RANGE,
 		( ALC5632_SPK_OUT_VOL_COMP(4.5) |
 		  ALC5632_SPK_OUT_VOL_COMP(4.5) << 8) );
 
-	snd_soc_update_bits(codec, 0x04, ~0x8c8c, 0x8c8c);
-	snd_soc_read(codec, 0x1c);
-	snd_soc_read(codec, 0x1c);
-	snd_soc_write(codec, 0x5e, 0x00e0);
-	snd_soc_update_bits(codec, 0x04, ~0x8c8c, 0x8c8c);
-	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_write(codec, 0x5e, 0x0000);
-	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
-	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
-	snd_soc_write(codec, 0x5e, 0x0000);
-	snd_soc_update_bits(codec, 0x02, ~0x8383, 0x8383);
-	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3a, ~0x0c22, 0x0c22);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3a, ~0x0822, 0x0822);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
-	snd_soc_update_bits(codec, 0x14, ~0x7f7f, 0x7f7f);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3a, ~0x0822, 0x0822);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x24, ~0x00c4, 0x00c4);
-	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
-	snd_soc_write(codec, 0x5e, 0x00e0);
-	snd_soc_update_bits(codec, 0x04, ~0x8c8c, 0x8c8c);
-	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_write(codec, 0x5e, 0x0000);
-	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
-	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
-	snd_soc_write(codec, 0x5e, 0x0000);
-	snd_soc_update_bits(codec, 0x02, ~0x8383, 0x8383);
-	snd_soc_update_bits(codec, 0x3e, ~0x8000, 0x8000);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_update_bits(codec, 0x3a, ~0x0820, 0x0820);
-	snd_soc_update_bits(codec, 0x3c, ~0x2000, 0x2000);
-	snd_soc_read(codec, ALC5632_RESET);
 }
 
 static int alc5632_probe(struct snd_soc_codec *codec)
@@ -1044,17 +1005,16 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	alc5632_reset(codec);
 	alc5632_fill_cache(codec);
 
-	/* power on device 
+	/* power on device  */
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	if (alc5632->add_ctrl) {
 		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1,
 				alc5632->add_ctrl);
-	} */
+	}
 
 	/* spk amp pwr enable 3A | 0x0400 @ 3A */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
 		0, ALC5632_PWR_ADD1_SPK_AMP_EN);
-	snd_soc_read(codec, ALC5632_RESET);
 	
 	/* "normal" mode: 0 @ 26 */
 	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS, 0);
@@ -1092,19 +1052,10 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	/* set up audio path interconnects */
 	snd_soc_dapm_add_routes(dapm, intercon, ARRAY_SIZE(intercon));
 
-/* move to soc/tegra/paz00.c ??? */
-/*
-	switch (alc5632->id) {
-	case 0x5c:
-		snd_soc_dapm_new_controls(dapm, alc5632_dapm_amp_widgets,
-					ARRAY_SIZE(alc5632_dapm_amp_widgets));
-		snd_soc_dapm_add_routes(dapm, intercon_amp_spk,
+/*	snd_soc_dapm_add_routes(dapm, intercon_amp_spk,
 					ARRAY_SIZE(intercon_amp_spk));
-		break;
-	default:
-		return -EINVAL;
-	}
 */
+
 	return ret;
 }
 

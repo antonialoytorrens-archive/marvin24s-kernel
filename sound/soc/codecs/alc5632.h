@@ -56,6 +56,10 @@
 #define ALC5632_OUTPUT_MIXER_WEEK		(1 << 12)
 #define ALC5632_OUTPUT_MIXER_HP			(1 << 10)
 #define ALC5632_OUTPUT_MIXER_AUX_SPK		(2 <<  6)
+#define ALC5632_OUTPUT_MIXER_AUX_HP_LR          (1 << 6)
+#define ALC5632_OUTPUT_MIXER_HP_R               (1 << 8)
+#define ALC5632_OUTPUT_MIXER_HP_L               (1 << 9)
+
 #define ALC5632_MIC_CTRL			0x22 // mic phone ctrl
 #define ALC5632_MIC_BOOST_BYPASS		0
 #define ALC5632_MIC_BOOST_20DB			1
