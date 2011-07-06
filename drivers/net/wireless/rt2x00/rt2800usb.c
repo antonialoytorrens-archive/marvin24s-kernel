@@ -1019,6 +1019,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x0df6, 0x0048) },
 	{ USB_DEVICE(0x0df6, 0x0051) },
 	{ USB_DEVICE(0x0df6, 0x005f) },
+	{ USB_DEVICE(0x0df6, 0x0060) },
 	/* SMC */
 	{ USB_DEVICE(0x083a, 0x6618) },
 	{ USB_DEVICE(0x083a, 0x7511) },
@@ -1075,6 +1076,7 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x148f, 0x3572) },
 	/* Sitecom */
 	{ USB_DEVICE(0x0df6, 0x0041) },
+	{ USB_DEVICE(0x0df6, 0x0062) },
 	/* Toshiba */
 	{ USB_DEVICE(0x0930, 0x0a07) },
 	/* Zinwell */
@@ -1173,8 +1175,6 @@ static struct usb_device_id rt2800usb_device_table[] = {
 	{ USB_DEVICE(0x0df6, 0x004a) },
 	{ USB_DEVICE(0x0df6, 0x004d) },
 	{ USB_DEVICE(0x0df6, 0x0053) },
-	{ USB_DEVICE(0x0df6, 0x0060) },
-	{ USB_DEVICE(0x0df6, 0x0062) },
 	/* SMC */
 	{ USB_DEVICE(0x083a, 0xa512) },
 	{ USB_DEVICE(0x083a, 0xc522) },
