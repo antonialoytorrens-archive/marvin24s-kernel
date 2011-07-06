@@ -56,7 +56,7 @@ static int paz00_asoc_hw_params(struct snd_pcm_substream *substream,
 		mclk = 128 * srate;
 		break;
 	default:
-		mclk = 256 * srate;
+		mclk = 512 * srate;
 		break;
 	}
 	/* FIXME: Codec only requires >= 3MHz if OSR==0 */

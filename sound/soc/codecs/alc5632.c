@@ -617,14 +617,7 @@ struct _coeff_div {
 /* codec hifi mclk (after PLL) clock divider coefficients */
 /* values inspired from column BCLK=32Fs of Appendix A table */
 static const struct _coeff_div coeff_div[] = {
-	{256*8, 0x3a69},
-	{384*8, 0x3c6b},
-	{256*4, 0x2a69},
-	{384*4, 0x2c6b},
-	{256*2, 0x1a69},
-	{384*2, 0x1c6b},
-	{256*1, 0x0a69},
-	{384*1, 0x0c6b},
+	{512*1, 0x3075},
 };
 
 static int get_coeff(struct snd_soc_codec *codec, int rate)
