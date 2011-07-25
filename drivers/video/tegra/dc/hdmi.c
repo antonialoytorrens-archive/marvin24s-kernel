@@ -926,8 +926,9 @@ const struct tegra_hdmi_audio_config tegra_hdmi_audio_192k[] = {
 	{0,		0,	0},
 };
 
-static const struct tegra_hdmi_audio_config
-*tegra_hdmi_get_audio_config(unsigned audio_freq, unsigned pix_clock)
+static int tegra_hdmi_get_audio_config(unsigned audio_freq,
+				       unsigned pix_clock,
+				       unsigned *cts, unsigned *n)
 {
 	const struct tegra_hdmi_audio_config *table;
 
@@ -954,16 +955,19 @@ static const struct tegra_hdmi_audio_config
 		table = tegra_hdmi_audio_192k;
 		break;
 	default:
-		return NULL;
+		return -EINVAL;
 	}
 
 	while (table->pix_clock) {
-		if (table->pix_clock == pix_clock)
-			return table;
+		if (table->pix_clock == pix_clock) {
+			*cts = table->cts;
+			*n = table->n;
+			return 0;
+		}
 		table++;
 	}
 
-	return NULL;
+	return -EINVAL;
 }
 
 
@@ -1894,7 +1898,8 @@ static int tegra_dc_hdmi_setup_audio(struct tegra_dc *dc, unsigned audio_freq,
 					unsigned audio_source)
 {
 	struct tegra_dc_hdmi_data *hdmi = tegra_dc_get_outdata(dc);
-	const struct tegra_hdmi_audio_config *config;
+	int ret;
+	unsigned cts, n;
 	unsigned long audio_n;
 #if !defined(CONFIG_ARCH_TEGRA_2x_SOC)
 	unsigned long reg_addr = 0;
@@ -1923,8 +1928,9 @@ static int tegra_dc_hdmi_setup_audio(struct tegra_dc *dc, unsigned audio_freq,
 			  a_source,
 			  HDMI_NV_PDISP_AUDIO_CNTRL0);
 #endif
-	config = tegra_hdmi_get_audio_config(audio_freq, dc->mode.pclk);
-	if (!config) {
+
+	ret = tegra_hdmi_get_audio_config(audio_freq, dc->mode.pclk, &cts, &n);
+	if (ret < 0) {
 		dev_err(&dc->ndev->dev,
 			"hdmi: can't set audio to %d at %d pix_clock",
 			audio_freq, dc->mode.pclk);
@@ -1934,13 +1940,13 @@ static int tegra_dc_hdmi_setup_audio(struct tegra_dc *dc, unsigned audio_freq,
 	tegra_hdmi_writel(hdmi, 0, HDMI_NV_PDISP_HDMI_ACR_CTRL);
 
 	audio_n = AUDIO_N_RESETF | AUDIO_N_GENERATE_ALTERNALTE |
-		AUDIO_N_VALUE(config->n - 1);
+		AUDIO_N_VALUE(n - 1);
 	tegra_hdmi_writel(hdmi, audio_n, HDMI_NV_PDISP_AUDIO_N);
 
-	tegra_hdmi_writel(hdmi, ACR_SUBPACK_N(config->n) | ACR_ENABLE,
+	tegra_hdmi_writel(hdmi, ACR_SUBPACK_N(n) | ACR_ENABLE,
 			  HDMI_NV_PDISP_HDMI_ACR_0441_SUBPACK_HIGH);
 
-	tegra_hdmi_writel(hdmi, ACR_SUBPACK_CTS(config->cts),
+	tegra_hdmi_writel(hdmi, ACR_SUBPACK_CTS(cts),
 			  HDMI_NV_PDISP_HDMI_ACR_0441_SUBPACK_LOW);
 
 	tegra_hdmi_writel(hdmi, SPARE_HW_CTS | SPARE_FORCE_SW_CTS |
