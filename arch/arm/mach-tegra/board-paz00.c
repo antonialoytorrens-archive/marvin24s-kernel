@@ -27,6 +27,7 @@
 #include <linux/io.h>
 #include <linux/i2c.h>
 #include <linux/i2c-tegra.h>
+#include <linux/rfkill-gpio.h>
 #include <linux/platform_data/tegra_usb.h>
 
 #include <asm/mach-types.h>
@@ -315,6 +316,21 @@ static struct platform_device leds_gpio = {
 	},
 };
 
+static struct rfkill_gpio_platform_data wifi_rfkill_platform_data = {
+	.name           = "wifi_rfkill",
+	.reset_gpio     = TEGRA_WIFI_RST,
+	.shutdown_gpio  = TEGRA_WIFI_PWRN,
+	.type           = RFKILL_TYPE_WLAN
+};
+
+static struct platform_device wifi_rfkill_device = {
+	.name   = "rfkill_gpio",
+	.id     = -1,
+	.dev    = {
+		.platform_data = &wifi_rfkill_platform_data,
+	},
+};
+
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_pmu_device,
@@ -326,6 +342,7 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device2,
 	&tegra_spi_device3,
 	&tegra_spi_device4,
+	&wifi_rfkill_device,
 	&leds_gpio,
 	&tegra_gart_device,
 	&tegra_i2s_device1,
@@ -334,20 +351,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&audio_device,
 	&tegra_avp_device,
 };
-
-static void __init paz00_wifi_init(void)
-{
-	int ret;
-
-	/* unlock hw rfkill */
-	ret = gpio_request_one(TEGRA_WIFI_PWRN, GPIOF_OUT_INIT_HIGH,
-			"wifi_pwrn");
-	if(ret) {
-		pr_warning("WIFI: could not request PWRN gpio!\n");
-		return;
-	}
-	gpio_export(TEGRA_WIFI_PWRN, 0);
-}
 
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
@@ -415,7 +418,6 @@ static void __init tegra_paz00_init(void)
 	paz00_panel_init();
 	paz00_usb_init();
 	paz00_emc_init();
-	paz00_wifi_init();
 }
 
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")

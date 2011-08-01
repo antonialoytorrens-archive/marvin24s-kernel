@@ -29,6 +29,7 @@
 
 /* Wifi */
 #define TEGRA_WIFI_LED			TEGRA_GPIO_PD0
+#define TEGRA_WIFI_RST			TEGRA_GPIO_PD1
 #define TEGRA_WIFI_PWRN			TEGRA_GPIO_PK5
 
 /* Panel */
