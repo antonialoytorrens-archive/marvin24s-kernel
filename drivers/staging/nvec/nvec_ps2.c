@@ -1,3 +1,4 @@
+
 /*
  * mouse driver for a NVIDIA compliant embedded controller
  *
@@ -74,10 +75,8 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 			for (i = 0; i < (msg[1] - 2); i++)
 				serio_interrupt(ps2_dev.ser_dev, msg[i+4], 0);
 		else if (msg[1] != 2) { /* !ack */
-			printk(KERN_WARNING "nvec_ps2: unhandled mouse event ");
-			for (i = 0; i <= (msg[1]+1); i++)
-				printk(KERN_WARNING "%02x ", msg[i]);
-			printk(KERN_WARNING ".\n");
+			print_hex_dump(KERN_WARNING, "unhandled mouse event ",
+				DUMP_PREFIX_NONE, 16, 1, msg, msg[1] + 2, true);
 		}
 		return NOTIFY_STOP;
 	}

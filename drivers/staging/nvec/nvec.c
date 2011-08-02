@@ -82,15 +82,13 @@ static int nvec_status_notifier(struct notifier_block *nb,
 				unsigned long event_type, void *data)
 {
 	unsigned char *msg = (unsigned char *)data;
-	int i;
 
 	if (event_type != NVEC_CNTL)
 		return NOTIFY_DONE;
 
-	printk(KERN_WARNING "unhandled msg type %ld, payload: ", event_type);
-	for (i = 0; i < msg[1]; i++)
-		printk(KERN_WARNING "%0x ", msg[i+2]);
-	printk(KERN_WARNING "\n");
+	printk(KERN_WARNING "unhandled msg type %ld, ", event_type);
+	print_hex_dump(KERN_WARNING, "payload: ", DUMP_PREFIX_NONE, 16, 1,
+		msg, msg[1] + 2, true);
 
 	return NOTIFY_OK;
 }
