@@ -55,6 +55,7 @@ static struct regulator_consumer_supply tps658621_ldo1_supply[] = { /* 1V2 */
 };
 static struct regulator_consumer_supply tps658621_ldo2_supply[] = { /* VDD_RTC */
 	REGULATOR_SUPPLY("vdd_rtc", NULL),
+	REGULATOR_SUPPLY("vdd_aon", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo3_supply[] = { /* 3V3 */
 	REGULATOR_SUPPLY("avdd_usb", NULL),
