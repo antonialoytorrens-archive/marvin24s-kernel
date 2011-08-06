@@ -66,83 +66,6 @@ struct tegra_dc_hdmi_data {
 	bool				dvi;
 };
 
-const struct fb_videomode tegra_dc_hdmi_supported_modes[] = {
-	/* 1280x720p 60hz: EIA/CEA-861-B Format 4 */
-	{
-		.xres =		1280,
-		.yres =		720,
-		.pixclock =	KHZ2PICOS(74250),
-		.hsync_len =	40,	/* h_sync_width */
-		.vsync_len =	5,	/* v_sync_width */
-		.left_margin =	220,	/* h_back_porch */
-		.upper_margin =	20,	/* v_back_porch */
-		.right_margin =	110,	/* h_front_porch */
-		.lower_margin =	5,	/* v_front_porch */
-		.vmode =	FB_VMODE_NONINTERLACED,
-		.sync = FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	},
-
-	/* 720x480p 59.94hz: EIA/CEA-861-B Formats 2 & 3 */
-	{
-		.xres =		720,
-		.yres =		480,
-		.pixclock =	KHZ2PICOS(27000),
-		.hsync_len =	62,	/* h_sync_width */
-		.vsync_len =	6,	/* v_sync_width */
-		.left_margin =	60,	/* h_back_porch */
-		.upper_margin =	30,	/* v_back_porch */
-		.right_margin =	16,	/* h_front_porch */
-		.lower_margin =	9,	/* v_front_porch */
-		.vmode =	FB_VMODE_NONINTERLACED,
-		.sync = 0,
-	},
-
-	/* 640x480p 60hz: EIA/CEA-861-B Format 1 */
-	{
-		.xres =		640,
-		.yres =		480,
-		.pixclock =	KHZ2PICOS(25200),
-		.hsync_len =	96,	/* h_sync_width */
-		.vsync_len =	2,	/* v_sync_width */
-		.left_margin =	48,	/* h_back_porch */
-		.upper_margin =	33,	/* v_back_porch */
-		.right_margin =	16,	/* h_front_porch */
-		.lower_margin =	10,	/* v_front_porch */
-		.vmode =	FB_VMODE_NONINTERLACED,
-		.sync = 0,
-	},
-
-	/* 720x576p 50hz EIA/CEA-861-B Formats 17 & 18 */
-	{
-		.xres =		720,
-		.yres =		576,
-		.pixclock =	KHZ2PICOS(27000),
-		.hsync_len =	64,	/* h_sync_width */
-		.vsync_len =	5,	/* v_sync_width */
-		.left_margin =	68,	/* h_back_porch */
-		.upper_margin =	39,	/* v_back_porch */
-		.right_margin =	12,	/* h_front_porch */
-		.lower_margin =	5,	/* v_front_porch */
-		.vmode =	FB_VMODE_NONINTERLACED,
-		.sync = 0,
-	},
-
-	/* 1920x1080p 59.94/60hz EIA/CEA-861-B Format 16 */
-	{
-		.xres =		1920,
-		.yres =		1080,
-		.pixclock =	KHZ2PICOS(148500),
-		.hsync_len =	44,	/* h_sync_width */
-		.vsync_len =	5,	/* v_sync_width */
-		.left_margin =	148,	/* h_back_porch */
-		.upper_margin =	36,	/* v_back_porch */
-		.right_margin =	88,	/* h_front_porch */
-		.lower_margin =	4,	/* v_front_porch */
-		.vmode =	FB_VMODE_NONINTERLACED,
-		.sync = FB_SYNC_HOR_HIGH_ACT | FB_SYNC_VERT_HIGH_ACT,
-	},
-};
-
 /* table of electrical settings, must be in acending order. */
 struct tdms_config {
 	int pclk;
@@ -452,37 +375,6 @@ static void hdmi_dumpregs(struct tegra_dc_hdmi_data *hdmi)
 }
 #endif
 
-#define PIXCLOCK_TOLERANCE	200
-
-static bool tegra_dc_hdmi_mode_equal(const struct fb_videomode *mode1,
-					const struct fb_videomode *mode2)
-{
-	return mode1->xres	== mode2->xres &&
-		mode1->yres	== mode2->yres &&
-		mode1->vmode	== mode2->vmode;
-}
-
-static bool tegra_dc_hdmi_mode_filter(struct fb_videomode *mode)
-{
-	int i;
-	int clocks;
-
-	for (i = 0; i < ARRAY_SIZE(tegra_dc_hdmi_supported_modes); i++) {
-		if (tegra_dc_hdmi_mode_equal(&tegra_dc_hdmi_supported_modes[i],
-					     mode)) {
-			memcpy(mode, &tegra_dc_hdmi_supported_modes[i], sizeof(*mode));
-			mode->flag = FB_MODE_IS_DETAILED;
-			clocks = (mode->left_margin + mode->xres + mode->right_margin + mode->hsync_len) *
-				(mode->upper_margin + mode->yres + mode->lower_margin + mode->vsync_len);
-			mode->refresh = (PICOS2KHZ(mode->pixclock) * 1000) / clocks;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-
 static bool tegra_dc_hdmi_hpd(struct tegra_dc *dc)
 {
 	int sense;
@@ -520,7 +412,7 @@ static bool tegra_dc_hdmi_detect(struct tegra_dc *dc)
 
 	hdmi->dvi = !(specs.misc & FB_MISC_HDMI);
 
-	tegra_fb_update_monspecs(dc->fb, &specs, tegra_dc_hdmi_mode_filter);
+	tegra_fb_update_monspecs(dc->fb, &specs, tegra_dc_mode_filter);
 	dev_info(&dc->ndev->dev, "display detected\n");
 
 	dc->connected = true;
@@ -734,6 +626,11 @@ static int tegra_dc_hdmi_init(struct tegra_dc *dc)
 		tegra_nvhdcp_set_policy(hdmi->nvhdcp,
 			TEGRA_NVHDCP_POLICY_ALWAYS_ON);
 	}
+
+	/* HDMI maximum is 165MHz per specification */
+	if (!dc->out->max_pclk_khz || dc->out->max_pclk_khz > 165000)
+		dc->out->max_pclk_khz = 165000;
+
 	return 0;
 
 err_edid_destroy:
@@ -1043,7 +940,19 @@ static void tegra_dc_hdmi_enable(struct tegra_dc *dc)
 	clk_enable(hdmi->disp1_clk);
 	clk_enable(hdmi->disp2_clk);
 	tegra_dc_setup_clk(dc, hdmi->clk);
-	clk_set_rate(hdmi->clk, dc->mode.pclk);
+	/*
+	 * Bias the pixel clock upwards by 1Hz, although we've already adjusted
+	 * it to be a value that we can drive.  The Tegra clock code by design
+	 * always rounds the divider up (i.e., it rounds down to the next
+	 * available rate).  For rates that aren't exactly divisible by the
+	 * divider such as 1 GHz / 7 == 166666666.66...Hz, passing the
+	 * truncated value 166666666 to the clock API will give us 1 GHz / 6,
+	 * which is not even close to what we want.
+	 *
+	 * Adding 1 here will ensure that the clock API will use the desired
+	 * divider.
+	 */
+	clk_set_rate(hdmi->clk, dc->mode.pclk + 1);
 
 	clk_enable(hdmi->clk);
 	tegra_periph_reset_assert(hdmi->clk);

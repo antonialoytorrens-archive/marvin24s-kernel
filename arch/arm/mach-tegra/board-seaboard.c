@@ -96,6 +96,7 @@ static __initdata struct tegra_clk_init_table seaboard_clk_init_table[] = {
 	{ "uartb",      "pll_p",        216000000,      false},
 	{ "uartd",      "pll_p",        216000000,      false},
 	{ "pwm",        "clk_m",        12000000,       false},
+	{ "blink",      "clk_32k",      32768,          true},
 	{ NULL,		NULL,		0,		0},
 };
 
@@ -447,9 +448,6 @@ static struct platform_device *seaboard_devices[] __initdata = {
 	&tegra_spdif_device,
 	&spdif_dit_device,
 	&bt_rfkill_device,
-};
-
-static struct platform_device *seaboard_specific_devices[] __initdata = {
 	&seaboard_audio_device,
 };
 
@@ -634,7 +632,7 @@ static struct i2c_board_info __initdata mpu3050_device = {
 	.irq            = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_MPU3050_IRQ),
 };
 
-static const u8 mxt_config_data[] = {
+static const u8 seaboard_mxt_config_data[] = {
 	/* MXT_GEN_COMMAND(6) */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	/* MXT_GEN_POWER(7) */
@@ -685,8 +683,8 @@ static struct mxt_platform_data seaboard_mxt_platform_data = {
 	.voltage		= 3300000,	/* 3.3V */
 	.orient			= MXT_DIAGONAL,
 	.irqflags		= IRQF_TRIGGER_FALLING,
-	.config			= mxt_config_data,
-	.config_length		= sizeof(mxt_config_data),
+	.config			= seaboard_mxt_config_data,
+	.config_length		= sizeof(seaboard_mxt_config_data),
 };
 
 static struct i2c_board_info __initdata seaboard_mxt_device = {
@@ -695,18 +693,59 @@ static struct i2c_board_info __initdata seaboard_mxt_device = {
 	.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_MXT_IRQ),
 };
 
+static const u8 asymptote_mxt_config_data[] = {
+	/* MXT_GEN_COMMAND(6) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	/* MXT_GEN_POWER(7) */
+	0xFF, 0xff, 0x32,
+	/* MXT_GEN_ACQUIRE(8) */
+	0x0a, 0x00, 0x14, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	/* MXT_TOUCH_MULTI(9) */
+	0x0F, 0x00, 0x00, 0x20, 0x2a, 0x00, 0x10, 0x50, 0x07, 0x05,
+	0x00, 0x02, 0x01, 0x00, 0x0a, 0x0a, 0x0a, 0x0a, 0x00, 0x03,
+	0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x0a, 0x00, 0x00, 0x00,
+	/* MXT_TOUCH_KEYARRAY(15-1) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00,
+	/* MXT_TOUCH_KEYARRAY(15-2) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00,
+	/* MXT_SPT_COMMSCONFIG(18) */
+	0x00, 0x00,
+	/* MXT_PROCG_NOISE(22) */
+	0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x23, 0x00,
+	0x00, 0x00, 0x05, 0x0a, 0x14, 0x1e, 0x00,
+	/* MXT_PROCI_ONETOUCH(24) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	/* MXT_SPT_SELFTEST(25) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00,
+	/* MXT_PROCI_TWOTOUCH(27) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	/* MXT_SPT_CTECONFIG(28) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	/* MXT_PROCI_GRIP(40) */
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	/* MXT_PROCI_PALM(41) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	/* MXT_SPT_DIGITIZER(43) */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
 static struct mxt_platform_data asymptote_mxt_platform_data = {
-	.x_line			= 27,
+	.x_line			= 32,
 	.y_line			= 42,
 	.x_size			= 768,
 	.y_size			= 1024,
 	.blen			= 0x16,
-	.threshold		= 0x28,
+	.threshold		= 0x50,
 	.voltage		= 3300000,	/* 3.3V */
 	.orient			= MXT_DIAGONAL,
 	.irqflags		= IRQF_TRIGGER_FALLING,
-	.config			= mxt_config_data,
-	.config_length		= sizeof(mxt_config_data),
+	.config			= asymptote_mxt_config_data,
+	.config_length		= sizeof(asymptote_mxt_config_data),
 };
 
 static struct i2c_board_info __initdata asymptote_mxt_device = {
@@ -892,7 +931,7 @@ static void __init arthur_i2c_register_devices(void)
 	i2c_register_board_info(2, &bq20z75_device, 1);
 
 	i2c_register_board_info(3, &isl29018_device, 1);
-
+	i2c_register_board_info(0, &max98095_device, 1);
 	i2c_register_board_info(4, &nct1008_device, 1);
 }
 
@@ -931,16 +970,7 @@ static void __init asymptote_i2c_register_devices(void)
 static void __init __seaboard_common_init(struct platform_device **devices,
 					  int num_devices)
 {
-	struct clk *clk;
-
 	tegra_clk_init_from_table(seaboard_clk_init_table);
-
-	/* Enable 32kHz clock for WLAN */
-	clk = clk_get_sys(NULL, "blink");
-	if (IS_ERR(clk))
-		WARN_ON(1);
-	else
-		clk_enable(clk);
 
 	/* Power up WLAN */
 	gpio_request(TEGRA_GPIO_PK6, "wlan_pwr_rst");
@@ -951,7 +981,7 @@ static void __init __seaboard_common_init(struct platform_device **devices,
 	tegra_sdhci_device4.dev.platform_data = &sdhci_pdata4;
 
 	platform_add_devices(seaboard_devices, ARRAY_SIZE(seaboard_devices));
-	if (devices)            /* Add board-specific devices. */
+	if (devices)		/* Add board-specific devices. */
 		platform_add_devices(devices, num_devices);
 
 	seaboard_power_init();
@@ -984,22 +1014,19 @@ static void __init tegra_set_clock_readskew(const char *clk_name, int skew)
 static void __init seaboard_common_init(void)
 {
 	seaboard_pinmux_init();
-	__seaboard_common_init(seaboard_specific_devices,
-			       ARRAY_SIZE(seaboard_specific_devices));
+	__seaboard_common_init(NULL, 0);
 }
 
 static void __init kaen_common_init(void)
 {
 	kaen_pinmux_init();
-	__seaboard_common_init(seaboard_specific_devices,
-			       ARRAY_SIZE(seaboard_specific_devices));
+	__seaboard_common_init(NULL, 0);
 }
 
 static void __init aebl_common_init(void)
 {
 	aebl_pinmux_init();
-	__seaboard_common_init(seaboard_specific_devices,
-			       ARRAY_SIZE(seaboard_specific_devices));
+	__seaboard_common_init(NULL, 0);
 }
 
 static void __init arthur_common_init(void)
@@ -1012,15 +1039,13 @@ static void __init arthur_common_init(void)
 static void __init ventana_common_init(void)
 {
 	ventana_pinmux_init();
-	__seaboard_common_init(seaboard_specific_devices,
-			       ARRAY_SIZE(seaboard_specific_devices));
+	__seaboard_common_init(NULL, 0);
 }
 
 static void __init asymptote_common_init(void)
 {
 	asymptote_pinmux_init();
-	__seaboard_common_init(seaboard_specific_devices,
-			       ARRAY_SIZE(seaboard_specific_devices));
+	__seaboard_common_init(NULL, 0);
 }
 
 static struct tegra_suspend_platform_data seaboard_suspend = {
@@ -1225,6 +1250,7 @@ static void __init tegra_arthur_init(void)
 
 	__init_debug_uart_B();
 
+	seaboard_audio_pdata.gpio_spkr_en = -1; /* No spkr_en on max98095. */
 	/* Set up the GPIO and pingroup controlling the camera's power. */
 	tegra_gpio_enable(TEGRA_GPIO_PV4);
 	err = gpio_request(TEGRA_GPIO_PV4, "cam_3v3_pwr_en");

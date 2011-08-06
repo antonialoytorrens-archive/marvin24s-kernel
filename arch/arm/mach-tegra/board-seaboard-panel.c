@@ -47,6 +47,8 @@ static int seaboard_backlight_init(struct device *dev) {
 	if (ret < 0)
 		gpio_free(TEGRA_GPIO_BACKLIGHT);
 
+	gpio_export(TEGRA_GPIO_BACKLIGHT, 0);
+
 	return ret;
 };
 
@@ -323,6 +325,9 @@ static struct tegra_dc_out seaboard_disp2_out = {
 	.disable	= seaboard_hdmi_disable,
 	.hotplug_init	= seaboard_hdmi_hotplug_init,
 	.postsuspend	= seaboard_hdmi_postsuspend,
+
+	/* DVFS tables only updated up to 148.5MHz for HDMI currently */
+	.max_pclk_khz	= 148500,
 };
 
 static struct tegra_dc_platform_data seaboard_disp1_pdata = {
@@ -410,6 +415,7 @@ static void __init seaboard_common_panel_gpio_init(void)
 
 	gpio_request(TEGRA_GPIO_LVDS_SHUTDOWN, "lvds_shdn");
 	gpio_direction_output(TEGRA_GPIO_LVDS_SHUTDOWN, 1);
+	gpio_export(TEGRA_GPIO_LVDS_SHUTDOWN, 0);
 
 	gpio_request(TEGRA_GPIO_HDMI_HPD, "hdmi_hpd");
 	gpio_direction_input(TEGRA_GPIO_HDMI_HPD);
