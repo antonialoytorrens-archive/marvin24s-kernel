@@ -306,8 +306,8 @@ static struct tegra_fb_data paz00_fb_data = {
 
 static struct tegra_fb_data paz00_hdmi_fb_data = {
 	.win		= 0,
-	.xres		= 1024,
-	.yres		= 600,
+	.xres		= 1280,
+	.yres		= 720,
 	.bits_per_pixel	= 16,
 };
 
@@ -338,6 +338,9 @@ static struct tegra_dc_out paz00_disp2_out = {
 
 	.enable		= paz00_hdmi_enable,
 	.disable	= paz00_hdmi_disable,
+
+	/* DVFS tables only updated up to 148.5MHz for HDMI currently */
+	.max_pclk_khz   = 148500,
 };
 
 static struct tegra_dc_platform_data paz00_disp1_pdata = {
