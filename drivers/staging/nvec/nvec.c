@@ -40,11 +40,9 @@
 #include "nvec.h"
 
 
-#define FREE_MSG(msg) { kfree(msg); msg = NULL; }
-
-static unsigned char EC_DISABLE_EVENT_REPORTING[] = {'\x04', '\x00', '\x00'};
-static unsigned char EC_ENABLE_EVENT_REPORTING[] =  {'\x04', '\x00', '\x01'};
-static unsigned char EC_GET_FIRMWARE_VERSION[] =    {'\x07', '\x15'};
+static const unsigned char EC_DISABLE_EVENT_REPORTING[] = {'\x04', '\x00', '\x00'};
+static const unsigned char EC_ENABLE_EVENT_REPORTING[] =  {'\x04', '\x00', '\x01'};
+static const unsigned char EC_GET_FIRMWARE_VERSION[] =    {'\x07', '\x15'};
 
 static struct nvec_chip *nvec_power_handle;
 
@@ -68,7 +66,7 @@ static struct mfd_cell nvec_devices[] = {
         {
                 .name           = "nvec-leds",
                 .id             = 1,
-        }
+        },
 };
 
 int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
@@ -86,14 +84,14 @@ static int nvec_status_notifier(struct notifier_block *nb,
 	if (event_type != NVEC_CNTL)
 		return NOTIFY_DONE;
 
-	printk(KERN_WARNING "unhandled msg type %ld, ", event_type);
+	printk(KERN_WARNING "unhandled msg type %ld\n", event_type);
 	print_hex_dump(KERN_WARNING, "payload: ", DUMP_PREFIX_NONE, 16, 1,
 		msg, msg[1] + 2, true);
 
 	return NOTIFY_OK;
 }
 
-void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
+void nvec_write_async(struct nvec_chip *nvec, const unsigned char *data, short size)
 {
 	struct nvec_msg *msg;
 	unsigned long flags;
@@ -113,7 +111,7 @@ void nvec_write_async(struct nvec_chip *nvec, unsigned char *data, short size)
 EXPORT_SYMBOL(nvec_write_async);
 
 struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
-		unsigned char *data, short size)
+		const unsigned char *data, short size)
 {
 	mutex_lock(&nvec->sync_write_mutex);
 
@@ -156,7 +154,7 @@ static void nvec_request_master(struct work_struct *work)
 			msg->pos = 0;
 		} else {
 			list_del_init(&msg->node);
-			FREE_MSG(msg);
+			kfree(msg);
 		}
 		spin_lock_irqsave(&nvec->tx_lock, flags);
 	}
@@ -166,8 +164,6 @@ static void nvec_request_master(struct work_struct *work)
 
 static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
-	int i;
-
 	if ((msg->data[0] & 1<<7) == 0 && msg->data[3]) {
 		dev_err(nvec->dev, "ec responded %02x %02x %02x %02x\n",
 			msg->data[0], msg->data[1], msg->data[2], msg->data[3]);
@@ -175,10 +171,8 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 	}
 
 	if ((msg->data[0] >> 7) == 1 && (msg->data[0] & 0x0f) == 5) {
-		dev_warn(nvec->dev, "ec system event ");
-		for (i = 0; i < msg->data[1]; i++)
-			dev_warn(nvec->dev, "%02x ", msg->data[2+i]);
-		dev_warn(nvec->dev, "\n");
+		print_hex_dump(KERN_WARNING, "ec system event ", DUMP_PREFIX_NONE,
+				16, 1, msg->data, msg->data[1] + 2, true);
 	}
 
 	atomic_notifier_call_chain(&nvec->notifier_list, msg->data[0] & 0x8f,
@@ -282,7 +276,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 					dev_warn(nvec->dev, "isr time: %llu nsec\n", timespec_to_ns(&diff_time));
 
 				if (!nvec->rx)
-					dev_warn(nvec->dev, "no rx buffer available");
+					dev_warn(nvec->dev, "no rx buffer available\n");
 				else if ((nvec->rx->pos == 1) && (nvec->rx->data[0] == 1)) {
 					valid_proto = 1;
 				} else {
@@ -532,7 +526,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	err = request_irq(nvec->irq, nvec_interrupt, 0, "nvec", nvec);
 	if (err) {
-		dev_err(nvec->dev, "couldn't request irq");
+		dev_err(nvec->dev, "couldn't request irq\n");
 		goto failed;
 	}
 	disable_irq(nvec->irq);

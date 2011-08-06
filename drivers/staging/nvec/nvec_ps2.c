@@ -24,7 +24,7 @@
 #define STOP_STREAMING	{'\x06', '\x04'}
 #define SEND_COMMAND	{'\x06', '\x01', '\xf4', '\x01'}
 
-static unsigned char MOUSE_RESET[] = {'\x06', '\x01', '\xff', '\x03'};
+static const unsigned char MOUSE_RESET[] = {'\x06', '\x01', '\xff', '\x03'};
 
 struct nvec_ps2 {
 	struct serio *ser_dev;
