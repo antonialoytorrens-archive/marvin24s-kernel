@@ -248,8 +248,8 @@ static struct resource paz00_disp1_resources[] = {
 	},
 	{
 		.name	= "fbmem",
-		.start	= 0x1c012000,
-		.end	= 0x1c012000 + 0x258000 - 1,   /* 2.4 MB @ 448 MB */
+		.start	= 0x1fd95000,
+		.end	= 0x1fd95000 + 0x26B000 - 1,   // 2.4 MB @ 509 MB
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -265,12 +265,6 @@ static struct resource paz00_disp2_resources[] = {
 		.name	= "regs",
 		.start	= TEGRA_DISPLAY2_BASE,
 		.end	= TEGRA_DISPLAY2_BASE + TEGRA_DISPLAY2_SIZE-1,
-		.flags	= IORESOURCE_MEM,
-	},
-	{
-		.name	= "fbmem",
-		.start	= 0x1c26A000,
-		.end	= 0x1c26A000 + 0x500000 - 1,  /* 5 MB */
 		.flags	= IORESOURCE_MEM,
 	},
 	{
