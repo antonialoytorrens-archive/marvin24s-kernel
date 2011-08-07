@@ -455,9 +455,9 @@ int nilfs_mdt_setup_shadow_map(struct inode *inode,
 
 	INIT_LIST_HEAD(&shadow->frozen_buffers);
 	address_space_init_once(&shadow->frozen_data);
-	nilfs_mapping_init(&shadow->frozen_data, bdi, &shadow_map_aops);
+	nilfs_mapping_init(&shadow->frozen_data, inode, bdi);
 	address_space_init_once(&shadow->frozen_btnodes);
-	nilfs_mapping_init(&shadow->frozen_btnodes, bdi, &shadow_map_aops);
+	nilfs_mapping_init(&shadow->frozen_btnodes, inode, bdi);
 	mi->mi_shadow = shadow;
 	return 0;
 }
