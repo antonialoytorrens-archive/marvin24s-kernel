@@ -355,24 +355,27 @@ static struct platform_device *paz00_devices[] __initdata = {
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 /* for serial port */
-	{ "uartd",	"pll_p",	216000000,	true },
+	{ "uartd",	"pll_p",	216000000,	true  },
 
 /* these are switched on by bootloader */
-	{ "audio",	"pll_a_out0",	11289600,	true },
-	{ "uarta",	"pll_p",	216000000,	true },
-	{ "i2c3_i2c",	"pll_p_out3",	72000000,	true },
-	{ "clk_d",	"clk_m",	24000000,	true },
-	{ "pll_a_out0",	"pll_a",	11289600,	true },
-	{ "pll_a",	"pll_p_out1",	56448000,	true },
-	{ "pll_p_out4",	"pll_p",	24000000,	true },
-	{ "pll_c_out1",	"pll_c",	240000000,	true },
-	{ "pll_c",	"clk_m",	600000000,	true },
-	{ "blink",	"clk_32k",	32768,		true },
-	
+	{ "audio",	"pll_a_out0",	11289600,	true  },
+	{ "uarta",	"pll_p",	216000000,	true  },
+	{ "i2c3_i2c",	"pll_p_out3",	72000000,	true  },
+	{ "clk_d",	"clk_m",	24000000,	true  },
+	{ "pll_a_out0",	"pll_a",	11289600,	true  },
+	{ "pll_a",	"pll_p_out1",	56448000,	true  },
+	{ "pll_p_out4",	"pll_p",	24000000,	true  },
+	{ "blink",	"clk_32k",	32768,		true  }, 
+
 /* these are used for audio */
-	{ "cdev1",	"pll_a_out0",	11289600,	true},
-	{ "audio_2x",	"audio",	22579200,	false},
-	{ "i2s1",	"pll_a_out0",	11289600,	false},
+	{ "cdev1",	"pll_a_out0",	11289600,	true  },
+	{ "audio_2x",	"audio",	22579200,	false },
+	{ "i2s1",	"pll_a_out0",	11289600,	false },
+
+/* these are used for usb */
+	{ "usb2",	"clk_m",	12000000,	false },
+	{ "usb3",	"clk_m",	12000000,	false },
+	{ "usbd",	"clk_m",	12000000,	false },
 
 	{ NULL,		NULL,		0,		0},
 };
