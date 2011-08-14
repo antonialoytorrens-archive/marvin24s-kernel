@@ -109,6 +109,7 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 		.xcvr_setup = 15,
 		.xcvr_lsfslew = 2,
 		.xcvr_lsrslew = 2,
+		.vbus_gpio = TEGRA_GPIO_USB1,
 	},
 	[1] = {
 		.hssync_start_delay = 0,
@@ -118,6 +119,8 @@ static struct tegra_utmip_config utmi_phy_config[] = {
 		.xcvr_setup = 8,
 		.xcvr_lsfslew = 2,
 		.xcvr_lsrslew = 2,
+		.vbus_gpio = TEGRA_GPIO_USB3,
+		.shared_pin_vbus_en_oc = true,
 	},
 };
 
@@ -271,6 +274,7 @@ static const u32 cros_kbd_keymap[] = {
 	KEY(5, 6, KEY_2),
 	KEY(5, 7, KEY_W),
 
+	KEY(6, 0, KEY_RO),
 	KEY(6, 2, KEY_RIGHTBRACE),
 	KEY(6, 4, KEY_K),
 	KEY(6, 5, KEY_COMMA),
@@ -286,6 +290,7 @@ static const u32 cros_kbd_keymap[] = {
 	KEY(8, 6, KEY_7),
 	KEY(8, 7, KEY_U),
 
+	KEY(9, 2, KEY_102ND),
 	KEY(9, 5, KEY_LEFTSHIFT),
 	KEY(9, 7, KEY_RIGHTSHIFT),
 
@@ -306,6 +311,9 @@ static const u32 cros_kbd_keymap[] = {
 	KEY(11, 7, KEY_O),
 
 	KEY(13, 0, KEY_RIGHTALT),
+	KEY(13, 2, KEY_YEN),
+	KEY(13, 4, KEY_BACKSLASH),
+
 	KEY(13, 6, KEY_LEFTALT),
 
 	KEY(14, 1, KEY_BACKSPACE),
@@ -315,6 +323,8 @@ static const u32 cros_kbd_keymap[] = {
 	KEY(14, 6, KEY_DOWN),
 	KEY(14, 7, KEY_UP),
 
+	KEY(15, 1, KEY_MUHENKAN),
+	KEY(15, 3, KEY_HENKAN),
 	KEY(15, 6, KEY_RIGHT),
 	KEY(15, 7, KEY_LEFT),
 };
@@ -767,24 +777,16 @@ static void register_ehci_device(struct platform_device *pdev)
 
 static int seaboard_ehci_init(void)
 {
-	int gpio_status;
-
 	/* If we ever have a derivative that doesn't use USB1, make the code
 	 * below conditional
 	 */
 	BUG_ON(!tegra_ehci1_device.dev.platform_data);
-	gpio_status = gpio_request(TEGRA_GPIO_USB1, "VBUS_USB1");
-	if (gpio_status < 0) {
-		pr_err("VBUS_USB1 request GPIO FAILED\n");
-		WARN_ON(1);
-	}
 
-	gpio_status = gpio_direction_output(TEGRA_GPIO_USB1, 1);
-	if (gpio_status < 0) {
-		pr_err("VBUS_USB1 request GPIO DIRECTION FAILED\n");
-		WARN_ON(1);
-	}
-	gpio_set_value(TEGRA_GPIO_USB1, 1);
+	if (utmi_phy_config[0].vbus_gpio)
+		tegra_usb_phy_utmi_vbus_init(&utmi_phy_config[0], "VBUS_USB1");
+
+	if (utmi_phy_config[1].vbus_gpio)
+		tegra_usb_phy_utmi_vbus_init(&utmi_phy_config[1], "VBUS_USB3");
 
 	register_ehci_device(&tegra_ehci1_device);
 	register_ehci_device(&tegra_ehci2_device);

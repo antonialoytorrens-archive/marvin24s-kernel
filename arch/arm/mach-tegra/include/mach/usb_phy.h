@@ -30,6 +30,8 @@ struct tegra_utmip_config {
 	u8 xcvr_setup;
 	u8 xcvr_lsfslew;
 	u8 xcvr_lsrslew;
+	u8 vbus_gpio;
+	bool shared_pin_vbus_en_oc;
 };
 
 enum tegra_ulpi_inf_type {
@@ -107,6 +109,13 @@ void tegra_usb_phy_clk_disable(struct tegra_usb_phy *phy);
 void tegra_usb_phy_clk_enable(struct tegra_usb_phy *phy);
 
 void tegra_usb_phy_power_off(struct tegra_usb_phy *phy, bool is_dpd);
+
+void tegra_usb_phy_utmi_vbus_init(struct tegra_utmip_config *utmi_config,
+			const char *label);
+
+void tegra_usb_phy_vbus_on(struct tegra_usb_phy *phy);
+
+void tegra_usb_phy_vbus_off(struct tegra_usb_phy *phy);
 
 void tegra_usb_phy_preresume(struct tegra_usb_phy *phy, bool is_dpd);
 
