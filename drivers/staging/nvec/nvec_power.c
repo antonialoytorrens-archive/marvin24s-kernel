@@ -113,7 +113,7 @@ static void get_bat_mfg_data(struct nvec_power *power)
 	for (i = 0; i < ARRAY_SIZE(bat_init); i++) {
 		buf[1] = bat_init[i];
 		nvec_write_async(power->nvec, buf, 2);
-		msleep(100);
+		msleep(1000);
 	}
 }
 
@@ -351,7 +351,7 @@ static void nvec_power_poll(struct work_struct *work)
 
 /* AC status via sys req */
 	nvec_write_async(power->nvec, buf, 2);
-	msleep(100);
+	msleep(1000);
 
 /* select a battery request function via round robin
    doing it all at once seems to overload the power supply */

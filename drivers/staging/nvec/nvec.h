@@ -56,8 +56,8 @@ struct nvec_subdev {
 };
 
 struct nvec_platform_data {
-	int i2c_addr;
 	int gpio;
+	int adapter;
 };
 
 struct nvec_chip {
@@ -66,7 +66,7 @@ struct nvec_chip {
 	int irq;
 	int i2c_addr;
 	void __iomem *base;
-	struct clk *i2c_clk;
+	struct clk *clk;
 	struct atomic_notifier_head notifier_list;
 	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
