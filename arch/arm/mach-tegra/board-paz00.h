@@ -51,4 +51,14 @@ void paz00_emc_init(void);
 int paz00_power_init(void);
 int paz00_panel_init(void);
 
+/* defines the wakeup pad attributes. */
+struct paz00_wakeup_pad_info {
+	/* specifies to enable this pad as wakeup or not */
+	bool enable;
+	/* specifies the wake up pad's interrupt number */
+	unsigned int WakeupPadInt;
+	/* specifies wake up trigger type */
+	int trigger;
+};
+
 #endif
