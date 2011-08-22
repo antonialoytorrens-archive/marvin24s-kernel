@@ -23,10 +23,11 @@
 #include <linux/serial_8250.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
-#include <linux/pda_power.h>
-#include <linux/io.h>
+#include <linux/gpio_keys.h>
 #include <linux/i2c.h>
 #include <linux/i2c-tegra.h>
+#include <linux/io.h>
+#include <linux/input.h>
 #include <linux/rfkill-gpio.h>
 #include <linux/platform_data/tegra_usb.h>
 
@@ -348,6 +349,30 @@ static struct platform_device wifi_rfkill_device = {
 	},
 };
 
+static struct gpio_keys_button paz00_gpio_keys_buttons[] = {
+	{
+		.code		= KEY_POWER,
+		.gpio		= TEGRA_GPIO_POWERKEY,
+		.active_low	= 1,
+		.desc		= "Power",
+		.type		= EV_KEY,
+		.wakeup		= 1,
+	},
+};
+
+static struct gpio_keys_platform_data paz00_gpio_keys = {
+	.buttons	= paz00_gpio_keys_buttons,
+	.nbuttons	= ARRAY_SIZE(paz00_gpio_keys_buttons),
+};
+
+static struct platform_device paz00_gpio_keys_device = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &paz00_gpio_keys,
+	},
+};
+
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_pmu_device,
@@ -361,6 +386,7 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_spi_device4,
 	&wifi_rfkill_device,
 	&leds_gpio,
+	&paz00_gpio_keys_device,
 	&tegra_gart_device,
 	&tegra_i2s_device1,
 	&tegra_das_device,
@@ -411,86 +437,18 @@ static struct tegra_sdhci_platform_data sdhci_pdata4 = {
 };
 
 static struct tegra_suspend_platform_data paz00_suspend = {
-	.cpu_timer = 5000,
-	.cpu_off_timer = 5000,
-	.core_timer = 0x7e7e,
+	.cpu_timer	= 5000,
+	.cpu_off_timer	= 5000,
+	.core_timer	= 0x7e7e,
 	.core_off_timer = 0x7f,
-	.separate_req = true,
-	.corereq_high = false,
+	.separate_req	= true,
+	.corereq_high	= false,
 	.sysclkreq_high = true,
-	.suspend_mode = TEGRA_SUSPEND_LP0,
+	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
-
-#define PAD_INFO(e, i, t)		\
-	{				\
-		.enable = e,		\
-		.WakeupPadInt = i,	\
-		.trigger = t,		\
-	}
-
-static struct __initdata paz00_wakeup_pad_info paz00_wakeup_pad_info[] = {
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PO5), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV3), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PL1), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PB6), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PN7), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PA0), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU5), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PU6), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PC7), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PS2), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PAA1), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PW3), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PW2), 0 ),
-	PAD_INFO( false, INT_SDMMC1, 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV6), 0 ),
-	PAD_INFO( true,  TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PJ7), IRQF_TRIGGER_LOW ),
-	PAD_INFO( false, INT_RTC, 0 ),
-	PAD_INFO( false, INT_KBC, 0 ),
-	/* FIXXME: this interrupt seem to trigger al$ */
-	PAD_INFO( false, INT_EXTERNAL_PMU, IRQF_TRIGGER_LOW ),
-	PAD_INFO( false, INT_USB,  0 ),
-	PAD_INFO( false, INT_USB3, 0 ),
-	PAD_INFO( false, INT_USB,  0 ),
-	PAD_INFO( false, INT_USB3, 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PI5), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PV2), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PS4), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PS5), 0 ),
-	PAD_INFO( false, INT_SDMMC2, 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PQ6), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PQ7), 0 ),
-	PAD_INFO( false, TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_PN2), 0 ),
-};
-
-static void __init paz00_setup_suspend(void)
-{
-	struct tegra_suspend_platform_data *plat = &paz00_suspend;
-	struct paz00_wakeup_pad_info *w;
-	int pad;
-
-	for (pad = 0; pad < ARRAY_SIZE(paz00_wakeup_pad_info); pad++) {
-		w = &paz00_wakeup_pad_info[pad];
-		if(w->enable) {
-			enable_irq_wake(w->WakeupPadInt);
-			plat->wake_enb |= (1 << pad);
-
-			if(w->trigger == IRQF_TRIGGER_LOW ||
-			   w->trigger == IRQF_TRIGGER_FALLING)
-				plat->wake_low |= (1 << pad);
-			else if(w->trigger == IRQF_TRIGGER_HIGH ||
-				w->trigger == IRQF_TRIGGER_RISING)
-				plat->wake_high |= (1 << pad);
-			else if(w->trigger == IRQF_TRIGGER_RISING ||
-				w->trigger == IRQF_TRIGGER_FALLING)
-				plat->wake_any |= (1 << pad);
-		}
-	}
-}
 
 static void __init tegra_paz00_init(void)
 {
-	paz00_setup_suspend();
 	tegra_init_suspend(&paz00_suspend);
 
 	tegra_clk_init_from_table(paz00_clk_init_table);

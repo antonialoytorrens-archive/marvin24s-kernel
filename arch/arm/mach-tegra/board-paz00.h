@@ -20,45 +20,38 @@
 #include "gpio-names.h"
 
 /* SDMMC */
-#define TEGRA_GPIO_SD1_CD		TEGRA_GPIO_PV5
-#define TEGRA_GPIO_SD1_WP		TEGRA_GPIO_PH1
-#define TEGRA_GPIO_SD1_POWER		TEGRA_GPIO_PT3
+#define TEGRA_GPIO_SD1_CD	TEGRA_GPIO_PV5
+#define TEGRA_GPIO_SD1_WP	TEGRA_GPIO_PH1
+#define TEGRA_GPIO_SD1_POWER	TEGRA_GPIO_PT3
 
 /* ULPI */
-#define TEGRA_ULPI_RST			TEGRA_GPIO_PV0
+#define TEGRA_ULPI_RST		TEGRA_GPIO_PV0
 
 /* Wifi */
-#define TEGRA_WIFI_LED			TEGRA_GPIO_PD0
-#define TEGRA_WIFI_RST			TEGRA_GPIO_PD1
-#define TEGRA_WIFI_PWRN			TEGRA_GPIO_PK5
+#define TEGRA_WIFI_LED		TEGRA_GPIO_PD0
+#define TEGRA_WIFI_RST		TEGRA_GPIO_PD1
+#define TEGRA_WIFI_PWRN		TEGRA_GPIO_PK5
 
 /* Panel */
-#define TEGRA_BACKLIGHT			TEGRA_GPIO_PU4
-#define TEGRA_BACKLIGHT_VDD		TEGRA_GPIO_PW0
-#define TEGRA_BACKLIGHT_PWM		TEGRA_GPIO_PU3
-#define TEGRA_LVDS_SHUTDOWN		TEGRA_GPIO_PM6
-#define TEGRA_EN_VDD_PNL		TEGRA_GPIO_PA4
-#define TEGRA_HDMI_HPD			TEGRA_GPIO_PN7
+#define TEGRA_BACKLIGHT		TEGRA_GPIO_PU4
+#define TEGRA_BACKLIGHT_VDD	TEGRA_GPIO_PW0
+#define TEGRA_BACKLIGHT_PWM	TEGRA_GPIO_PU3
+#define TEGRA_LVDS_SHUTDOWN	TEGRA_GPIO_PM6
+#define TEGRA_EN_VDD_PNL	TEGRA_GPIO_PA4
+#define TEGRA_HDMI_HPD		TEGRA_GPIO_PN7
 
 /* EC */
-#define TEGRA_NVEC_REQ			TEGRA_GPIO_PV2
+#define TEGRA_NVEC_REQ		TEGRA_GPIO_PV2
 
 /* Audio */
-#define TEGRA_HP_DET			TEGRA_GPIO_PW2
+#define TEGRA_HP_DET		TEGRA_GPIO_PW2
+
+/* WakeUp */
+#define TEGRA_GPIO_POWERKEY	TEGRA_GPIO_PJ7
 
 void paz00_pinmux_init(void);
 void paz00_emc_init(void);
 int paz00_power_init(void);
 int paz00_panel_init(void);
-
-/* defines the wakeup pad attributes. */
-struct paz00_wakeup_pad_info {
-	/* specifies to enable this pad as wakeup or not */
-	bool enable;
-	/* specifies the wake up pad's interrupt number */
-	unsigned int WakeupPadInt;
-	/* specifies wake up trigger type */
-	int trigger;
-};
 
 #endif
