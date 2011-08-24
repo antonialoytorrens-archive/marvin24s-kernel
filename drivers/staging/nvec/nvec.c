@@ -1,11 +1,23 @@
-// #define DEBUG
+/*
+ * NVEC: NVIDIA compliant embedded controller interface
+ *
+ * Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.lauchpad.net>
+ *
+ * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
+ *           Ilya Petrov <ilya.muromec@gmail.com>
+ *           Marc Dietrich <marvin24@gmx.de>
+ *
+ * This file is subject to the terms and conditions of the GNU General Public
+ * License.  See the file "COPYING" in the main directory of this archive
+ * for more details.
+ *
+ */
 
-/* ToDo list (incomplete, unorderd)
-	- convert mouse, keyboard, and power to platform devices
-*/
+/* #define DEBUG */
 
 #include <asm/io.h>
 #include <asm/irq.h>
+
 #include <linux/completion.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
