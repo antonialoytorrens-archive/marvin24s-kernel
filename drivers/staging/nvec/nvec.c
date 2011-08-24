@@ -91,29 +91,73 @@ static int nvec_status_notifier(struct notifier_block *nb,
 void nvec_write_async(struct nvec_chip *nvec, const unsigned char *data,
 			short size)
 {
-	struct nvec_msg *msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
+	struct nvec_msg *msg;
+	unsigned long flags;
 
-	msg->data = kzalloc(size, GFP_NOWAIT);
+	msg = kzalloc(sizeof(struct nvec_msg), GFP_ATOMIC);
 	msg->data[0] = size;
 	memcpy(msg->data + 1, data, size);
 	msg->size = size + 1;
-	msg->pos = 0;
-	INIT_LIST_HEAD(&msg->node);
 
+	spin_lock_irqsave(&nvec->tx_lock, flags);
 	list_add_tail(&msg->node, &nvec->tx_data);
+	spin_unlock_irqrestore(&nvec->tx_lock, flags);
 
-	gpio_set_value(nvec->gpio, 0);
+	queue_work(nvec->wq, &nvec->tx_work);
 }
-
 EXPORT_SYMBOL(nvec_write_async);
 
+struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
+		const unsigned char *data, short size)
+{
+	mutex_lock(&nvec->sync_write_mutex);
+
+	nvec->sync_write_pending = (data[1] << 8) + data[0];
+	nvec_write_async(nvec, data, size);
+
+	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n",
+					nvec->sync_write_pending);
+	if (!(wait_for_completion_timeout(&nvec->sync_write,
+				msecs_to_jiffies(2000)))) {
+		dev_warn(nvec->dev, "timeout waiting for sync write to complete\n");
+		mutex_unlock(&nvec->sync_write_mutex);
+		return NULL;
+	}
+
+	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
+
+	mutex_unlock(&nvec->sync_write_mutex);
+
+	return nvec->last_sync_msg;
+}
+EXPORT_SYMBOL(nvec_write_sync);
+
+/* TX worker */
 static void nvec_request_master(struct work_struct *work)
 {
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
+	unsigned long flags;
+	struct nvec_msg *msg;
 
-	if (!list_empty(&nvec->tx_data)) {
+	mutex_lock(&nvec->async_write_mutex);
+	spin_lock_irqsave(&nvec->tx_lock, flags);
+	while (!list_empty(&nvec->tx_data)) {
+		msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
+		spin_unlock_irqrestore(&nvec->tx_lock, flags);
 		gpio_set_value(nvec->gpio, 0);
+		if (!(wait_for_completion_interruptible_timeout(
+		      &nvec->ec_transfer, msecs_to_jiffies(5000)))) {
+			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
+			gpio_set_value(nvec->gpio, 1);
+			msg->pos = 0;
+		} else {
+			list_del_init(&msg->node);
+			kfree(msg);
+		}
+		spin_lock_irqsave(&nvec->tx_lock, flags);
 	}
+	spin_unlock_irqrestore(&nvec->tx_lock, flags);
+	mutex_unlock(&nvec->async_write_mutex);
 }
 
 static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
@@ -135,144 +179,209 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 	return 0;
 }
 
-static struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
-					const unsigned char *data, short size)
-{
-	down(&nvec->sync_write_mutex);
-
-	nvec->sync_write_pending = (data[1] << 8) + data[0];
-	nvec_write_async(nvec, data, size);
-
-	dev_dbg(nvec->dev, "nvec_sync_write: 0x%04x\n",
-		nvec->sync_write_pending);
-	wait_for_completion(&nvec->sync_write);
-	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
-
-	up(&nvec->sync_write_mutex);
-
-	return nvec->last_sync_msg;
-}
-
 /* RX worker */
 static void nvec_dispatch(struct work_struct *work)
 {
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, rx_work);
+	unsigned long flags;
 	struct nvec_msg *msg;
 
+	mutex_lock(&nvec->dispatch_mutex);
+	spin_lock_irqsave(&nvec->rx_lock, flags);
 	while (!list_empty(&nvec->rx_data)) {
 		msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
 		list_del_init(&msg->node);
+		spin_unlock_irqrestore(&nvec->rx_lock, flags);
 
 		if (nvec->sync_write_pending ==
-		    (msg->data[2] << 8) + msg->data[0]) {
+		      (msg->data[2] << 8) + msg->data[0]) {
 			dev_dbg(nvec->dev, "sync write completed!\n");
 			nvec->sync_write_pending = 0;
 			nvec->last_sync_msg = msg;
 			complete(&nvec->sync_write);
 		} else {
 			parse_msg(nvec, msg);
-			if ((!msg) || (!msg->data))
-				dev_warn(nvec->dev,
-					"attempt access zero pointer\n");
-			else {
-				kfree(msg->data);
-				kfree(msg);
-			}
+			msg->used = 0;
 		}
+		spin_lock_irqsave(&nvec->rx_lock, flags);
 	}
+	spin_unlock_irqrestore(&nvec->rx_lock, flags);
+	mutex_unlock(&nvec->dispatch_mutex);
 }
 
 static irqreturn_t nvec_interrupt(int irq, void *dev)
 {
 	unsigned long status;
-	unsigned long received;
-	unsigned char to_send;
-	struct nvec_msg *msg;
+	unsigned long received = 0;
+	unsigned char to_send = 0;
+	unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
+	unsigned long flags;
+	unsigned long dtime;
+	int valid_proto = 0;
+	int end_trans = 0;
+	struct timespec start_time, end_time, diff_time;
 	struct nvec_chip *nvec = (struct nvec_chip *)dev;
 	void __iomem *base = nvec->base;
 
+	getnstimeofday(&start_time);
+
 	status = readl(base + I2C_SL_STATUS);
 
-	if (!(status & I2C_SL_IRQ)) {
-		dev_warn(nvec->dev, "nvec Spurious IRQ\n");
+	if (!(status & irq_mask) && !((status & ~irq_mask) == 0)) {
+		dev_warn(nvec->dev, "unexpected irq mask %lx\n", status);
 		goto handled;
 	}
-	if (status & END_TRANS && !(status & RCVD)) {
-		nvec->state = NVEC_WAIT;
-		if (nvec->rx->size > 1) {
-			list_add_tail(&nvec->rx->node, &nvec->rx_data);
-			schedule_work(&nvec->rx_work);
-		} else {
-			kfree(nvec->rx->data);
-			kfree(nvec->rx);
-		}
-		return IRQ_HANDLED;
-	} else if (status & RNW) {
-		if (status & RCVD)
-			udelay(3);
 
-		if (status & RCVD) {
-			nvec->state = NVEC_WRITE;
-		} else {
-/*                      dev_dbg(nvec->dev, "Read comm cont !\n"); */
-		}
+	if ((status & I2C_SL_IRQ) == 0) {
+		dev_warn(nvec->dev, "Spurious IRQ\n");
+		goto handled;
+	}
+
+	/* just ET (but not ET with new comm [0x1c] !) */
+	if ((status & END_TRANS) && !(status & RCVD))
+		goto handled;
+
+	if (status & RNW) { /* ec reads from slave, status = 0x0a, 0x0e */
+		spin_lock_irqsave(&nvec->tx_lock, flags);
 		if (list_empty(&nvec->tx_data)) {
-			dev_err(nvec->dev, "nvec empty tx - sending no-op\n");
-			to_send = 0x8a;
-			nvec_write_async(nvec, "\x07\x02", 2);
-		} else {
-			msg =
-			    list_first_entry(&nvec->tx_data, struct nvec_msg,
-					     node);
-			if (msg->pos < msg->size) {
-				to_send = msg->data[msg->pos];
-				msg->pos++;
-			} else {
-				dev_err(nvec->dev, "nvec crap! %d\n",
-					msg->size);
-				to_send = 0x01;
-			}
+			dev_err(nvec->dev, "empty tx - sending no-op\n");
 
-			if (msg->pos >= msg->size) {
-				list_del_init(&msg->node);
-				kfree(msg->data);
-				kfree(msg);
-				schedule_work(&nvec->tx_work);
-				nvec->state = NVEC_WAIT;
+			nvec->tx_scratch.data[0] = 4;
+			nvec->tx_scratch.data[1] = 0x8a;
+			nvec->tx_scratch.data[2] = 0x02;
+			nvec->tx_scratch.data[3] = 0x07;
+			nvec->tx_scratch.data[4] = 0x02;
+
+			nvec->tx_scratch.size = 5;
+			nvec->tx_scratch.pos = 0;
+			nvec->tx = &nvec->tx_scratch;
+			list_add_tail(&nvec->tx->node, &nvec->tx_data);
+			spin_unlock_irqrestore(&nvec->tx_lock, flags);
+			valid_proto = 1;
+		} else {
+			if (status & RCVD) {	/* 0x0e, new transfer */
+				nvec->tx = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
+				spin_unlock_irqrestore(&nvec->tx_lock, flags);
+				/* Work around for AP20 New Slave Hw Bug.
+				   ((1000 / 80) / 2) + 1 = 33 */
+				getnstimeofday(&end_time);
+				diff_time = timespec_sub(end_time, start_time);
+				dtime = timespec_to_ns(&diff_time);
+				if (dtime < 33000)
+					ndelay(33000 - dtime);
+				else
+					dev_warn(nvec->dev, "isr time: %llu nsec\n", timespec_to_ns(&diff_time));
+
+				if (!nvec->rx)
+					dev_warn(nvec->dev, "no rx buffer available");
+				else if ((nvec->rx->pos == 1) && (nvec->rx->data[0] == 1)) {
+					valid_proto = 1;
+				} else {
+					dev_warn(nvec->dev, "new transaction "
+						"during send (pos: %d) - trying to retransmit!\n", nvec->tx->pos);
+					nvec->tx->pos = 0;
+				}
+			} else {	/* 0x0a, transfer continues */
+				spin_unlock_irqrestore(&nvec->tx_lock, flags);
+				if (nvec->tx != list_first_entry(&nvec->tx_data, struct nvec_msg, node)) {
+					dev_warn(nvec->dev, "tx buffer corrupted");
+				}
+				if ((nvec->tx->pos >= 1) && (nvec->tx->pos < nvec->tx->size)) {
+					valid_proto = 1;
+				}
 			}
 		}
+
+		if (!valid_proto) {
+			dev_err(nvec->dev, "invalid protocol (sta:%lx, pos:%d, size: %d)\n", status, nvec->tx->pos, nvec->tx->size);
+			to_send = 0xff;
+			nvec->tx->pos = 0;
+		} else {
+			to_send = nvec->tx->data[nvec->tx->pos++];
+		}
+
 		writel(to_send, base + I2C_SL_RCVD);
 
-		gpio_set_value(nvec->gpio, 1);
-
-		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
-
-		goto handled;
-	} else {
-		received = readl(base + I2C_SL_RCVD);
-
-		if (status & RCVD) {
-			writel(0, base + I2C_SL_RCVD);
-			goto handled;
+		if ((status & RCVD) && valid_proto) {
+			gpio_set_value(nvec->gpio, 1);
 		}
 
-		if (nvec->state == NVEC_WAIT) {
-			nvec->state = NVEC_READ;
-			msg = kzalloc(sizeof(struct nvec_msg), GFP_NOWAIT);
-			msg->data = kzalloc(32, GFP_NOWAIT);
-			INIT_LIST_HEAD(&msg->node);
-			nvec->rx = msg;
-		} else
-			msg = nvec->rx;
+		if (nvec->tx->pos == nvec->tx->size) {
+			complete(&nvec->ec_transfer);
+		}
 
-		BUG_ON(msg->pos > 32);
+		goto handled;
+	} else { /* 0x0c, 0x08, 0x1c */
+		if (nvec->rx) {
+			if (status & RCVD) {
+				local_irq_save(flags);
+				received = readl(base + I2C_SL_RCVD);
+				writel(0, base + I2C_SL_RCVD);
+				local_irq_restore(flags);
+			} else
+				received = readl(base + I2C_SL_RCVD);
 
-		msg->data[msg->pos] = received;
-		msg->pos++;
-		msg->size = msg->pos;
-		dev_dbg(nvec->dev, "Got %02lx from Master (pos: %d)!\n",
-			received, msg->pos);
+			if (status & RCVD) { /* new transaction, 0x0c, 0x1c */
+				nvec->rx->pos = 0;
+				nvec->rx->size = 0;
+				nvec->rx->used = 1;
+				if (!(received == nvec->i2c_addr))
+					dev_warn(nvec->dev, "unexpected response from new slave");
+			} else if (nvec->rx->pos == 0) {   /* first byte of new transaction */
+				nvec->rx->data[nvec->rx->pos++] = received;
+				nvec->ev_type = (received & 0x80) >> 7; /* Event or Req/Res */
+				nvec->ev_len = (received & 0x60) >> 5;  /* Event length */
+			} else {			/* transaction continues */
+				if (nvec->rx->pos < MAX_PKT_SIZE)
+					nvec->rx->data[nvec->rx->pos++] = received;
+				if ((nvec->ev_len == NVEC_VAR_SIZE) || (nvec->ev_type == 0)) { /* variable write from master */
+					end_trans = 0;
+					switch (nvec->rx->pos) {
+					case 1:
+						nvec->rx->pos = 0;
+						break;
+					case 2:
+						if ((received == 0) || (received > MAX_PKT_SIZE))
+							nvec->rx->pos = 0;
+						break;
+					default:
+						if (nvec->rx->pos == 2 + nvec->rx->data[1])
+							end_trans = 1;
+					}
+				} else if (nvec->ev_len == NVEC_2BYTES)	/* 2 byte event */
+					end_trans = (nvec->rx->pos == 2);
+				else if (nvec->ev_len == NVEC_3BYTES)	/* 3 byte event */
+					end_trans = (nvec->rx->pos == 3);
+				else
+					dev_err(nvec->dev, "grap!\n");
+			}
+
+		} else {
+			/* FIXME: implement NACK here ! */
+			received = readl(base + I2C_SL_RCVD);
+			dev_err(nvec->dev, "no rx buffer available!\n");
+		}
+
+		if (end_trans) {
+			spin_lock_irqsave(&nvec->rx_lock, flags);
+			/* add the received data to the work list
+			   and move the ring buffer pointer to the next entry */
+			list_add_tail(&nvec->rx->node, &nvec->rx_data);
+			nvec->rx_pos++;
+			nvec->rx_pos &= RX_BUF_MASK;
+			WARN_ON(nvec->rx_buffer[nvec->rx_pos].used == 1);
+			if (nvec->rx_buffer[nvec->rx_pos].used) {
+				dev_err(nvec->dev, "next buffer full!");
+			}
+			nvec->rx->used = 0;
+			nvec->rx = &nvec->rx_buffer[nvec->rx_pos];
+			spin_unlock_irqrestore(&nvec->rx_lock, flags);
+
+			/* only complete on responses */
+			queue_work(nvec->wq, &nvec->rx_work);
+		}
 	}
+
 handled:
 	return IRQ_HANDLED;
 }
@@ -372,6 +481,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->base = base;
 	nvec->irq = res->start;
 	nvec->i2c_clk = i2c_clk;
+	nvec->rx = &nvec->rx_buffer[0];
 
 	/* Set the gpio to low when we've got something to say */
 	err = gpio_request(nvec->gpio, "nvec gpio");
@@ -381,11 +491,17 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
 	init_completion(&nvec->sync_write);
-	sema_init(&nvec->sync_write_mutex, 1);
-	INIT_LIST_HEAD(&nvec->tx_data);
+	init_completion(&nvec->ec_transfer);
+	mutex_init(&nvec->sync_write_mutex);
+	mutex_init(&nvec->async_write_mutex);
+	mutex_init(&nvec->dispatch_mutex);
+	spin_lock_init(&nvec->tx_lock);
+	spin_lock_init(&nvec->rx_lock);
 	INIT_LIST_HEAD(&nvec->rx_data);
+	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);
 	INIT_WORK(&nvec->tx_work, nvec_request_master);
+	nvec->wq = alloc_workqueue("nvec", WQ_NON_REENTRANT, 1);
 
 	err = request_irq(nvec->irq, nvec_interrupt, 0, "nvec", nvec);
 	if (err) {
@@ -413,13 +529,14 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	/* Get Firmware Version */
 	msg = nvec_write_sync(nvec, EC_GET_FIRMWARE_VERSION,
-			      sizeof(EC_GET_FIRMWARE_VERSION));
+		sizeof(EC_GET_FIRMWARE_VERSION));
 
-	dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
-		 msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
+	if (msg) {
+		dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
+			msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
 
-	kfree(msg->data);
-	kfree(msg);
+		msg->used = 0;
+	}
 
 	ret = mfd_add_devices(nvec->dev, -1, nvec_devices,
 			      ARRAY_SIZE(nvec_devices), base, 0);
@@ -453,6 +570,7 @@ static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 	free_irq(nvec->irq, &nvec_interrupt);
 	iounmap(nvec->base);
 	gpio_free(nvec->gpio);
+	destroy_workqueue(nvec->wq);
 	kfree(nvec);
 
 	return 0;
