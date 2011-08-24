@@ -4516,6 +4516,12 @@ S:	Supported
 F:	Documentation/filesystems/ntfs.txt
 F:	fs/ntfs/
 
+NVIDIA COMPLIANT EMBEDDED CONTROLLER INTERFACE (nvec)
+M:	Marc Dietrich <marvin24@gmx.de>
+L:	ac100@lists.launchpad.net (moderated for non-subscribers)
+S:	Maintained
+F:	drivers/staging/nvec/
+
 NVIDIA (rivafb and nvidiafb) FRAMEBUFFER DRIVER
 M:	Antonino Daplas <adaplas@gmail.com>
 L:	linux-fbdev@vger.kernel.org
