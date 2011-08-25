@@ -586,10 +586,16 @@ static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
+	struct nvec_msg *response;
 
 	dev_dbg(nvec->dev, "suspending\n");
-	nvec_write_async(nvec, EC_DISABLE_EVENT_REPORTING, 3);
-	nvec_write_async(nvec, "\x04\x02", 2);
+	response = nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
+	response->used = 0;
+	response = nvec_write_sync(nvec, "\x05\x03\x01\x01",4);
+	response->used = 0;
+	//nvec_write_sync(nvec, "\x0d\x10\x59\xe9",4);
+	response = nvec_write_sync(nvec, "\x04\x02", 2);
+	response->used = 0;
 	nvec_disable_i2c_slave(nvec);
 
 	return 0;
@@ -601,6 +607,8 @@ static int tegra_nvec_resume(struct platform_device *pdev)
 
 	dev_dbg(nvec->dev, "resuming\n");
 	tegra_init_i2c_slave(nvec);
+	clk_enable(nvec->clk);
+	/* when making the next line nvec_write_sync, resume seems to stop working */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
 
 	return 0;
