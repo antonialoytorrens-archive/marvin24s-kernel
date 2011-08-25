@@ -47,6 +47,7 @@
 #define I2C_SL_CNFG_NEWSL			(1<<2)
 #define I2C_SL_ADDR1				0x02c
 #define I2C_SL_ADDR2				0x030
+#define I2C_SL_DELAY_COUNT			0x03c
 #define I2C_TX_FIFO				0x050
 #define I2C_RX_FIFO				0x054
 #define I2C_PACKET_TRANSFER_STATUS		0x058
@@ -311,11 +312,18 @@ static void tegra_i2c_slave_init(struct tegra_i2c_dev *i2c_dev)
 {
 	u32 val = i2c_readl(i2c_dev, I2C_SL_CNFG);
 
-	val |= I2C_SL_CNFG_NEWSL | I2C_SL_CNFG_NACK;
+	val |= I2C_SL_CNFG_NEWSL;
+
+	if(!i2c_dev->is_slave)
+		val |= I2C_SL_CNFG_NACK;
+
 	i2c_writel(i2c_dev, val, I2C_SL_CNFG);
 
+	if (i2c_dev->is_slave)
+		i2c_writel(i2c_dev, 0x1E, I2C_SL_DELAY_COUNT);
+
 	if (i2c_dev->slave_addr) {
-		u16 addr = i2c_dev->slave_addr;
+		u16 addr = i2c_dev->slave_addr >> 1;
 
 		i2c_writel(i2c_dev, SL_ADDR1(addr), I2C_SL_ADDR1);
 		i2c_writel(i2c_dev, SL_ADDR2(addr), I2C_SL_ADDR2);

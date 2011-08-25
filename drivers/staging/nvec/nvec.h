@@ -111,7 +111,7 @@ extern int nvec_unregister_notifier(struct device *dev,
 #define I2C_CNFG_DEBOUNCE_CNT_SHIFT	12
 
 #define I2C_SL_CNFG		0x20
-#define I2C_SL_NEWL		(1<<2)
+#define I2C_SL_NEWSL		(1<<2)
 #define I2C_SL_NACK		(1<<1)
 #define I2C_SL_RESP		(1<<0)
 #define END_TRANS		(1<<4)
