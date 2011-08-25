@@ -29,7 +29,7 @@
 #include "board-paz00.h"
 
 #define PMC_CTRL                0x0
-#define PMC_CTRL_INTR_LOW       (1<<7)
+#define PMC_CTRL_INTR_LOW       (1<<17)
 
 static struct regulator_consumer_supply tps658621_sm0_supply[] = {
 	REGULATOR_SUPPLY("vdd_core", NULL),
@@ -153,16 +153,7 @@ static struct regulator_init_data buck_data = REGULATOR_INIT(buck, 1250, 3300);
 
 /* FIXME: do we have rtc alarm irq? */
 static struct tps6586x_rtc_platform_data paz00_rtc_data = {
-/*	.irq	= TEGRA_NR_IRQS + TPS6586X_INT_RTC_ALM1, */
-	.irq	= -1,
-/*	.start	= {
-			.year	= 2009,
-			.month	= 1,
-			.day	= 1,
-			.hour	= 0,
-			.min	= 0,
-			.sec	= 0,
-		}, */
+	.irq	= TEGRA_NR_IRQS + TPS6586X_INT_RTC_ALM1,
 };
 
 static struct tps6586x_subdev_info tps_devs[] = {
@@ -192,11 +183,13 @@ static struct tps6586x_platform_data tps_platform = {
 	.num_subdevs	= ARRAY_SIZE(tps_devs),
 	.subdevs	= tps_devs,
 	.gpio_base	= TEGRA_NR_GPIOS,
+	.irq_base	= TEGRA_NR_IRQS,
 };
 
 static struct i2c_board_info __initdata paz00_regulators[] = {
 	{
 		I2C_BOARD_INFO("tps6586x", 0x34),
+		.irq	= INT_EXTERNAL_PMU,
 		.platform_data = &tps_platform,
 	},
 };
