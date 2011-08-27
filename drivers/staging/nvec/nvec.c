@@ -34,7 +34,6 @@
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/notifier.h>
-#include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/mfd/core.h>
 #include <linux/i2c.h>
@@ -152,6 +151,7 @@ static void nvec_request_master(struct work_struct *work)
 		gpio_set_value(nvec->gpio, 0);
 		if (!(wait_for_completion_interruptible_timeout(&nvec->ec_transfer, msecs_to_jiffies(5000)))) {
 			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
+			writel(I2C_SL_NEWSL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
 			gpio_set_value(nvec->gpio, 1);
 			msg->pos = 0;
 		} else {
@@ -342,7 +342,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 				nvec->rx->size = 0;
 				nvec->rx->used = 1;
 				if (!(received == nvec->i2c_addr))
-					dev_warn(nvec->dev, "unexpected response from new slave");
+					dev_warn(nvec->dev, "unexpected response from new slave\n");
 			} else if (nvec->rx->pos == 0) {   /* first byte of new transaction */
 				nvec->rx->data[nvec->rx->pos++] = received;
 				nvec->ev_type = (received & 0x80) >> 7; /* Event or Req/Res */
@@ -410,7 +410,7 @@ handled:
 //	writel(status, base + I2C_SL_STATUS);
 	return IRQ_HANDLED;
 }
-
+/*
 static void tegra_init_i2c_slave(struct nvec_chip *nvec)
 {
 	u32 val;
@@ -427,7 +427,7 @@ static void tegra_init_i2c_slave(struct nvec_chip *nvec)
 
 	clk_set_rate(nvec->clk, 8 * 80000);
 
-	writel(I2C_SL_NEWL, nvec->base + I2C_SL_CNFG);
+	writel(I2C_SL_NEWSL, nvec->base + I2C_SL_CNFG);
 	writel(0x1E, nvec->base + I2C_SL_DELAY_COUNT);
 
 	writel(nvec->i2c_addr>>1, nvec->base + I2C_SL_ADDR1);
@@ -437,11 +437,11 @@ static void tegra_init_i2c_slave(struct nvec_chip *nvec)
 
 	clk_disable(nvec->clk);
 }
-
+*/
 static void nvec_disable_i2c_slave(struct nvec_chip *nvec)
 {
 	disable_irq(nvec->irq);
-	writel(I2C_SL_NEWL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
+	writel(I2C_SL_NEWSL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
 	clk_disable(nvec->clk);
 }
 
@@ -513,9 +513,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		dev_err(nvec->dev, "couldn't request irq\n");
 		goto failed;
 	}
-	disable_irq(nvec->irq);
-
-	tegra_init_i2c_slave(nvec);
 
 	clk_enable(nvec->clk);
 
@@ -526,7 +523,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	/* enable event reporting */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
 				sizeof(EC_ENABLE_EVENT_REPORTING));
-
 
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
@@ -606,8 +602,8 @@ static int tegra_nvec_resume(struct platform_device *pdev)
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 
 	dev_dbg(nvec->dev, "resuming\n");
-	tegra_init_i2c_slave(nvec);
 	clk_enable(nvec->clk);
+	enable_irq(nvec->irq);
 	/* when making the next line nvec_write_sync, resume seems to stop working */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
 
