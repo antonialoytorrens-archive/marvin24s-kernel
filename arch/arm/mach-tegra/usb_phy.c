@@ -814,13 +814,13 @@ static int ulpi_phy_power_on(struct tegra_usb_phy *phy, bool is_dpd)
 	 * "disconnected" and cause trouble on later resume.
 	 */
 	if (!phy->ulpi_initialized) {
+		clk_enable(phy->clk);
 		gpio_direction_output(config->reset_gpio, 0);
 		udelay(1);
 		gpio_direction_output(config->reset_gpio, 1);
+		/* Wait Tstart max. 2.37 ms after RESET# is deasserted */
+		usleep_range(2370, 3000);
 	}
-
-	clk_enable(phy->clk);
-	msleep(1);
 
 	val = readl(base + USB_SUSP_CTRL);
 	val |= UHSIC_RESET;
@@ -875,7 +875,11 @@ static int ulpi_phy_power_on(struct tegra_usb_phy *phy, bool is_dpd)
 	val = readl(base + USB_SUSP_CTRL);
 	val &= ~USB_SUSP_CLR;
 	writel(val, base + USB_SUSP_CTRL);
-	udelay(1);
+
+	/* Wait for ULPI PHY clock to be valid */
+	if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID,
+	     USB_PHY_CLK_VALID))
+		pr_err("%s: timeout waiting for phy to stabilize\n", __func__);
 
 	val = readl(base + USB_PORTSC1);
 	val |= USB_PORTSC1_WKOC | USB_PORTSC1_WKDS | USB_PORTSC1_WKCN;
@@ -889,18 +893,23 @@ static void ulpi_phy_power_off(struct tegra_usb_phy *phy, bool is_dpd)
 	void __iomem *base = phy->regs;
 	struct tegra_ulpi_config *config = phy->config;
 
-	/* Clear WKCN/WKDS/WKOC wake-on events that can cause the USB
+	/* Clear WKDS/WKOC wake-on events that can cause the USB
 	 * Controller to immediately bring the ULPI PHY out of low power.
+	 * Don't clear USB_PORTSC1_WKCN, it may be set by upper layer driver.
+	 * We need it to wake up PHY from suspend state if device is connected.
+	 * So .bus_resume function in ehci-tegra.c can be called to resume bus.
 	 * Set PHCD bit for PHY to enter low power mode
 	 * to keep current line status as "connected" on D+, D-
 	 * instead of pulling the reset pin of PHY chip to save power.
 	 */
 	val = readl(base + USB_PORTSC1);
-	val &= ~(USB_PORTSC1_WKOC | USB_PORTSC1_WKDS | USB_PORTSC1_WKCN);
+	val &= ~(USB_PORTSC1_WKOC | USB_PORTSC1_WKDS);
 	val |= USB_PORTSC1_PHCD;
 	writel(val, base + USB_PORTSC1);
 
-	clk_disable(phy->clk);
+	/* Wait for ULPI PHY to be suspended */
+	if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID, 0) < 0)
+		pr_err("%s: timeout waiting for phy to stabilize\n", __func__);
 }
 
 static int null_phy_power_on(struct tegra_usb_phy *phy, bool is_dpd)
@@ -1386,9 +1395,12 @@ void tegra_usb_phy_close(struct tegra_usb_phy *phy)
 	if (phy_is_ulpi(phy)) {
 		struct tegra_ulpi_config *ulpi_config = phy->config;
 
-		if (ulpi_config->inf_type == TEGRA_USB_LINK_ULPI)
+		if (ulpi_config->inf_type == TEGRA_USB_LINK_ULPI) {
+			clk_disable(phy->clk);
 			clk_put(phy->clk);
-	} else
+		}
+	}
+	else
 		utmip_pad_close(phy);
 	if (phy->mode == TEGRA_USB_PHY_MODE_HOST) {
 		vbus_disable(usb_phy_data[phy->instance].vbus_gpio);
