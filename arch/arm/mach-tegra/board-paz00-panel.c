@@ -19,14 +19,16 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <asm/mach-types.h>
+
 #include <linux/delay.h>
 #include <linux/gpio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/resource.h>
-#include <asm/mach-types.h>
 #include <linux/platform_device.h>
 #include <linux/pwm_backlight.h>
 #include <linux/err.h>
+
 #include <mach/nvhost.h>
 #include <mach/nvmap.h>
 #include <mach/irqs.h>
@@ -412,7 +414,7 @@ static struct platform_device *paz00_gfx_devices[] __initdata = {
 	&paz00_backlight_device,
 };
 
-int __init paz00_panel_init(void)
+int __init paz00_panel_init(size_t fb_addr)
 {
 	int err;
 
@@ -430,6 +432,8 @@ int __init paz00_panel_init(void)
 	gpio_direction_input(TEGRA_HDMI_HPD);
 	tegra_gpio_enable(TEGRA_HDMI_HPD);
 	gpio_free(TEGRA_HDMI_HPD);
+
+	paz00_disp1_resources[2].start = (unsigned long)fb_addr;
 
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));

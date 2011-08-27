@@ -84,10 +84,10 @@ enum {
 	WARMBOOT,
 };
 
-int num_memhdl = 0;
+static int num_memhdl = 0;
 
-struct memhdl nv_memhdl[MAX_MEMHDL];
-
+static struct memhdl nv_memhdl[MAX_MEMHDL];
+static size_t fb_addr;
 
 static int __init parse_tag_nvidia(const struct tag *tag)
 {
@@ -103,6 +103,10 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 			printk("DISPLAY        ");
 			break;
 		case FRAMEBUFFER:
+			id = nvtag->bootarg[1];
+			for(i=0; i<num_memhdl; i++)
+				if (nv_memhdl[i].id == id)
+					fb_addr = nv_memhdl[i].start;
 			printk("FRAMEBUFFER    ");
 			break;
 		case CHIPSHMOO:
@@ -467,7 +471,7 @@ static void __init tegra_paz00_init(void)
 
 	paz00_i2c_init();
 	paz00_power_init();
-	paz00_panel_init();
+	paz00_panel_init(fb_addr);
 	paz00_usb_init();
 	paz00_emc_init();
 }
