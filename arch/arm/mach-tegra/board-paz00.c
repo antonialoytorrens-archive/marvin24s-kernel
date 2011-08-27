@@ -250,6 +250,10 @@ static struct i2c_board_info __initdata alc5632_board_info = {
 	.platform_data = &alc5632_pdata,
 };
 
+static struct i2c_board_info __initdata atd7461_board_info = {
+	I2C_BOARD_INFO("lm90", 0x4c),
+};
+
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
@@ -270,6 +274,7 @@ static void paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device4);
 
 	i2c_register_board_info(0, &alc5632_board_info, 1);
+	i2c_register_board_info(4, &atd7461_board_info, 1);
 
 	platform_device_register(&nvec_device);
 }
