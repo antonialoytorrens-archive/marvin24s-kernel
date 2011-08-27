@@ -447,94 +447,9 @@ static struct tegra_suspend_platform_data paz00_suspend = {
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
 
-/* Defines the wakeup pad attributes. */
-typedef struct{
-    /* Specifies to enable this pad as wakeup or not */
-    bool enable;
-
-    /* Specifies the wake up pad's interrupt number */
-    unsigned int WakeupPadInt;
-
-    /* Specifies wake up trigger type */
-    int Trigger;
-
-} WakeupPadInfo;
-
-
-static void __init tegra_paz00_setup_suspend(void)
-{
-	WakeupPadInfo wakeup_pad_info[] =
-	{
-        {false, gpio_to_irq(TEGRA_GPIO_PO5), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PV3), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PL1), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PB6), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PN7), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PA0), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PU5), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PU6), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PC7), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PS2), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PAA1), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PW3), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PW2), 0},
-        {false, INT_SDMMC1, 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PV6), 0},
-        {true,  gpio_to_irq(TEGRA_GPIO_PJ7), IRQF_TRIGGER_LOW},
-        {false, INT_RTC, 0},
-        {false, INT_KBC, 0},
-        {false, INT_EXTERNAL_PMU, IRQF_TRIGGER_LOW}, // FIXXME: this interrupt seem to trigger al$
-        {false, INT_USB, 0},
-        {false, INT_USB3, 0},
-        {false, INT_USB, 0},
-        {false, INT_USB3, 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PI5), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PV2), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PS4), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PS5), 0},
-	{false, INT_SDMMC2, 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PQ6), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PQ7), 0},
-        {false, gpio_to_irq(TEGRA_GPIO_PN2), 0}
-	};
-
-	struct tegra_suspend_platform_data *plat = &paz00_suspend;
-	WakeupPadInfo *w = wakeup_pad_info;
-	unsigned int nr_wake = sizeof(wakeup_pad_info) / sizeof(wakeup_pad_info[0]);
-	unsigned int pad = 0;
-
-	plat->wake_enb = 0;
-	plat->wake_low = 0;
-	plat->wake_high = 0;
-	plat->wake_any = 0;
-
-	while(nr_wake--)
-	{
-		unsigned int irq = w->WakeupPadInt;
-		if(w->enable)
-		{
-			enable_irq_wake(irq);
-			
-			plat->wake_enb |= (1 << pad);
-			if(w->Trigger == IRQF_TRIGGER_LOW || w->Trigger == IRQF_TRIGGER_FALLING)
-				plat->wake_low |= (1 << pad);
-			else if(w->Trigger == IRQF_TRIGGER_HIGH || w->Trigger == IRQF_TRIGGER_RISING)
-				plat->wake_high |= (1 << pad);
-			else if(w->Trigger == IRQF_TRIGGER_RISING || w->Trigger == IRQF_TRIGGER_FALLING)
-				plat->wake_any |= (1 << pad);
-		}
-		w++;
-		pad++;
-	}
-
-	tegra_init_suspend(plat);
-
-}
-
 static void __init tegra_paz00_init(void)
 {
-	//tegra_init_suspend(&paz00_suspend);
-	tegra_paz00_setup_suspend();
+	tegra_init_suspend(&paz00_suspend);
 
 	tegra_clk_init_from_table(paz00_clk_init_table);
 
