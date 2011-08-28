@@ -684,15 +684,13 @@ static int tegra_i2c_probe(struct platform_device *pdev)
 	}
 
 	if (!i2c_dev->is_slave) {
-
 		ret = request_irq(i2c_dev->irq, tegra_i2c_isr, 0, pdev->name, i2c_dev);
 		if (ret) {
 			dev_err(&pdev->dev, "Failed to request irq %i\n", i2c_dev->irq);
 			goto err_free;
 		}
+		clk_enable(i2c_dev->i2c_clk);
 	}
-
-	clk_enable(i2c_dev->i2c_clk);
 
 	for (i = 0; i < nbus; i++) {
 		struct tegra_i2c_bus *i2c_bus = &i2c_dev->busses[i];

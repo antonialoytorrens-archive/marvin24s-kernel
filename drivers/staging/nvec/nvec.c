@@ -151,7 +151,6 @@ static void nvec_request_master(struct work_struct *work)
 		gpio_set_value(nvec->gpio, 0);
 		if (!(wait_for_completion_interruptible_timeout(&nvec->ec_transfer, msecs_to_jiffies(5000)))) {
 			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
-			writel(I2C_SL_NEWSL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
 			gpio_set_value(nvec->gpio, 1);
 			msg->pos = 0;
 		} else {
@@ -219,7 +218,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 	unsigned long status;
 	unsigned long received = 0;
 	unsigned char to_send = 0;
-	unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
+	const unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
 	unsigned long flags;
 	unsigned long dtime;
 	int valid_proto = 0;
@@ -316,10 +315,11 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 
 //		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
 
-//		printk("sd: %02x ", to_send);
+//xxx		printk("sd: %02x ", to_send);
 
 		if (nvec->tx->pos == nvec->tx->size) {
 			complete(&nvec->ec_transfer);
+//xxx			printk("\n");
 		}
 
 //		nvec->rx->pos = 0;
@@ -378,7 +378,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			dev_err(nvec->dev, "no rx buffer available!\n");
 		}
 
-//		printk("re=%02lx ", received);
+//xxx		printk("re=%02lx ", received);
 
 		if (end_trans) {
 			spin_lock_irqsave(&nvec->rx_lock, flags);
@@ -399,6 +399,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			/* only complete on responses */
 //			if (nvec->ev_type == 0)
 //				complete(&nvec->ec_transfer);
+//xxx			printk("\n");
 			queue_work(nvec->wq, &nvec->rx_work);
 		}
 	}
