@@ -81,12 +81,12 @@ msdos_magic_present(unsigned char *p)
 
 static void
 tegra_msdos_parse_extended(struct parsed_partitions *state, struct block_device *bdev,
-		               u32 mbr_offset, u32 first_sector, u32 first_size)
+		               u64 mbr_offset, u64 first_sector, u64 first_size)
 {
 	struct partition *p;
 	Sector sect;
 	unsigned char *data;
-	u32 this_sector, this_size;
+	u64 this_sector, this_size;
 	int sector_size = bdev_logical_block_size(bdev) / 512;
 	int loopct = 0;		/* number of links followed
 				   without finding a data partition */
@@ -101,7 +101,7 @@ tegra_msdos_parse_extended(struct parsed_partitions *state, struct block_device 
 			return;
 		}
 
-		printk(KERN_INFO "tegra_msdos_parse_extended: read part sector, start=%d+%d size=%d\n",
+		printk(KERN_INFO "tegra_msdos_parse_extended: read part sector, start=%llu+%llu size=%llu\n",
 				mbr_offset, this_sector, this_size);
 
 		data = read_dev_sector(bdev, mbr_offset+this_sector, &sect);
@@ -121,7 +121,7 @@ tegra_msdos_parse_extended(struct parsed_partitions *state, struct block_device 
 		 * First process the data partition(s)
 		 */
 		for (i=0; i<4; i++, p++) {
-			u32 offs, size, next;
+			u64 offs, size, next;
 
 			if (!NR_SECTS(p) || is_extended_partition(p))
 				continue;
@@ -138,7 +138,7 @@ tegra_msdos_parse_extended(struct parsed_partitions *state, struct block_device 
 					continue;
 			}
 
-			printk(KERN_INFO "tegra_msdos_parse_extended: put_partition %d start=%d+%d size=%d\n",
+			printk(KERN_INFO "tegra_msdos_parse_extended: put_partition %d start=%llu+%llu size=%llu\n",
 					state->next, mbr_offset, next, size);
 			put_partition(state, state->next++, mbr_offset+next, size);
 			loopct = 0;
@@ -167,7 +167,7 @@ done:
 
 
 
-int tegra_msdos_parse(struct parsed_partitions *state, struct block_device *bdev, u32 mbr_offset)
+int tegra_msdos_parse(struct parsed_partitions *state, struct block_device *bdev, u64 mbr_offset)
 {
 	int sector_size = bdev_logical_block_size(bdev) / 512;
 	Sector sect;
@@ -175,7 +175,7 @@ int tegra_msdos_parse(struct parsed_partitions *state, struct block_device *bdev
 	struct partition *p;
 	int slot;
 
-	printk(KERN_INFO "tegra_msdos_parse: mbr_offset=%d\n", mbr_offset);
+	printk(KERN_INFO "tegra_msdos_parse: mbr_offset=%llu\n", mbr_offset);
 
 	data = read_dev_sector(bdev, mbr_offset, &sect);
 	if (!data) {
@@ -200,9 +200,9 @@ int tegra_msdos_parse(struct parsed_partitions *state, struct block_device *bdev
 	p = (struct partition *) (data + 0x1be);
 
 	for (slot = 1 ; slot <= 4 ; slot++, p++) {
-		u32 start = START_SECT(p)*sector_size; // 0015f800	1439744
-		u32 size = NR_SECTS(p)*sector_size;    // 01c41400	29627392
-		printk(KERN_INFO "tegra_msdos_parse: slot %d, start=%d size=%d\n", slot, start, size);
+		u64 start = START_SECT(p)*sector_size; // 0015f800	1439744
+		u64 size = NR_SECTS(p)*sector_size;    // 01c41400	29627392
+		printk(KERN_INFO "tegra_msdos_parse: slot %d, start=%llu size=%llu\n", slot, start, size);
 		if (!size)
 			continue;
 		if (is_extended_partition(p)) {
@@ -295,11 +295,11 @@ parse_tegrapart(struct parsed_partitions *state)
 				do_div(size, kblocksize);
 
 				if (!strcasecmp(name, "mbr")) {
-					printk(KERN_INFO "parse_tegrapart: mbr start=%d\n", offset);
+					printk(KERN_INFO "parse_tegrapart: mbr start=%llu\n", offset);
 					return tegra_msdos_parse(state, state->bdev, offset);
 				}
 
-				printk(KERN_INFO "parse_tegrapart: part #%d [%s] start=%d size=%d\n",
+				printk(KERN_INFO "parse_tegrapart: part #%d [%s] start=%llu size=%llu\n",
 						state->next, name, offset, size);
 
 				put_partition(state, state->next++, offset, size);
