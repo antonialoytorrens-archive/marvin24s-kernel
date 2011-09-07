@@ -602,6 +602,86 @@ void rt2800_process_rxwi(struct queue_entry *entry,
 }
 EXPORT_SYMBOL_GPL(rt2800_process_rxwi);
 
+void rt2800_txdone_entry(struct queue_entry *entry, u32 status, __le32 *txwi)
+{
+	struct rt2x00_dev *rt2x00dev = entry->queue->rt2x00dev;
+	struct skb_frame_desc *skbdesc = get_skb_frame_desc(entry->skb);
+	struct txdone_entry_desc txdesc;
+	u32 word;
+	u16 mcs, real_mcs;
+	int aggr, ampdu;
+
+	/*
+	 * Obtain the status about this packet.
+	 */
+	txdesc.flags = 0;
+	rt2x00_desc_read(txwi, 0, &word);
+
+	mcs = rt2x00_get_field32(word, TXWI_W0_MCS);
+	ampdu = rt2x00_get_field32(word, TXWI_W0_AMPDU);
+
+	real_mcs = rt2x00_get_field32(status, TX_STA_FIFO_MCS);
+	aggr = rt2x00_get_field32(status, TX_STA_FIFO_TX_AGGRE);
+
+	/*
+	 * If a frame was meant to be sent as a single non-aggregated MPDU
+	 * but ended up in an aggregate the used tx rate doesn't correlate
+	 * with the one specified in the TXWI as the whole aggregate is sent
+	 * with the same rate.
+	 *
+	 * For example: two frames are sent to rt2x00, the first one sets
+	 * AMPDU=1 and requests MCS7 whereas the second frame sets AMDPU=0
+	 * and requests MCS15. If the hw aggregates both frames into one
+	 * AMDPU the tx status for both frames will contain MCS7 although
+	 * the frame was sent successfully.
+	 *
+	 * Hence, replace the requested rate with the real tx rate to not
+	 * confuse the rate control algortihm by providing clearly wrong
+	 * data.
+	 */
+	if (unlikely(aggr == 1 && ampdu == 0 && real_mcs != mcs)) {
+		skbdesc->tx_rate_idx = real_mcs;
+		mcs = real_mcs;
+	}
+
+	if (aggr == 1 || ampdu == 1)
+		__set_bit(TXDONE_AMPDU, &txdesc.flags);
+
+	/*
+	 * Ralink has a retry mechanism using a global fallback
+	 * table. We setup this fallback table to try the immediate
+	 * lower rate for all rates. In the TX_STA_FIFO, the MCS field
+	 * always contains the MCS used for the last transmission, be
+	 * it successful or not.
+	 */
+	if (rt2x00_get_field32(status, TX_STA_FIFO_TX_SUCCESS)) {
+		/*
+		 * Transmission succeeded. The number of retries is
+		 * mcs - real_mcs
+		 */
+		__set_bit(TXDONE_SUCCESS, &txdesc.flags);
+		txdesc.retry = ((mcs > real_mcs) ? mcs - real_mcs : 0);
+	} else {
+		/*
+		 * Transmission failed. The number of retries is
+		 * always 7 in this case (for a total number of 8
+		 * frames sent).
+		 */
+		__set_bit(TXDONE_FAILURE, &txdesc.flags);
+		txdesc.retry = rt2x00dev->long_retry;
+	}
+
+	/*
+	 * the frame was retried at least once
+	 * -> hw used fallback rates
+	 */
+	if (txdesc.retry)
+		__set_bit(TXDONE_FALLBACK, &txdesc.flags);
+
+	rt2x00lib_txdone(entry, &txdesc);
+}
+EXPORT_SYMBOL_GPL(rt2800_txdone_entry);
+
 void rt2800_write_beacon(struct queue_entry *entry, struct txentry_desc *txdesc)
 {
 	struct rt2x00_dev *rt2x00dev = entry->queue->rt2x00dev;
