@@ -26,6 +26,7 @@
 #include <linux/pda_power.h>
 #include <linux/io.h>
 #include <linux/i2c.h>
+#include <linux/i2c-tegra.h>
 #include <linux/rfkill-gpio.h>
 
 #include <asm/mach-types.h>
@@ -37,6 +38,8 @@
 #include <mach/irqs.h>
 #include <mach/sdhci.h>
 #include <mach/gpio.h>
+#include <mach/pinmux.h>
+#include <mach/pinmux-t2.h>
 
 #include "board.h"
 #include "board-paz00.h"
@@ -225,8 +228,43 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&leds_gpio,
 };
 
-static void paz00_i2c_init(void)
+static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
+	.adapter_nr	= 0,
+	.bus_count	= 1,
+	.bus_clk_rate	= { 400000, 0 },
+};
+
+static const struct tegra_pingroup_config i2c2_ddc = {
+	.pingroup	= TEGRA_PINGROUP_DDC,
+	.func	= TEGRA_MUX_I2C2,
+};
+
+static const struct tegra_pingroup_config i2c2_gen2 = {
+	.pingroup	= TEGRA_PINGROUP_PTA,
+	.func	= TEGRA_MUX_I2C2,
+};
+
+static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
+	.adapter_nr	= 1,
+	.bus_count	= 2,
+	.bus_clk_rate	= { 100000, 100000 },
+	.bus_mux	= { &i2c2_ddc, &i2c2_gen2 },
+	.bus_mux_len	= { 1, 1 },
+};
+
+static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
+	.adapter_nr	= 4,
+	.bus_count	= 1,
+	.bus_clk_rate	= { 400000, 0 },
+	.is_dvc		= true,
+};
+
+static void __init paz00_i2c_init(void)
 {
+	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
+	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
+	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
+
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device4);
