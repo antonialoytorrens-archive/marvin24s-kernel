@@ -322,6 +322,7 @@ static void __init tegra_paz00_init(void)
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
 	paz00_i2c_init();
+	paz00_regulator_init();
 	paz00_usb_init();
 }
 

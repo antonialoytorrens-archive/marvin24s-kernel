@@ -31,5 +31,6 @@
 #define TEGRA_WIFI_LED		TEGRA_GPIO_PD0
 
 void paz00_pinmux_init(void);
+int  paz00_regulator_init(void);
 
 #endif
