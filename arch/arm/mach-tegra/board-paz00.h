@@ -38,6 +38,9 @@
 #define TEGRA_EN_VDD_PNL	TEGRA_GPIO_PA4
 #define TEGRA_HDMI_HPD		TEGRA_GPIO_PN7
 
+/* WakePad */
+#define TEGRA_GPIO_POWERKEY	TEGRA_GPIO_PJ7
+
 void paz00_pinmux_init(void);
 int  paz00_panel_init(size_t fb_addr);
 int  paz00_regulator_init(void);

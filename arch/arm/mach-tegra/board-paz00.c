@@ -23,10 +23,12 @@
 #include <linux/serial_8250.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
+#include <linux/gpio_keys.h>
 #include <linux/pda_power.h>
-#include <linux/io.h>
 #include <linux/i2c.h>
 #include <linux/i2c-tegra.h>
+#include <linux/input.h>
+#include <linux/io.h>
 #include <linux/rfkill-gpio.h>
 
 #include <asm/mach-types.h>
@@ -46,6 +48,7 @@
 #include "clock.h"
 #include "devices.h"
 #include "gpio-names.h"
+#include "pm.h"
 
 /* output atags / or not */
 #define PRINT_ATAGS 0
@@ -217,15 +220,51 @@ static struct platform_device leds_gpio = {
 	.id	= -1,
 	.dev	= {
 		.platform_data = &gpio_led_info,
-        },
+	},
+};
+
+static struct gpio_keys_button paz00_gpio_keys_buttons[] = {
+	{
+		.code		= KEY_POWER,
+		.gpio		= TEGRA_GPIO_POWERKEY,
+		.active_low	= 1,
+		.desc		= "Power",
+		.type		= EV_KEY,
+		.wakeup		= 1,
+	},
+};
+
+static struct gpio_keys_platform_data paz00_gpio_keys = {
+	.buttons	= paz00_gpio_keys_buttons,
+	.nbuttons	= ARRAY_SIZE(paz00_gpio_keys_buttons),
+};
+
+static struct platform_device paz00_gpio_keys_device = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &paz00_gpio_keys,
+	},
+};
+
+static struct tegra_suspend_platform_data paz00_suspend = {
+	.cpu_timer	= 5000,
+	.cpu_off_timer	= 5000,
+	.core_timer	= 0x7e7e,
+	.core_off_timer = 0x7f,
+	.corereq_high	= false,
+	.sysclkreq_high = true,
+	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
 
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
+	&tegra_pmu_device,
 	&tegra_gart_device,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
 	&wifi_rfkill_device,
+	&paz00_gpio_keys_device,
 	&leds_gpio,
 };
 
@@ -313,6 +352,8 @@ static struct tegra_sdhci_platform_data sdhci_pdata4 = {
 
 static void __init tegra_paz00_init(void)
 {
+	tegra_init_suspend(&paz00_suspend);
+
 	tegra_clk_init_from_table(paz00_clk_init_table);
 
 	paz00_pinmux_init();
