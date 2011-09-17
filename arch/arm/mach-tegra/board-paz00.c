@@ -222,6 +222,7 @@ static struct platform_device leds_gpio = {
 
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
+	&tegra_gart_device,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
 	&wifi_rfkill_device,
@@ -323,6 +324,7 @@ static void __init tegra_paz00_init(void)
 
 	paz00_i2c_init();
 	paz00_regulator_init();
+	paz00_panel_init(fb_addr);
 	paz00_usb_init();
 }
 
