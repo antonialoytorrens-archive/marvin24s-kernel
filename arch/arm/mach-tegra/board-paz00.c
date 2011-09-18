@@ -386,12 +386,13 @@ static void __init tegra_paz00_init(void)
 	tegra_sdhci_device1.dev.platform_data = &sdhci_pdata1;
 	tegra_sdhci_device4.dev.platform_data = &sdhci_pdata4;
 
-	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
-
+	paz00_emc_init();
 	paz00_i2c_init();
 	paz00_regulator_init();
 	paz00_panel_init(fb_addr);
 	paz00_usb_init();
+
+	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 }
 
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")

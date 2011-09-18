@@ -47,5 +47,6 @@
 void paz00_pinmux_init(void);
 int  paz00_panel_init(size_t fb_addr);
 int  paz00_regulator_init(void);
+void paz00_emc_init(void);
 
 #endif
