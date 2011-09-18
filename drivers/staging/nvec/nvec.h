@@ -53,10 +53,30 @@ struct nvec_subdev {
 	int id;
 };
 
+/**
+ * struct nvec_platform_data - platform data for a tegra slave controller
+ * @adapter: number of i2c slave adapter the ec is connected to
+ * @gpio: gpio number for the ec request line
+ */
 struct nvec_platform_data {
-	int i2c_addr;
+	int adapter;
 	int gpio;
 };
+
+/**
+ * struct nvec_chip - nvec device structure
+ * @dev: points to the linux device structure
+ *
+ * slave controller resources
+ *
+ * @gpio: gpio number for the ec request line (from the platform data)
+ * @irq: irq of the slave controller
+ * @i2c_addr: i2c slave address of the slave controller
+ * @base: io base of the slave controller
+ * @clk: i2c bus clock (why? should be provided by the master)
+ *
+ * @rx_pos: points to the position in rx buffer
+ */
 
 struct nvec_chip {
 	struct device *dev;
@@ -64,7 +84,8 @@ struct nvec_chip {
 	int irq;
 	int i2c_addr;
 	void __iomem *base;
-	struct clk *i2c_clk;
+	struct clk *clk;
+
 	struct atomic_notifier_head notifier_list;
 	struct list_head rx_data, tx_data;
 	struct notifier_block nvec_status_notifier;
@@ -72,7 +93,7 @@ struct nvec_chip {
 	struct workqueue_struct *wq;
 	struct nvec_msg *rx;
 	struct nvec_msg rx_buffer[RX_BUF_SIZE];
-	/* points to the position in rx buffer */
+
 	int rx_pos;
 	int ev_len, ev_type;
 
@@ -108,11 +129,11 @@ extern int nvec_unregister_notifier(struct device *dev,
 #define I2C_CNFG_DEBOUNCE_CNT_SHIFT	12
 
 #define I2C_SL_CNFG		0x20
-#define I2C_SL_NEWL		(1<<2)
+#define I2C_SL_NEWSL		(1<<2)
 #define I2C_SL_NACK		(1<<1)
 #define I2C_SL_RESP		(1<<0)
-#define I2C_SL_IRQ		(1<<3)
 #define END_TRANS		(1<<4)
+#define I2C_SL_IRQ		(1<<3)
 #define RCVD			(1<<2)
 #define RNW			(1<<1)
 

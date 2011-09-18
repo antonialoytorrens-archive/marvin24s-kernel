@@ -15,14 +15,12 @@
 
 /* #define DEBUG */
 
-#include <asm/io.h>
-#include <asm/irq.h>
-
 #include <linux/completion.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
+#include <linux/io.h>
 #include <linux/serio.h>
 #include <linux/delay.h>
 #include <linux/input.h>
@@ -35,8 +33,8 @@
 #include <linux/platform_device.h>
 #include <linux/mfd/core.h>
 
-#include <mach/iomap.h>
-#include <mach/clk.h>
+#include <linux/i2c.h>
+#include <linux/i2c-tegra.h>
 
 #include "nvec.h"
 
@@ -390,40 +388,6 @@ handled:
 	return IRQ_HANDLED;
 }
 
-static void tegra_init_i2c_slave(struct nvec_chip *nvec)
-{
-	u32 val;
-
-	clk_enable(nvec->i2c_clk);
-
-	tegra_periph_reset_assert(nvec->i2c_clk);
-	udelay(2);
-	tegra_periph_reset_deassert(nvec->i2c_clk);
-
-	val = I2C_CNFG_NEW_MASTER_SFM | I2C_CNFG_PACKET_MODE_EN |
-	    (0x2 << I2C_CNFG_DEBOUNCE_CNT_SHIFT);
-	writel(val, nvec->base + I2C_CNFG);
-
-	clk_set_rate(nvec->i2c_clk, 8 * 80000);
-
-	writel(I2C_SL_NEWL, nvec->base + I2C_SL_CNFG);
-	writel(0x1E, nvec->base + I2C_SL_DELAY_COUNT);
-
-	writel(nvec->i2c_addr>>1, nvec->base + I2C_SL_ADDR1);
-	writel(0, nvec->base + I2C_SL_ADDR2);
-
-	enable_irq(nvec->irq);
-
-	clk_disable(nvec->i2c_clk);
-}
-
-static void nvec_disable_i2c_slave(struct nvec_chip *nvec)
-{
-	disable_irq(nvec->irq);
-	writel(I2C_SL_NEWL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
-	clk_disable(nvec->i2c_clk);
-}
-
 static void nvec_power_off(void)
 {
 	nvec_write_async(nvec_power_handle, EC_DISABLE_EVENT_REPORTING, 3);
@@ -433,64 +397,44 @@ static void nvec_power_off(void)
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 {
 	int err, ret;
-	struct clk *i2c_clk;
 	struct nvec_platform_data *pdata = pdev->dev.platform_data;
 	struct nvec_chip *nvec;
 	struct nvec_msg *msg;
-	struct resource *res;
-	struct resource *iomem;
-	void __iomem *base;
+	struct i2c_adapter *adap;
+	struct tegra_i2c_bus *i2c_bus;
+	struct tegra_i2c_dev *i2c_dev;
 
 	nvec = kzalloc(sizeof(struct nvec_chip), GFP_KERNEL);
 	if (nvec == NULL) {
 		dev_err(&pdev->dev, "failed to reserve memory\n");
 		return -ENOMEM;
 	}
+
 	platform_set_drvdata(pdev, nvec);
 	nvec->dev = &pdev->dev;
 	nvec->gpio = pdata->gpio;
-	nvec->i2c_addr = pdata->i2c_addr;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "no mem resource?\n");
+	adap = i2c_get_adapter(pdata->adapter);
+	if (adap == NULL) {
+		dev_err(nvec->dev, "failed to get i2c adapter\n");
 		return -ENODEV;
 	}
-
-	iomem = request_mem_region(res->start, resource_size(res), pdev->name);
-	if (!iomem) {
-		dev_err(&pdev->dev, "I2C region already claimed\n");
-		return -EBUSY;
+	i2c_bus = i2c_get_adapdata(adap);
+	if (i2c_bus == NULL) {
+		dev_err(nvec->dev, "failed to get i2c bus\n");
+		return -ENODEV;
 	}
+	i2c_dev = i2c_bus->dev;
 
-	base = ioremap(iomem->start, resource_size(iomem));
-	if (!base) {
-		dev_err(&pdev->dev, "Can't ioremap I2C region\n");
-		return -ENOMEM;
-	}
-
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "no irq resource?\n");
-		ret = -ENODEV;
-		goto err_iounmap;
-	}
-
-	i2c_clk = clk_get_sys("tegra-i2c.2", NULL);
-	if (IS_ERR(i2c_clk)) {
-		dev_err(nvec->dev, "failed to get controller clock\n");
-		goto err_iounmap;
-	}
-
-	nvec->base = base;
-	nvec->irq = res->start;
-	nvec->i2c_clk = i2c_clk;
+	nvec->base = i2c_dev->base;
+	nvec->irq = i2c_dev->irq;
+	nvec->clk = i2c_dev->clk;
+	nvec->i2c_addr = i2c_dev->slave_addr;
 	nvec->rx = &nvec->rx_buffer[0];
 
-	/* Set the gpio to low when we've got something to say */
-	err = gpio_request(nvec->gpio, "nvec gpio");
-	if (err < 0)
-		dev_err(nvec->dev, "couldn't request gpio\n");
+	dev_info(&pdev->dev, "using adapter %s.%d\n", adap->name, i2c_dev->cont_id);
+	dev_info(&pdev->dev, "slave at i2c address 0x%x using irq 0x%x\n",
+		 i2c_dev->slave_addr, nvec->gpio);
 
 	ATOMIC_INIT_NOTIFIER_HEAD(&nvec->notifier_list);
 
@@ -507,19 +451,19 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	INIT_WORK(&nvec->tx_work, nvec_request_master);
 	nvec->wq = alloc_workqueue("nvec", WQ_NON_REENTRANT, 1);
 
+	err = gpio_request_one(nvec->gpio, GPIOF_OUT_INIT_HIGH, "nvec gpio");
+	if (err < 0) {
+		dev_err(nvec->dev, "couldn't request gpio\n");
+		goto failed;
+	}
+
 	err = request_irq(nvec->irq, nvec_interrupt, 0, "nvec", nvec);
 	if (err) {
 		dev_err(nvec->dev, "couldn't request irq\n");
 		goto failed;
 	}
-	disable_irq(nvec->irq);
 
-	tegra_init_i2c_slave(nvec);
-
-	clk_enable(i2c_clk);
-
-	gpio_direction_output(nvec->gpio, 1);
-	gpio_set_value(nvec->gpio, 1);
+	clk_enable(nvec->clk);
 
 	/* enable event reporting */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
@@ -543,11 +487,13 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	}
 
 	ret = mfd_add_devices(nvec->dev, -1, nvec_devices,
-			      ARRAY_SIZE(nvec_devices), base, 0);
+			      ARRAY_SIZE(nvec_devices), nvec->base, 0);
 	if (ret)
 		dev_err(nvec->dev, "error adding subdevices\n");
 
-	/* unmute speakers? */
+	/* FIXME: move this init stuff to some device dependant init */
+
+	/* enable audio ampifier */
 	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
 
 	/* enable lid switch event */
@@ -558,8 +504,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_iounmap:
-	iounmap(base);
 failed:
 	kfree(nvec);
 	return -ENOMEM;
@@ -589,7 +533,10 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 	dev_dbg(nvec->dev, "suspending\n");
 	nvec_write_async(nvec, EC_DISABLE_EVENT_REPORTING, 3);
 	nvec_write_async(nvec, "\x04\x02", 2);
-	nvec_disable_i2c_slave(nvec);
+
+	disable_irq(nvec->irq);
+	writel(I2C_SL_NEWSL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
+	clk_disable(nvec->clk);
 
 	return 0;
 }
@@ -599,7 +546,6 @@ static int tegra_nvec_resume(struct platform_device *pdev)
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 
 	dev_dbg(nvec->dev, "resuming\n");
-	tegra_init_i2c_slave(nvec);
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
 
 	return 0;
