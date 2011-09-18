@@ -49,6 +49,7 @@
 #include "devices.h"
 #include "gpio-names.h"
 #include "pm.h"
+#include "../../../drivers/staging/nvec/nvec.h"
 
 /* output atags / or not */
 #define PRINT_ATAGS 0
@@ -257,6 +258,19 @@ static struct tegra_suspend_platform_data paz00_suspend = {
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
 
+static struct nvec_platform_data nvec_pdata = {
+	.adapter	= 3,
+	.gpio		= TEGRA_NVEC_REQ,
+};
+
+static struct platform_device nvec_device = {
+	.name	= "nvec",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &nvec_pdata,
+	}
+};
+
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_pmu_device,
@@ -266,6 +280,7 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&wifi_rfkill_device,
 	&paz00_gpio_keys_device,
 	&leds_gpio,
+	&nvec_device,
 };
 
 static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
@@ -292,6 +307,14 @@ static struct tegra_i2c_platform_data paz00_i2c2_platform_data = {
 	.bus_mux_len	= { 1, 1 },
 };
 
+static struct tegra_i2c_platform_data paz00_i2c3_platform_data = {
+	.adapter_nr	= 3,
+	.bus_count	= 1,
+	.bus_clk_rate	= { 80000, 0 },
+	.is_slave	= true,
+	.slave_addr	= 0x8a,
+};
+
 static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
@@ -303,10 +326,12 @@ static void __init paz00_i2c_init(void)
 {
 	tegra_i2c_device1.dev.platform_data = &paz00_i2c1_platform_data;
 	tegra_i2c_device2.dev.platform_data = &paz00_i2c2_platform_data;
+	tegra_i2c_device3.dev.platform_data = &paz00_i2c3_platform_data;
 	tegra_i2c_device4.dev.platform_data = &paz00_dvc_platform_data;
 
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
+	platform_device_register(&tegra_i2c_device3);
 	platform_device_register(&tegra_i2c_device4);
 }
 

@@ -148,6 +148,7 @@ static struct tegra_gpio_table gpio_table[] = {
 	{ .gpio = TEGRA_WIFI_PWRN,	.enable = true },
 	{ .gpio = TEGRA_WIFI_RST,	.enable = true },
 	{ .gpio = TEGRA_WIFI_LED,	.enable = true },
+	{ .gpio = TEGRA_NVEC_REQ,	.enable = true },
 };
 
 void paz00_pinmux_init(void)
