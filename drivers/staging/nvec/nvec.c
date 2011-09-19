@@ -95,7 +95,7 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec)
 	size_t i;
 	for (i = 0; i < RX_BUF_SIZE; i++)
 		if (test_and_set_bit(0, &nvec->rx_buffer[i].used) == 0) {
-			dev_err(nvec->dev, "INFO: Alloc %u\n", (uint) i);
+			dev_vdbg(nvec->dev, "INFO: Alloc %u\n", (uint) i);
 			return &nvec->rx_buffer[i];
 		}
 
@@ -106,7 +106,7 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec)
 
 static void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
-	dev_err(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->rx_buffer));
+	dev_vdbg(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->rx_buffer));
 	clear_bit(0, &msg->used);
 }
 
