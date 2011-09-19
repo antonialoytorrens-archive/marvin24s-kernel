@@ -44,7 +44,7 @@ struct nvec_msg {
 	unsigned char data[MAX_PKT_SIZE];
 	unsigned short size;
 	unsigned short pos;
-	unsigned short used;
+	volatile unsigned long used;
 };
 
 struct nvec_subdev {
