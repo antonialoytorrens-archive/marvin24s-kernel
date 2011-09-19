@@ -59,7 +59,7 @@
 #include "check.h"
 #include "nvtegra.h"
 
-struct {
+struct nvtegra_partinfo {
 	unsigned id;
 	char name[4];
 	unsigned type;
@@ -72,13 +72,13 @@ struct {
 	unsigned unk4[7];
 };
 
-struct {
+struct nvtegra_ptable {
 	unsigned unknown[18];
-	t_nvtegra_partinfo partinfo_bct;
-	t_nvtegra_partinfo partinfo[23];
+	struct nvtegra_partinfo partinfo_bct;
+	struct nvtegra_partinfo partinfo[23];
 };
 
-struct {
+struct partinfo {
 	int valid;
 	char name[4];
 	unsigned start;
@@ -115,12 +115,11 @@ read_dev_bytes(struct block_device *bdev, unsigned sector, char *buffer,
 
 int nvtegra_partition(struct parsed_partitions *state)
 {
-	t_nvtegra_ptable *pt;
-	t_nvtegra_partinfo *p;
-	t_partinfo *parts;
-	t_partinfo *part;
+	struct nvtegra_ptable *pt;
+	struct nvtegra_partinfo *p;
+	struct partinfo *parts;
+	struct partinfo *part;
 	unsigned len;
-
 	int count;
 	int i;
 	char *s;
@@ -149,7 +148,7 @@ int nvtegra_partition(struct parsed_partitions *state)
 	if (p->size != 1536)
 		return 0;
 
-	parts = kzalloc(23 * sizeof(t_partinfo), GFP_KERNEL);
+	parts = kzalloc(23 * sizeof(struct partinfo), GFP_KERNEL);
 	if (!parts)
 		return -1;
 
