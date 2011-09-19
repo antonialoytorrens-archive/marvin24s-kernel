@@ -202,7 +202,6 @@ static void nvec_request_master(struct work_struct *work)
 	unsigned long flags;
 	struct nvec_msg *msg;
 
-	mutex_lock(&nvec->async_write_mutex);
 	spin_lock_irqsave(&nvec->tx_lock, flags);
 	while (!list_empty(&nvec->tx_data)) {
 		msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
@@ -219,7 +218,6 @@ static void nvec_request_master(struct work_struct *work)
 		spin_lock_irqsave(&nvec->tx_lock, flags);
 	}
 	spin_unlock_irqrestore(&nvec->tx_lock, flags);
-	mutex_unlock(&nvec->async_write_mutex);
 }
 
 static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
@@ -248,7 +246,6 @@ static void nvec_dispatch(struct work_struct *work)
 	unsigned long flags;
 	struct nvec_msg *msg;
 
-	mutex_lock(&nvec->dispatch_mutex);
 	spin_lock_irqsave(&nvec->rx_lock, flags);
 	while (!list_empty(&nvec->rx_data)) {
 		msg = list_first_entry(&nvec->rx_data, struct nvec_msg, node);
@@ -269,7 +266,6 @@ static void nvec_dispatch(struct work_struct *work)
 		spin_lock_irqsave(&nvec->rx_lock, flags);
 	}
 	spin_unlock_irqrestore(&nvec->rx_lock, flags);
-	mutex_unlock(&nvec->dispatch_mutex);
 }
 
 static irqreturn_t nvec_interrupt(int irq, void *dev)
@@ -558,8 +554,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	init_completion(&nvec->sync_write);
 	init_completion(&nvec->ec_transfer);
 	mutex_init(&nvec->sync_write_mutex);
-	mutex_init(&nvec->async_write_mutex);
-	mutex_init(&nvec->dispatch_mutex);
 	spin_lock_init(&nvec->tx_lock);
 	spin_lock_init(&nvec->rx_lock);
 	INIT_LIST_HEAD(&nvec->rx_data);
