@@ -18,7 +18,7 @@
 
 #include <linux/semaphore.h>
 
-#define RX_BUF_ORDER	4
+#define RX_BUF_ORDER	6
 #define RX_BUF_SIZE	(1 << RX_BUF_ORDER)
 #define RX_BUF_MASK	(RX_BUF_SIZE - 1)
 #define MAX_PKT_SIZE	200
@@ -45,7 +45,7 @@ struct nvec_msg {
 	unsigned short size;
 	unsigned short pos;
 /* only used for rx */
-	unsigned short used;
+	volatile unsigned long used;
 	unsigned short valid;
 };
 
@@ -89,6 +89,8 @@ struct nvec_chip {
 	struct completion sync_write;
 	u16 sync_write_pending;
 	struct nvec_msg *last_sync_msg;
+
+	int state;
 };
 
 extern struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,

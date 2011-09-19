@@ -206,10 +206,10 @@ static void nvec_request_master(struct work_struct *work)
 	while (!list_empty(&nvec->tx_data)) {
 		msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
 		spin_unlock_irqrestore(&nvec->tx_lock, flags);
-		gpio_set_value(nvec->gpio, 0);
+		nvec_gpio_set_value(nvec, 0);
 		if (!(wait_for_completion_interruptible_timeout(&nvec->ec_transfer, msecs_to_jiffies(5000)))) {
 			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
-			gpio_set_value(nvec->gpio, 1);
+			nvec_gpio_set_value(nvec, 1);
 			msg->pos = 0;
 		} else {
 			list_del_init(&msg->node);
@@ -261,209 +261,232 @@ static void nvec_dispatch(struct work_struct *work)
 			complete(&nvec->sync_write);
 		} else {
 			parse_msg(nvec, msg);
-			msg->used = 0;
+			nvec_msg_free(nvec, msg);
 		}
 		spin_lock_irqsave(&nvec->rx_lock, flags);
 	}
 	spin_unlock_irqrestore(&nvec->rx_lock, flags);
 }
 
+static void nvec_tx_completed(struct nvec_chip *nvec)
+{
+	/* We got an END_TRANS, let's skip this, maybe there's an event */
+	if (nvec->tx->pos != nvec->tx->size) {
+		dev_err(nvec->dev, "premature END_TRANS, resending\n");
+		nvec->tx->pos = 0;
+		nvec_gpio_set_value(nvec, 0);
+	} else {
+		nvec->state = 0;
+	}
+}
+
+static void nvec_rx_completed(struct nvec_chip *nvec)
+{
+	unsigned long flags;
+
+	if (nvec->rx->pos != nvec_msg_size(nvec->rx))
+		dev_err(nvec->dev, "RX incomplete: Expected %u bytes, got %u\n",
+			   (uint) nvec_msg_size(nvec->rx),
+			   (uint) nvec->rx->pos);
+
+	spin_lock_irqsave(&nvec->rx_lock, flags);
+
+	/* add the received data to the work list
+	   and move the ring buffer pointer to the next entry */
+	list_add_tail(&nvec->rx->node, &nvec->rx_data);
+
+	spin_unlock_irqrestore(&nvec->rx_lock, flags);
+
+	nvec->state = 0;
+
+	if (!nvec_msg_is_event(nvec->rx))
+		complete(&nvec->ec_transfer);
+
+	queue_work(nvec->wq, &nvec->rx_work);
+}
+
+/**
+ * nvec_invalid_flags - Send an error message about invalid flags and jump
+ * @nvec: The nvec device
+ * @status: The status flags
+ * @reset: Whether we shall jump to state 0.
+ */
+static void nvec_invalid_flags(struct nvec_chip *nvec, unsigned int status,
+			       bool reset)
+{
+	dev_err(nvec->dev, "unexpected status flags 0x%02x during state %i\n",
+	        status, nvec->state);
+	if (reset)
+		nvec->state = 0;
+}
+
+/**
+ * nvec_tx_set - Set the message to transfer (nvec->tx)
+ */
+static void nvec_tx_set(struct nvec_chip *nvec)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&nvec->tx_lock, flags);
+	if (list_empty(&nvec->tx_data)) {
+		dev_err(nvec->dev, "empty tx - sending no-op\n");
+		memcpy(nvec->tx_scratch.data, "\x02\x07\x02", 3);
+		nvec->tx_scratch.size = 3;
+		nvec->tx_scratch.pos = 0;
+		nvec->tx = &nvec->tx_scratch;
+		list_add_tail(&nvec->tx->node, &nvec->tx_data);
+	} else {
+		nvec->tx = list_first_entry(&nvec->tx_data, struct nvec_msg,
+		                            node);
+		nvec->tx->pos = 0;
+	}
+	spin_unlock_irqrestore(&nvec->tx_lock, flags);
+
+	dev_dbg(nvec->dev, "Sending message of length %u, command 0x%x\n",
+	        (uint)nvec->tx->size, nvec->tx->data[1]);
+}
+
+/**
+ * nvec_interrupt - Interrupt handler
+ * @irq: The IRQ
+ * @dev: The nvec device
+ */
 static irqreturn_t nvec_interrupt(int irq, void *dev)
 {
-	unsigned long status;
-	unsigned long received = 0;
-	unsigned char to_send = 0;
-	const unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
 	unsigned long flags;
-	unsigned long dtime;
-	int valid_proto = 0;
-	int end_trans = 0;
-	struct timespec start_time, end_time, diff_time;
-	struct nvec_chip *nvec = (struct nvec_chip *)dev;
-	void __iomem *base = nvec->base;
+	unsigned long status;
+	unsigned int received = 0;
+	unsigned char to_send = 0xff;
+	const unsigned long irq_mask = I2C_SL_IRQ | END_TRANS | RCVD | RNW;
+	struct nvec_chip *nvec = dev;
+	unsigned int state = nvec->state;
 
-	getnstimeofday(&start_time);
+	status = readl(nvec->base + I2C_SL_STATUS);
 
-	status = readl(base + I2C_SL_STATUS);
-
-	if (!(status & irq_mask) && !((status & ~irq_mask) == 0)) {
-		dev_warn(nvec->dev, "unexpected irq mask %lx\n", status);
-		goto handled;
+	/* Filter out some errors */
+	if ((status & irq_mask) == 0 && (status & ~irq_mask) != 0) {
+		dev_err(nvec->dev, "unexpected irq mask %lx\n", status);
+		return IRQ_HANDLED;
 	}
-
 	if ((status & I2C_SL_IRQ) == 0) {
-		dev_warn(nvec->dev, "Spurious IRQ\n");
-		goto handled;
+		dev_err(nvec->dev, "Spurious IRQ\n");
+		return IRQ_HANDLED;
 	}
 
-	/* just ET (but not ET with new comm [0x1c] !) */
-	if ((status & END_TRANS) && !(status & RCVD))
-		goto handled;
-
-	if (status & RNW) { /* ec reads from slave, status = 0x0a, 0x0e */
-		spin_lock_irqsave(&nvec->tx_lock, flags);
-		if (list_empty(&nvec->tx_data)) {
-			dev_err(nvec->dev, "empty tx - sending no-op\n");
-
-			nvec->tx_scratch.data[0] = 4;
-			nvec->tx_scratch.data[1] = 0x8a;
-			nvec->tx_scratch.data[2] = 0x02;
-			nvec->tx_scratch.data[3] = 0x07;
-			nvec->tx_scratch.data[4] = 0x02;
-
-			nvec->tx_scratch.size = 5;
-			nvec->tx_scratch.pos = 0;
-			nvec->tx = &nvec->tx_scratch;
-			list_add_tail(&nvec->tx->node, &nvec->tx_data);
-			spin_unlock_irqrestore(&nvec->tx_lock, flags);
-			valid_proto = 1;
+	/* The EC did not request a read, so it send us something, read it */
+	if ((status & RNW) == 0) {
+		if (status & RCVD) {
+			local_irq_save(flags);
+			received = readl(nvec->base + I2C_SL_RCVD);
+			writel(0, nvec->base + I2C_SL_RCVD);
+			local_irq_restore(flags);
 		} else {
-			if (status & RCVD) {	/* 0x0e, new transfer */
-				nvec->tx = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
-				spin_unlock_irqrestore(&nvec->tx_lock, flags);
-				/* Work around for AP20 New Slave Hw Bug.
-				   ((1000 / 80) / 2) + 1 = 33 */
-				getnstimeofday(&end_time);
-				diff_time = timespec_sub(end_time, start_time);
-				dtime = timespec_to_ns(&diff_time);
-				if (dtime < 33000)
-					ndelay(33000 - dtime);
-				else
-					dev_warn(nvec->dev, "isr time: %llu nsec\n", timespec_to_ns(&diff_time));
-
-				if (!nvec->rx)
-					dev_warn(nvec->dev, "no rx buffer available\n");
-				else if ((nvec->rx->pos == 1) && (nvec->rx->data[0] == 1)) {
-					valid_proto = 1;
-				} else {
-					dev_warn(nvec->dev, "new transaction "
-						"during send (pos: %d) - trying to retransmit!\n", nvec->tx->pos);
-					nvec->tx->pos = 0;
-				}
-			} else {	/* 0x0a, transfer continues */
-				spin_unlock_irqrestore(&nvec->tx_lock, flags);
-				if (nvec->tx != list_first_entry(&nvec->tx_data, struct nvec_msg, node)) {
-					dev_warn(nvec->dev, "tx buffer corrupted");
-				}
-				if ((nvec->tx->pos >= 1) && (nvec->tx->pos < nvec->tx->size)) {
-//					printk("pos: %d size %d ", nvec->tx->pos, nvec->tx->size);
-					valid_proto = 1;
-				}
-			}
+			received = readl(nvec->base + I2C_SL_RCVD);
 		}
+	}
 
-		if (!valid_proto) {
-			dev_err(nvec->dev, "invalid protocol (sta:%lx, pos:%d, size: %d)\n", status, nvec->tx->pos, nvec->tx->size);
-			to_send = 0xff;
-			nvec->tx->pos = 0;
+	if (status == (I2C_SL_IRQ | RCVD))
+		nvec->state = 0;
+
+	switch (nvec->state) {
+	case 0:		/* Verify that its a transfer start, the rest later */
+		if (status != (I2C_SL_IRQ | RCVD))
+			nvec_invalid_flags(nvec, status, false);
+		break;
+	case 1:		/* command byte */
+		if (status != I2C_SL_IRQ) {
+			nvec_invalid_flags(nvec, status, true);
 		} else {
-//			dev_dbg(nvec->dev, "tx pos: %d\n", nvec->tx->pos);
+			nvec->rx = nvec_msg_alloc(nvec);
+			nvec->rx->data[0] = received;
+			nvec->rx->pos = 1;
+			nvec->state = 2;
+		}
+		break;
+	case 2:		/* first byte after command */
+		if (status == (I2C_SL_IRQ | RNW | RCVD)) {
+			udelay(33);
+			if (nvec->rx->data[0] != 0x01) {
+				dev_err(nvec->dev,
+					"Read without prior read command\n");
+				nvec->state = 0;
+				break;
+			}
+			nvec_msg_free(nvec, nvec->rx);
+			nvec->state = 3;
+			nvec_tx_set(nvec);
+			BUG_ON(nvec->tx->size < 1);
+			to_send = nvec->tx->data[0];
+			nvec->tx->pos = 1;
+		} else if (status == (I2C_SL_IRQ)) {
+			BUG_ON(nvec->rx == NULL);
+			nvec->rx->data[1] = received;
+			nvec->rx->pos = 2;
+			nvec->state = 4;
+		} else {
+			nvec_invalid_flags(nvec, status, true);
+		}
+		break;
+	case 3:		/* EC does a block read, we transmit data */
+		if (status & END_TRANS) {
+			nvec_tx_completed(nvec);
+		} else if ((status & RNW) == 0 || (status & RCVD)) {
+			nvec_invalid_flags(nvec, status, true);
+		} else if (nvec->tx && nvec->tx->pos < nvec->tx->size) {
 			to_send = nvec->tx->data[nvec->tx->pos++];
-		}
-
-		writel(to_send, base + I2C_SL_RCVD);
-
-		if ((status & RCVD) && valid_proto) {
-			gpio_set_value(nvec->gpio, 1);
-//			dev_dbg(nvec->dev, "gpio -> high\n");
-		}
-
-//		dev_dbg(nvec->dev, "nvec sent %x\n", to_send);
-
-//xxx		printk("sd: %02x ", to_send);
-
-		if (nvec->tx->pos == nvec->tx->size) {
-			complete(&nvec->ec_transfer);
-//xxx			printk("\n");
-		}
-
-//		nvec->rx->pos = 0;
-
-		goto handled;
-	} else { /* 0x0c, 0x08, 0x1c */
-		if (nvec->rx) {
-			if (status & RCVD) {
-				local_irq_save(flags);
-				received = readl(base + I2C_SL_RCVD);
-				writel(0, base + I2C_SL_RCVD);
-				local_irq_restore(flags);
-			} else
-				received = readl(base + I2C_SL_RCVD);
-
-//			dev_dbg(nvec->dev, "got %x pos %d status %x\n", received, nvec->rx->pos, status);
-
-			if (status & RCVD) { /* new transaction, 0x0c, 0x1c */
-				nvec->rx->pos = 0;
-				nvec->rx->size = 0;
-				nvec->rx->used = 1;
-				if (!(received == nvec->i2c_addr))
-					dev_warn(nvec->dev, "unexpected response from new slave\n");
-			} else if (nvec->rx->pos == 0) {   /* first byte of new transaction */
-				nvec->rx->data[nvec->rx->pos++] = received;
-				nvec->ev_type = (received & 0x80) >> 7; /* Event or Req/Res */
-				nvec->ev_len = (received & 0x60) >> 5;  /* Event length */
-			} else {			/* transaction continues */
-				if (nvec->rx->pos < MAX_PKT_SIZE)
-					nvec->rx->data[nvec->rx->pos++] = received;
-				if ((nvec->ev_len == NVEC_VAR_SIZE) || (nvec->ev_type == 0)) { /* variable write from master */
-					end_trans = 0;
-					switch (nvec->rx->pos) {
-					case 1:
-						nvec->rx->pos = 0;
-						break;
-					case 2:
-						if ((received == 0) || (received > MAX_PKT_SIZE))
-							nvec->rx->pos = 0;
-						break;
-					default:
-						if (nvec->rx->pos == 2 + nvec->rx->data[1])
-							end_trans = 1;
-					}
-				} else if (nvec->ev_len == NVEC_2BYTES)	/* 2 byte event */
-					end_trans = (nvec->rx->pos == 2);
-				else if (nvec->ev_len == NVEC_3BYTES)	/* 3 byte event */
-					end_trans = (nvec->rx->pos == 3);
-				else
-					dev_err(nvec->dev, "grap!\n");
-			}
-//			printk("rec: %lx pos: %d ", received, nvec->rx->pos);
 		} else {
-			/* FIXME: implement NACK here ! */
-			received = readl(base + I2C_SL_RCVD);
-			dev_err(nvec->dev, "no rx buffer available!\n");
+			dev_err(nvec->dev, "tx buffer underflow on %p (%u > %u)\n",
+			           nvec->tx,
+			           (uint) (nvec->tx ? nvec->tx->pos : 0),
+			           (uint) (nvec->tx ? nvec->tx->size : 0));
+			nvec->state = 0;
 		}
-
-//xxx		printk("re=%02lx ", received);
-
-		if (end_trans) {
-			spin_lock_irqsave(&nvec->rx_lock, flags);
-			    /* add the received data to the work list
-			       and move the ring buffer pointer to the next entry */
-			    list_add_tail(&nvec->rx->node, &nvec->rx_data);
-			    nvec->rx_pos++;
-			    nvec->rx_pos &= RX_BUF_MASK;
-			    WARN_ON(nvec->rx_buffer[nvec->rx_pos].used == 1);
-			    if (nvec->rx_buffer[nvec->rx_pos].used) {
-				    dev_err(nvec->dev, "next buffer full!");
-//				    nvec->rx = NULL;
-			    }
-			    nvec->rx->used = 0;
-			    nvec->rx = &nvec->rx_buffer[nvec->rx_pos];
-			spin_unlock_irqrestore(&nvec->rx_lock, flags);
-
-			/* only complete on responses */
-//			if (nvec->ev_type == 0)
-//				complete(&nvec->ec_transfer);
-//xxx			printk("\n");
-			queue_work(nvec->wq, &nvec->rx_work);
-		}
+		break;
+	case 4:		/* EC does some write, we read the data */
+		if ((status & (END_TRANS | RNW)) == END_TRANS)
+			nvec_rx_completed(nvec);
+		else if (status & (RNW | RCVD))
+			nvec_invalid_flags(nvec, status, true);
+		else if (nvec->rx && nvec->rx->pos < MAX_PKT_SIZE)
+			nvec->rx->data[nvec->rx->pos++] = received;
+		else
+			dev_err(nvec->dev,
+				   "RX buffer overflow on %p: "
+				   "Trying to write byte %u of %u\n",
+				   nvec->rx, nvec->rx->pos, MAX_PKT_SIZE);
+		break;
+	default:
+		nvec->state = 0;
 	}
 
-handled:
-//	dev_dbg(nvec->dev, "irq mask %lx\n", status);
-//	printk("%02lX ", status);
-//	if (end_trans) printk("END\n");
-//	writel(status, base + I2C_SL_STATUS);
+	/* If we are told that a new transfer starts, verify it */
+	if ((status & (RCVD | RNW)) == RCVD) {
+		if (received != nvec->i2c_addr)
+			dev_err(nvec->dev,
+			"received address 0x%02x, expected 0x%02x\n",
+			received, nvec->i2c_addr);
+		nvec->state = 1;
+	}
+
+	/* Send data if requested, but not on end of transmission */
+	if ((status & (RNW | END_TRANS)) == RNW)
+		writel(to_send, nvec->base + I2C_SL_RCVD);
+
+	/* If we have send the first byte */
+	if (status == (I2C_SL_IRQ | RNW | RCVD))
+		nvec_gpio_set_value(nvec, 1);
+
+	dev_dbg(nvec->dev,
+		"Handled: %s 0x%02x, %s 0x%02x in state %u [%s%s%s]\n",
+		(status & RNW) == 0 ? "received" : "R=",
+		received,
+		(status & (RNW | END_TRANS)) ? "sent" : "S=",
+		to_send,
+		state,
+		status & END_TRANS ? " END_TRANS" : "",
+		status & RCVD ? " RCVD" : "",
+		status & RNW ? " RNW" : "");
+
 	return IRQ_HANDLED;
 }
 /*
@@ -560,7 +583,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&nvec->tx_data);
 	INIT_WORK(&nvec->rx_work, nvec_dispatch);
 	INIT_WORK(&nvec->tx_work, nvec_request_master);
-	nvec->wq = alloc_workqueue("nvec", WQ_NON_REENTRANT, 1);
+	nvec->wq = alloc_workqueue("nvec", WQ_NON_REENTRANT, 2);
 
 	err = request_irq(nvec->irq, nvec_interrupt, 0, "nvec", nvec);
 	if (err) {
@@ -592,7 +615,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
 			msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
 
-		msg->used = 0;
+		nvec_msg_free(nvec, msg);
 	}
 
 	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
@@ -640,12 +663,12 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 
 	dev_dbg(nvec->dev, "suspending\n");
 	response = nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
-	response->used = 0;
+	nvec_msg_free(nvec, response);
 	response = nvec_write_sync(nvec, "\x05\x03\x01\x01",4);
-	response->used = 0;
+	nvec_msg_free(nvec, response);
 	//nvec_write_sync(nvec, "\x0d\x10\x59\xe9",4);
 	response = nvec_write_sync(nvec, "\x04\x02", 2);
-	response->used = 0;
+	nvec_msg_free(nvec, response);
 	nvec_disable_i2c_slave(nvec);
 
 	return 0;
