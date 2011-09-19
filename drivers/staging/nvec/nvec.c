@@ -92,6 +92,34 @@ static int nvec_status_notifier(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
+static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec)
+{
+	size_t i;
+	for (i = 0; i < RX_BUF_SIZE; i++)
+		if (test_and_set_bit(0, &nvec->rx_buffer[i].used) == 0) {
+			dev_err(nvec->dev, "INFO: Alloc %u\n", (uint) i);
+			return &nvec->rx_buffer[i];
+		}
+
+	dev_err(nvec->dev, "next buffer full!\n");
+
+	return NULL;
+}
+
+static void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg)
+{
+	dev_err(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->rx_buffer));
+	clear_bit(0, &msg->used);
+}
+
+static void nvec_gpio_set_value(struct nvec_chip *nvec, int value)
+{
+	int old_value = gpio_get_value(nvec->gpio);
+	gpio_set_value(nvec->gpio, value);
+
+	dev_dbg(nvec->dev, "GPIO = %u => %u\n", old_value, value);
+}
+
 void nvec_write_async(struct nvec_chip *nvec, const unsigned char *data, short size)
 {
 	struct nvec_msg *msg;
