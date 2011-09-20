@@ -86,6 +86,10 @@ static struct mfd_cell nvec_devices[] = {
 		.name = "nvec-leds",
 		.id= 1,
 	},
+	{
+		.name	= "nvec-event",
+		.id	= 1,
+	},
 };
 
 /**
@@ -729,12 +733,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 
 	/* enable audio ampifier */
 	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
-
-	/* enable lid switch event */
-	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x02\x00", 7);
-
-	/* enable power button event */
-	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x80\x00", 7);
 
 	return 0;
 
