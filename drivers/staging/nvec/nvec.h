@@ -183,4 +183,6 @@ extern int nvec_unregister_notifier(struct device *dev,
 				    struct notifier_block *nb,
 				    unsigned int events);
 
+extern void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg);
+
 #endif
