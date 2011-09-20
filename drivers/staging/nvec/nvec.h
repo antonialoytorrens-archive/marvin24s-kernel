@@ -22,8 +22,14 @@
 /* NVEC_POOL_SIZE - Size of the pool in &struct nvec_msg */
 #define NVEC_POOL_SIZE	64
 
-/* NVEC_MSG_SIZE - Maximum size of the data field of &struct nvec_msg */
-#define NVEC_MSG_SIZE	200
+/*
+ * NVEC_MSG_SIZE - Maximum size of the data field of &struct nvec_msg.
+ *
+ * A message must store up to a SMBus block operation which consists of
+ * one command byte, one count byte, and up to 32 payload bytes = 34
+ * byte.
+ */
+#define NVEC_MSG_SIZE	34
 
 /**
  * enum nvec_event_size - The size of an event message
