@@ -92,9 +92,7 @@ struct nvec_chip {
 	struct work_struct rx_work, tx_work;
 	struct workqueue_struct *wq;
 	struct nvec_msg *rx;
-	struct nvec_msg rx_buffer[RX_BUF_SIZE];
-
-	int rx_pos;
+	struct nvec_msg msg_pool[RX_BUF_SIZE];
 	int ev_len, ev_type;
 
 	struct nvec_msg *tx;

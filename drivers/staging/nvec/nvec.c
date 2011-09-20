@@ -95,9 +95,9 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec)
 {
 	size_t i;
 	for (i = 0; i < RX_BUF_SIZE; i++)
-		if (test_and_set_bit(0, &nvec->rx_buffer[i].used) == 0) {
+		if (test_and_set_bit(0, &nvec->msg_pool[i].used) == 0) {
 			dev_vdbg(nvec->dev, "INFO: Alloc %u\n", (uint) i);
-			return &nvec->rx_buffer[i];
+			return &nvec->msg_pool[i];
 		}
 
 	dev_err(nvec->dev, "next buffer full!\n");
@@ -107,7 +107,7 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec)
 
 static void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
-	dev_vdbg(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->rx_buffer));
+	dev_vdbg(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->msg_pool));
 	clear_bit(0, &msg->used);
 }
 
@@ -531,7 +531,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->irq = i2c_dev->irq;
 	nvec->clk = i2c_dev->clk;
 	nvec->i2c_addr = i2c_dev->slave_addr;
-	nvec->rx = &nvec->rx_buffer[0];
+	nvec->rx = &nvec->msg_pool[0];
 
 	dev_info(&pdev->dev, "using adapter %s.%d\n", adap->name, i2c_dev->cont_id);
 	dev_info(&pdev->dev, "slave at i2c address 0x%x using irq 0x%x\n",
