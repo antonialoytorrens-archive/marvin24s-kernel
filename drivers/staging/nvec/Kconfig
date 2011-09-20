@@ -31,3 +31,10 @@ config NVEC_LEDS
 	depends on MFD_NVEC && LEDS_CLASS
 	help
 	  Say Y to enable yellow side leds on AC100 or other nVidia tegra nvec leds
+
+config NVEC_EVENT
+	bool "NVEC event handler"
+	depends on MFD_NVEC
+	help
+	  Say Y to enable the power button and lid switch on the AC100. It
+	  is unknown whether that driver is compatible with other devices.
