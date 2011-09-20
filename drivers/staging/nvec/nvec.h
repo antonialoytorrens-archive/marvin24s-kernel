@@ -44,9 +44,7 @@ struct nvec_msg {
 	unsigned char data[MAX_PKT_SIZE];
 	unsigned short size;
 	unsigned short pos;
-/* only used for rx */
 	volatile unsigned long used;
-	unsigned short valid;
 };
 
 struct nvec_subdev {
@@ -74,8 +72,7 @@ struct nvec_chip {
 	struct workqueue_struct *wq;
 
 	struct nvec_msg *rx;
-	struct nvec_msg rx_buffer[RX_BUF_SIZE];
-	int rx_pos; 				/* points to the position in rx buffer */
+	struct nvec_msg msg_pool[RX_BUF_SIZE];
 	int ev_len, ev_type;
 
 	struct nvec_msg *tx;
