@@ -120,7 +120,7 @@ static int nvec_status_notifier(struct notifier_block *nb,
 static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec)
 {
 	size_t i;
-	for (i = 0; i < RX_BUF_SIZE; i++)
+	for (i = 0; i < NVEC_POOL_SIZE; i++)
 		if (test_and_set_bit(0, &nvec->msg_pool[i].used) == 0) {
 			dev_vdbg(nvec->dev, "INFO: Alloc %u\n", (uint) i);
 			return &nvec->msg_pool[i];
@@ -562,13 +562,13 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			nvec_rx_completed(nvec);
 		else if (status & (RNW | RCVD))
 			nvec_invalid_flags(nvec, status, true);
-		else if (nvec->rx && nvec->rx->pos < MAX_PKT_SIZE)
+		else if (nvec->rx && nvec->rx->pos < NVEC_MSG_SIZE)
 			nvec->rx->data[nvec->rx->pos++] = received;
 		else
 			dev_err(nvec->dev,
 				   "RX buffer overflow on %p: "
 				   "Trying to write byte %u of %u\n",
-				   nvec->rx, nvec->rx->pos, MAX_PKT_SIZE);
+				   nvec->rx, nvec->rx->pos, NVEC_MSG_SIZE);
 		break;
 	default:
 		nvec->state = 0;
