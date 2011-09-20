@@ -109,6 +109,12 @@ static int __devinit nvec_event_probe(struct platform_device *pdev)
 	event_handler.notifier.notifier_call = nvec_event_notifier;
 	nvec_register_notifier(nvec, &event_handler.notifier, 0);
 
+	/* enable lid switch event */
+	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x02\x00", 7);
+
+	/* enable power button event */
+	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x80\x00", 7);
+
 	return 0;
 
 fail:
