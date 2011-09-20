@@ -19,10 +19,11 @@
 
 #include <linux/semaphore.h>
 
-#define RX_BUF_ORDER	6
-#define RX_BUF_SIZE	(1 << RX_BUF_ORDER)
-#define RX_BUF_MASK	(RX_BUF_SIZE - 1)
-#define MAX_PKT_SIZE	200
+/* NVEC_POOL_SIZE - Size of the pool in &struct nvec_msg */
+#define NVEC_POOL_SIZE	64
+
+/* NVEC_MSG_SIZE - Maximum size of the data field of &struct nvec_msg */
+#define NVEC_MSG_SIZE	200
 
 /**
  * enum nvec_event_size - The size of an event message
@@ -79,7 +80,7 @@ enum nvec_msg_type {
  */
 struct nvec_msg {
 	struct list_head node;
-	unsigned char data[MAX_PKT_SIZE];
+	unsigned char data[NVEC_MSG_SIZE];
 	unsigned short size;
 	unsigned short pos;
 	volatile unsigned long used;
@@ -126,8 +127,8 @@ struct nvec_platform_data {
  * @rx_work: A work structure for the RX worker nvec_dispatch()
  * @tx_work: A work structure for the TX worker nvec_request_master()
  * @wq: The work queue in which @rx_work and @tx_work are executed
- * @rx: The message currently being retrieved or %NULL
  * @msg_pool: A pool of messages for allocation
+ * @rx: The message currently being retrieved or %NULL
  * @tx: The message currently being transferred
  * @tx_scratch: Used for building pseudo messages
  * @ec_transfer: A completion that will be completed once a message has been
@@ -153,9 +154,8 @@ struct nvec_chip {
 	struct notifier_block nvec_status_notifier;
 	struct work_struct rx_work, tx_work;
 	struct workqueue_struct *wq;
+	struct nvec_msg msg_pool[NVEC_POOL_SIZE];
 	struct nvec_msg *rx;
-	struct nvec_msg msg_pool[RX_BUF_SIZE];
-	int ev_len, ev_type;
 
 	struct nvec_msg *tx;
 	struct nvec_msg tx_scratch;
