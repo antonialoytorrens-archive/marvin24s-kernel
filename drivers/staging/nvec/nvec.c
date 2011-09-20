@@ -230,7 +230,7 @@ int nvec_write_async(struct nvec_chip *nvec, const unsigned char *data,
 	struct nvec_msg *msg;
 	unsigned long flags;
 
-	msg = kzalloc(sizeof(struct nvec_msg), GFP_ATOMIC);
+	msg = nvec_msg_alloc(nvec);
 
 	if (msg == NULL)
 		return -ENOMEM;
@@ -317,7 +317,7 @@ static void nvec_request_master(struct work_struct *work)
 			msg->pos = 0;
 		} else {
 			list_del_init(&msg->node);
-			kfree(msg);
+			nvec_msg_free(nvec, msg);
 		}
 		spin_lock_irqsave(&nvec->tx_lock, flags);
 	}
