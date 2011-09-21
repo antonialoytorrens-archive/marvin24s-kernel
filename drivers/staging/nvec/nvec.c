@@ -799,9 +799,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 			dev_err(nvec->dev, "error adding custom subdevices\n");
 	}
 
-	/* enable audio amp */
-	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
-
 	return 0;
 
 failed:
