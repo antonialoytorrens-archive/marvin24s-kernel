@@ -850,10 +850,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 			dev_err(nvec->dev, "error adding custom subdevices\n");
 	}
 
-	/* FIXME: move this init stuff to some device dependant init */
-	/* enable audio amplifier */
-	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
-
 	return 0;
 
 err_iounmap:
