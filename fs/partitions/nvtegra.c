@@ -92,14 +92,15 @@ read_dev_bytes(struct block_device *bdev, unsigned sector, char *buffer,
 		size_t count)
 {
 	size_t totalreadcount = 0;
-	int copied = 512;
-	Sector sect;
-	unsigned char *data = read_dev_sector(bdev, sector++, &sect);
 
 	if (!bdev || !buffer)
 		return 0;
 
 	while (count) {
+		int copied = 512;
+		Sector sect;
+		unsigned char *data = read_dev_sector(bdev, sector++, &sect);
+
 		if (!data)
 			break;
 		if (copied > count)
