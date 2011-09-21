@@ -688,6 +688,8 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, nvec);
 	nvec->dev = &pdev->dev;
 	nvec->gpio = pdata->gpio;
+	nvec->custom_devices = pdata->custom_devices;
+	nvec->nr_custom_devs = pdata->nr_custom_devs;
 
 	adap = i2c_get_adapter(pdata->adapter);
 	if (adap == NULL) {
@@ -764,9 +766,20 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(nvec->dev, "error adding subdevices\n");
 
-	/* FIXME: move this init stuff to some device dependant init */
+	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
+			nvec->base, 0);
+	if (ret)
+		dev_err(nvec->dev, "error adding subdevices\n");
 
-	/* enable audio ampifier */
+	if (nvec->custom_devices) {
+		ret = mfd_add_devices(nvec->dev, -1, nvec->custom_devices,
+			nvec->nr_custom_devs, nvec->base, 0);
+		if (ret)
+			dev_err(nvec->dev, "error adding custom subdevices\n");
+	}
+
+	/* FIXME: move this init stuff to some device dependant init */
+	/* enable audio amplifier */
 	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
 
 	return 0;
