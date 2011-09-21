@@ -30,6 +30,7 @@
 #include <linux/input.h>
 #include <linux/io.h>
 #include <linux/rfkill-gpio.h>
+#include <linux/mfd/core.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -258,9 +259,18 @@ static struct tegra_suspend_platform_data paz00_suspend = {
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
 
+static struct mfd_cell paz00_custom_devices[] = {
+	{
+		.name	= "nvec-event",
+		.id	= 1,
+	},
+};
+
 static struct nvec_platform_data nvec_pdata = {
 	.adapter	= 3,
 	.gpio		= TEGRA_NVEC_REQ,
+	.custom_devices = paz00_custom_devices,
+	.nr_custom_devs = ARRAY_SIZE(paz00_custom_devices),
 };
 
 static struct platform_device nvec_device = {
