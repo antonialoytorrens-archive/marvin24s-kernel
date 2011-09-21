@@ -31,6 +31,19 @@ struct nvec_sys_event {
 	unsigned char payload[32];
 };
 
+
+/* unmutes the audio amplifier */
+static void paz00_unmute(struct nvec_chip *nvec) {
+	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
+}
+EXPORT_SYMBOL(paz00_unmute);
+
+/* mutes the audio amplifier */
+static void paz00_mute(struct nvec_chip *nvec) {
+	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
+}
+EXPORT_SYMBOL(paz00_mute);
+
 static int nvec_event_notifier(struct notifier_block *nb,
 			       unsigned long event_type, void *data)
 {
@@ -114,6 +127,9 @@ static int __devinit nvec_event_probe(struct platform_device *pdev)
 
 	/* enable power button event */
 	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x80\x00", 7);
+
+	/* unmute the audio amplifier */
+	paz00_unmute(nvec);
 
 	return 0;
 

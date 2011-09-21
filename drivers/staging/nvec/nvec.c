@@ -757,11 +757,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		nvec_msg_free(nvec, msg);
 	}
 
-	ret = mfd_add_devices(nvec->dev, -1, nvec_devices,
-			      ARRAY_SIZE(nvec_devices), nvec->base, 0);
-	if (ret)
-		dev_err(nvec->dev, "error adding subdevices\n");
-
 	ret = mfd_add_devices(nvec->dev, -1, nvec_devices, ARRAY_SIZE(nvec_devices),
 			nvec->base, 0);
 	if (ret)
@@ -773,10 +768,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		if (ret)
 			dev_err(nvec->dev, "error adding custom subdevices\n");
 	}
-
-	/* FIXME: move this init stuff to some device dependant init */
-	/* enable audio amplifier */
-	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
 
 	return 0;
 
