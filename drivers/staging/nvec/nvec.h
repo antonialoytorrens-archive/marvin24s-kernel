@@ -115,6 +115,9 @@ struct nvec_subdev {
  * struct nvec_platform_data - platform data for a tegra slave controller
  * @i2c_addr: number of i2c slave adapter the ec is connected to
  * @gpio: gpio number for the ec request line
+ * @custom_drivers: board specific drivers like special events or device
+ *                  initializations
+ * @nr_custom_devs: number of entries in the custom_devices array
  *
  * Platform data, to be used in board definitions. For an example, take a
  * look at the paz00 board in arch/arm/mach-tegra/board-paz00.c
@@ -122,13 +125,18 @@ struct nvec_subdev {
 struct nvec_platform_data {
 	int i2c_addr;
 	int gpio;
+	struct mfd_cell *custom_devices;
+	int nr_custom_devs;
 };
 
 /**
  * struct nvec_chip - A single connection to an NVIDIA Embedded controller
  * @dev: The device
- * @gpio: The same as for &struct nvec_platform_data
+ * @gpio: GPIO number of the EC request pin
  * @irq: The IRQ of the I2C device
+ * @custom_devices: board specific drivers like special events or device
+ *                  initializations
+ * @nr_custom_devs: number of entries in the custom_devices array
  * @i2c_addr: The address of the I2C slave
  * @base: The base of the memory mapped region of the I2C device
  * @clk: The clock of the I2C device
@@ -158,6 +166,8 @@ struct nvec_chip {
 	struct device *dev;
 	int gpio;
 	int irq;
+	struct mfd_cell *custom_devices;
+	int nr_custom_devs;
 	int i2c_addr;
 	void __iomem *base;
 	struct clk *i2c_clk;

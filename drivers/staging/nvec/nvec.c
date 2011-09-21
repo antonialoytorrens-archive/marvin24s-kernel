@@ -737,6 +737,8 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	if (pdata) {
 		nvec->gpio = pdata->gpio;
 		nvec->i2c_addr = pdata->i2c_addr;
+		nvec->custom_devices = pdata->custom_devices;
+		nvec->nr_custom_devs = pdata->nr_custom_devs;
 	} else if (nvec->dev->of_node) {
 		nvec->gpio = of_get_named_gpio(nvec->dev->of_node, "request-gpios", 0);
 		if (nvec->gpio < 0) {
@@ -845,7 +847,15 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(nvec->dev, "error adding subdevices\n");
 
-	/* unmute speakers? */
+	if (nvec->custom_devices) {
+		ret = mfd_add_devices(nvec->dev, -1, nvec->custom_devices,
+			nvec->nr_custom_devs, nvec->base, 0);
+		if (ret)
+			dev_err(nvec->dev, "error adding custom subdevices\n");
+	}
+
+	/* FIXME: move this init stuff to some device dependant init */
+	/* enable audio amplifier */
 	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
 
 	return 0;
