@@ -166,7 +166,8 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 			return &nvec->msg_pool[i];
 		}
 
-	dev_err(nvec->dev, "next buffer full!\n");
+	dev_err(nvec->dev, "could not allocate %s buffer\n",
+		(category == NVEC_MSG_TX) ? "TX" : "RX");
 
 	return NULL;
 }
