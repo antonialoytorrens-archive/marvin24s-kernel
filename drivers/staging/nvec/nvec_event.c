@@ -14,6 +14,7 @@
 #include <linux/input.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
+#include <linux/module.h>
 #include "nvec.h"
 
 static struct nvec_event_device {
@@ -36,8 +37,7 @@ static int nvec_event_notifier(struct notifier_block *nb,
 	struct nvec_sys_event *event = data;
 
 	if (event_type != 0x85 || (event->command & (NVEC_VAR_SIZE << 5)) == 0
-	    || event->length != 4 || event->payload[0] != 1
-	    || event->payload[1] != 0)
+	    || event->length != 4 || event->payload[1] != 0)
 		return NOTIFY_DONE;
 
 	switch (event->payload[2]) {
