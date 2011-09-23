@@ -1,8 +1,7 @@
-
 /*
- * mouse driver for a NVIDIA compliant embedded controller
+ * nvec_ps2: mouse driver for a NVIDIA compliant embedded controller
  *
- * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
+ * Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.launchpad.net>
  *
  * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
  *           Ilya Petrov <ilya.muromec@gmail.com>
@@ -14,10 +13,12 @@
  *
  */
 
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/serio.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
+
 #include "nvec.h"
 
 #define START_STREAMING	{'\x06', '\x03', '\x04'}
@@ -62,7 +63,7 @@ static int ps2_sendcommand(struct serio *ser_dev, unsigned char cmd)
 }
 
 static int nvec_ps2_notifier(struct notifier_block *nb,
-				unsigned long event_type, void *data)
+			     unsigned long event_type, void *data)
 {
 	int i;
 	unsigned char *msg = (unsigned char *)data;
@@ -76,17 +77,18 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 	case NVEC_PS2:
 		if (msg[2] == 1)
 			for (i = 0; i < (msg[1] - 2); i++)
-				serio_interrupt(ps2_dev.ser_dev, msg[i+4], 0);
-		else if (msg[1] != 2) { /* !ack */
-			print_hex_dump(KERN_WARNING, "unhandled mouse event ",
-				DUMP_PREFIX_NONE, 16, 1, msg, msg[1] + 2, true);
+				serio_interrupt(ps2_dev.ser_dev, msg[i + 4], 0);
+		else if (msg[1] != 2) {	/* !ack */
+			print_hex_dump(KERN_WARNING, "unhandled mouse event: ",
+				DUMP_PREFIX_NONE, 16, 1,
+				msg, msg[1] + 2, true);
 		}
+
 		return NOTIFY_STOP;
 	}
 
 	return NOTIFY_DONE;
 }
-
 
 static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 {
@@ -98,8 +100,8 @@ static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 	ser_dev->open = ps2_startstreaming;
 	ser_dev->close = ps2_stopstreaming;
 
-	strlcpy(ser_dev->name, "NVEC mouse", sizeof(ser_dev->name));
-	strlcpy(ser_dev->phys, "NVEC", sizeof(ser_dev->phys));
+	strlcpy(ser_dev->name, "nvec mouse", sizeof(ser_dev->name));
+	strlcpy(ser_dev->phys, "nvec", sizeof(ser_dev->phys));
 
 	ps2_dev.ser_dev = ser_dev;
 	ps2_dev.notifier.notifier_call = nvec_ps2_notifier;
@@ -115,10 +117,10 @@ static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 }
 
 static struct platform_driver nvec_mouse_driver = {
-	.probe	= nvec_mouse_probe,
-	.driver	= {
-		.name	= "nvec-mouse",
-		.owner	= THIS_MODULE,
+	.probe  = nvec_mouse_probe,
+	.driver = {
+		.name = "nvec-mouse",
+		.owner = THIS_MODULE,
 	},
 };
 

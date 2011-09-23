@@ -1,8 +1,7 @@
 /*
  * NVEC: NVIDIA compliant embedded controller interface
  *
- * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
- * Copyright (C) 2011 Julian Andres Klode <jak@jak-linux.org>
+ * Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.launchpad.net>
  *
  * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
  *           Ilya Petrov <ilya.muromec@gmail.com>
@@ -18,7 +17,14 @@
 #ifndef __LINUX_MFD_NVEC
 #define __LINUX_MFD_NVEC
 
-#include <linux/semaphore.h>
+#include <linux/atomic.h>
+#include <linux/clk.h>
+#include <linux/completion.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
+#include <linux/notifier.h>
+#include <linux/spinlock.h>
+#include <linux/workqueue.h>
 
 /* NVEC_POOL_SIZE - Size of the pool in &struct nvec_msg */
 #define NVEC_POOL_SIZE	64
@@ -90,7 +96,7 @@ struct nvec_msg {
 	unsigned char data[NVEC_MSG_SIZE];
 	unsigned short size;
 	unsigned short pos;
-	volatile unsigned long used;
+	atomic_t used;
 };
 
 /**
@@ -189,17 +195,16 @@ struct nvec_chip {
 	int state;
 };
 
-extern struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
-					const unsigned char *data, short size);
-
-extern int nvec_write_async(struct nvec_chip *nvec,
-					const unsigned char *data, short size);
+extern int nvec_write_async(struct nvec_chip *nvec, const unsigned char *data,
+			     short size);
 
 extern int nvec_register_notifier(struct nvec_chip *nvec,
-		struct notifier_block *nb, unsigned int events);
+				  struct notifier_block *nb,
+				  unsigned int events);
 
 extern int nvec_unregister_notifier(struct device *dev,
-		struct notifier_block *nb, unsigned int events);
+				    struct notifier_block *nb,
+				    unsigned int events);
 
 extern void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg);
 

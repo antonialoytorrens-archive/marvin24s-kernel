@@ -1,7 +1,7 @@
 /*
- * keyboard driver for a NVIDIA compliant embedded controller
+ * nvec_kbd: keyboard driver for a NVIDIA compliant embedded controller
  *
- * Copyright (C) 2011 Marc Dietrich <marvin24@gmx.de>
+ * Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.launchpad.net>
  *
  * Authors:  Pierre-Hugues Husson <phhusson@free.fr>
  *           Marc Dietrich <marvin24@gmx.de>
@@ -12,10 +12,12 @@
  *
  */
 
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/input.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
+
 #include "nvec-keytable.h"
 #include "nvec.h"
 
@@ -24,7 +26,7 @@
 static const char led_on[3] = "\x05\xed\x07";
 static const char led_off[3] = "\x05\xed\x00";
 static unsigned char keycodes[ARRAY_SIZE(code_tab_102us)
-			+ ARRAY_SIZE(extcode_tab_us102)];
+			      + ARRAY_SIZE(extcode_tab_us102)];
 
 struct nvec_keys {
 	struct input_dev *input;
@@ -46,7 +48,7 @@ static void nvec_kbd_toggle_led(void)
 }
 
 static int nvec_keys_notifier(struct notifier_block *nb,
-				unsigned long event_type, void *data)
+			      unsigned long event_type, void *data)
 {
 	int code, state;
 	unsigned char *msg = (unsigned char *)data;
@@ -67,7 +69,8 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 		if (code_tabs[_size][code] == KEY_CAPSLOCK && state)
 			nvec_kbd_toggle_led();
 
-		input_report_key(keys_dev.input, code_tabs[_size][code], !state);
+		input_report_key(keys_dev.input, code_tabs[_size][code],
+				 !state);
 		input_sync(keys_dev.input);
 
 		return NOTIFY_STOP;
@@ -77,7 +80,7 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 }
 
 static int nvec_kbd_event(struct input_dev *dev, unsigned int type,
-				unsigned int code, int value)
+			  unsigned int code, int value)
 {
 	unsigned char buf[] = ACK_KBD_EVENT;
 	struct nvec_chip *nvec = keys_dev.nvec;
@@ -112,8 +115,8 @@ static int __devinit nvec_kbd_probe(struct platform_device *pdev)
 		keycodes[j++] = extcode_tab_us102[i];
 
 	idev = input_allocate_device();
-	idev->name = "NVEC keyboard";
-	idev->phys = "NVEC";
+	idev->name = "nvec keyboard";
+	idev->phys = "nvec";
 	idev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_REP) | BIT_MASK(EV_LED);
 	idev->ledbit[0] = BIT_MASK(LED_CAPSL);
 	idev->event = nvec_kbd_event;
@@ -141,6 +144,10 @@ static int __devinit nvec_kbd_probe(struct platform_device *pdev)
 	nvec_write_async(nvec, "\x05\x03\x01\x01", 4);
 	nvec_write_async(nvec, "\x05\x04\x01", 3);
 	nvec_write_async(nvec, "\x06\x01\xff\x03", 4);
+/*	FIXME
+	wait until keyboard reset is finished
+	or until we have a sync write */
+	mdelay(1000);
 
 	/* Disable caps lock LED */
 	nvec_write_async(nvec, led_off, sizeof(led_off));
@@ -153,10 +160,10 @@ fail:
 }
 
 static struct platform_driver nvec_kbd_driver = {
-	.probe	= nvec_kbd_probe,
-	.driver	= {
-		.name	= "nvec-kbd",
-		.owner	= THIS_MODULE,
+	.probe  = nvec_kbd_probe,
+	.driver = {
+		.name = "nvec-kbd",
+		.owner = THIS_MODULE,
 	},
 };
 
