@@ -12,6 +12,7 @@
  *
  */
 
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/input.h>
 #include <linux/delay.h>
@@ -20,7 +21,7 @@
 #include "nvec-keytable.h"
 #include "nvec.h"
 
-#define ACK_KBD_EVENT {'\x05','\xed','\x01'}
+#define ACK_KBD_EVENT {'\x05', '\xed', '\x01'}
 
 static const char led_on[3] = "\x05\xed\x07";
 static const char led_off[3] = "\x05\xed\x00";

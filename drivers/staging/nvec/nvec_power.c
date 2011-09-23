@@ -338,7 +338,7 @@ static struct power_supply nvec_psy = {
 	.get_property = nvec_power_get_property,
 };
 
-static int counter = 0;
+static int counter;
 static int const bat_iter[] = {
 	SLOT_STATUS, VOLTAGE, CURRENT, CAPACITY_REMAINING,
 #ifdef EC_FULL_DIAG

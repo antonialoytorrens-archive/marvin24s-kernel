@@ -17,7 +17,14 @@
 #ifndef __LINUX_MFD_NVEC
 #define __LINUX_MFD_NVEC
 
-#include <linux/semaphore.h>
+#include <linux/atomic.h>
+#include <linux/clk.h>
+#include <linux/completion.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
+#include <linux/notifier.h>
+#include <linux/spinlock.h>
+#include <linux/workqueue.h>
 
 /* NVEC_POOL_SIZE - Size of the pool in &struct nvec_msg */
 #define NVEC_POOL_SIZE	64
@@ -89,7 +96,7 @@ struct nvec_msg {
 	unsigned char data[NVEC_MSG_SIZE];
 	unsigned short size;
 	unsigned short pos;
-	volatile unsigned long used;
+	atomic_t used;
 };
 
 /**

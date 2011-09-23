@@ -13,6 +13,7 @@
  *
  */
 
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/serio.h>
 #include <linux/delay.h>
@@ -20,9 +21,9 @@
 
 #include "nvec.h"
 
-#define START_STREAMING	{'\x06','\x03','\x04'}
-#define STOP_STREAMING	{'\x06','\x04'}
-#define SEND_COMMAND	{'\x06','\x01','\xf4','\x01'}
+#define START_STREAMING	{'\x06', '\x03', '\x04'}
+#define STOP_STREAMING	{'\x06', '\x04'}
+#define SEND_COMMAND	{'\x06', '\x01', '\xf4', '\x01'}
 
 static const unsigned char MOUSE_RESET[] = {'\x06', '\x01', '\xff', '\x03'};
 

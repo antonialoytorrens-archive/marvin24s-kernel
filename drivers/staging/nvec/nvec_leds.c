@@ -50,9 +50,8 @@ static int __devinit nvec_led_probe(struct platform_device *pdev)
 	int ret = 0;
 
 	led = kzalloc(sizeof(*led), GFP_KERNEL);
-	if (led == NULL) {
+	if (led == NULL)
 		return -ENOMEM;
-	}
 
 	led->cdev.max_brightness = NVEC_LED_MAX;
 
@@ -64,9 +63,8 @@ static int __devinit nvec_led_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, led);
 
 	ret = led_classdev_register(&pdev->dev, &led->cdev);
-	if (ret < 0) {
+	if (ret < 0)
 		goto err_led;
-	}
 
 	/* to expose the default value to userspace */
 	led->cdev.brightness = 0;

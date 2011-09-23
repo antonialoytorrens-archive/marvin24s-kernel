@@ -16,26 +16,28 @@
 
 /* #define DEBUG */
 
-#include <linux/completion.h>
-#include <linux/interrupt.h>
-#include <linux/irq.h>
-#include <linux/slab.h>
-#include <linux/gpio.h>
-#include <linux/io.h>
-#include <linux/serio.h>
-#include <linux/delay.h>
-#include <linux/input.h>
-#include <linux/workqueue.h>
+#include <linux/kernel.h>
+#include <linux/atomic.h>
 #include <linux/clk.h>
-
-#include <linux/semaphore.h>
+#include <linux/completion.h>
+#include <linux/delay.h>
+#include <linux/err.h>
+#include <linux/gpio.h>
+#include <linux/interrupt.h>
+#include <linux/io.h>
+#include <linux/irq.h>
 #include <linux/list.h>
+#include <linux/mfd/core.h>
+#include <linux/mutex.h>
 #include <linux/notifier.h>
 #include <linux/platform_device.h>
-#include <linux/mfd/core.h>
+#include <linux/slab.h>
+#include <linux/spinlock.h>
+#include <linux/workqueue.h>
 
-#include <linux/i2c.h>
 #include <linux/i2c-tegra.h>
+#include <mach/clk.h>
+#include <mach/iomap.h>
 
 #include "nvec.h"
 
@@ -69,9 +71,9 @@ enum nvec_msg_category  {
 	NVEC_MSG_TX,
 };
 
-static const unsigned char EC_DISABLE_EVENT_REPORTING[] = { '\x04', '\x00', '\x00' };
-static const unsigned char EC_ENABLE_EVENT_REPORTING[]  = { '\x04', '\x00', '\x01' };
-static const unsigned char EC_GET_FIRMWARE_VERSION[]    = { '\x07', '\x15' };
+static const unsigned char EC_DISABLE_EVENT_REPORTING[3] = "\x04\x00\x00";
+static const unsigned char EC_ENABLE_EVENT_REPORTING[3]  = "\x04\x00\x01";
+static const unsigned char EC_GET_FIRMWARE_VERSION[2]    = "\x07\x15";
 
 static struct nvec_chip *nvec_power_handle;
 
@@ -94,7 +96,7 @@ static struct mfd_cell nvec_devices[] = {
 	},
 	{
 		.name = "nvec-leds",
-		.id= 1,
+		.id = 1,
 	},
 	{
 		.name	= "nvec-event",
@@ -116,7 +118,6 @@ int nvec_register_notifier(struct nvec_chip *nvec, struct notifier_block *nb,
 {
 	return atomic_notifier_chain_register(&nvec->notifier_list, nb);
 }
-
 EXPORT_SYMBOL_GPL(nvec_register_notifier);
 
 /**
@@ -162,7 +163,7 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 	if (category == NVEC_MSG_TX)
 		max = 3 * max / 4;
 	for (i = 0; i < max ; i++)
-		if (test_and_set_bit(0, &nvec->msg_pool[i].used) == 0) {
+		if (atomic_xchg(&nvec->msg_pool[i].used, 1) == 0) {
 			dev_vdbg(nvec->dev, "INFO: Alloc %u\n", (uint) i);
 			return &nvec->msg_pool[i];
 		}
@@ -183,7 +184,7 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 inline void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
 	dev_vdbg(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->msg_pool));
-	clear_bit(0, &msg->used);
+	atomic_set(&msg->used, 0);
 }
 EXPORT_SYMBOL_GPL(nvec_msg_free);
 
@@ -227,10 +228,9 @@ static size_t nvec_msg_size(struct nvec_msg *msg)
  */
 static void nvec_gpio_set_value(struct nvec_chip *nvec, int value)
 {
-	int old_value = gpio_get_value(nvec->gpio);
+	dev_dbg(nvec->dev, "GPIO changed from %u to %u\n",
+		gpio_get_value(nvec->gpio), value);
 	gpio_set_value(nvec->gpio, value);
-
-	dev_dbg(nvec->dev, "GPIO = %u => %u\n", old_value, value);
 }
 
 /**
@@ -361,10 +361,10 @@ static int parse_msg(struct nvec_chip *nvec, struct nvec_msg *msg)
 		return -EINVAL;
 	}
 
-	if ((msg->data[0] >> 7) == 1 && (msg->data[0] & 0x0f) == 5) {
-		print_hex_dump(KERN_WARNING, "ec system event ", DUMP_PREFIX_NONE,
-				16, 1, msg->data, msg->data[1] + 2, true);
-	}
+	if ((msg->data[0] >> 7) == 1 && (msg->data[0] & 0x0f) == 5)
+		print_hex_dump(KERN_WARNING, "ec system event ",
+				DUMP_PREFIX_NONE, 16, 1, msg->data,
+				msg->data[1] + 2, true);
 
 	atomic_notifier_call_chain(&nvec->notifier_list, msg->data[0] & 0x8f,
 				   msg->data);
@@ -474,7 +474,7 @@ static void nvec_invalid_flags(struct nvec_chip *nvec, unsigned int status,
 			       bool reset)
 {
 	dev_err(nvec->dev, "unexpected status flags 0x%02x during state %i\n",
-	        status, nvec->state);
+		status, nvec->state);
 	if (reset)
 		nvec->state = 0;
 }
@@ -501,13 +501,13 @@ static void nvec_tx_set(struct nvec_chip *nvec)
 		list_add_tail(&nvec->tx->node, &nvec->tx_data);
 	} else {
 		nvec->tx = list_first_entry(&nvec->tx_data, struct nvec_msg,
-		                            node);
+					    node);
 		nvec->tx->pos = 0;
 	}
 	spin_unlock_irqrestore(&nvec->tx_lock, flags);
 
 	dev_dbg(nvec->dev, "Sending message of length %u, command 0x%x\n",
-	        (uint)nvec->tx->size, nvec->tx->data[1]);
+		(uint)nvec->tx->size, nvec->tx->data[1]);
 }
 
 /**
@@ -609,9 +609,9 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			to_send = nvec->tx->data[nvec->tx->pos++];
 		} else {
 			dev_err(nvec->dev, "tx buffer underflow on %p (%u > %u)\n",
-			           nvec->tx,
-			           (uint) (nvec->tx ? nvec->tx->pos : 0),
-			           (uint) (nvec->tx ? nvec->tx->size : 0));
+				nvec->tx,
+				(uint) (nvec->tx ? nvec->tx->pos : 0),
+				(uint) (nvec->tx ? nvec->tx->size : 0));
 			nvec->state = 0;
 		}
 		break;
@@ -624,9 +624,9 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 			nvec->rx->data[nvec->rx->pos++] = received;
 		else
 			dev_err(nvec->dev,
-				   "RX buffer overflow on %p: "
-				   "Trying to write byte %u of %u\n",
-				   nvec->rx, nvec->rx->pos, NVEC_MSG_SIZE);
+				"RX buffer overflow on %p: "
+				"Trying to write byte %u of %u\n",
+				nvec->rx, nvec->rx->pos, NVEC_MSG_SIZE);
 		break;
 	default:
 		nvec->state = 0;
