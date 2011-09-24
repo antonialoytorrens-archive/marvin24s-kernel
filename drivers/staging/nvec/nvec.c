@@ -410,8 +410,6 @@ static void nvec_tx_completed(struct nvec_chip *nvec)
  */
 static void nvec_rx_completed(struct nvec_chip *nvec)
 {
-	unsigned long flags;
-
 	if (nvec->rx->pos != nvec_msg_size(nvec->rx)) {
 		dev_err(nvec->dev, "RX incomplete: Expected %u bytes, got %u\n",
 			   (uint) nvec_msg_size(nvec->rx),
@@ -426,13 +424,13 @@ static void nvec_rx_completed(struct nvec_chip *nvec)
 		return;
 	}
 
-	spin_lock_irqsave(&nvec->rx_lock, flags);
+	spin_lock(&nvec->rx_lock);
 
 	/* add the received data to the work list
 	   and move the ring buffer pointer to the next entry */
 	list_add_tail(&nvec->rx->node, &nvec->rx_data);
 
-	spin_unlock_irqrestore(&nvec->rx_lock, flags);
+	spin_unlock(&nvec->rx_lock);
 
 	nvec->state = 0;
 
@@ -467,9 +465,7 @@ static void nvec_invalid_flags(struct nvec_chip *nvec, unsigned int status,
  */
 static void nvec_tx_set(struct nvec_chip *nvec)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&nvec->tx_lock, flags);
+	spin_lock(&nvec->tx_lock);
 	if (list_empty(&nvec->tx_data)) {
 		dev_err(nvec->dev, "empty tx - sending no-op\n");
 		memcpy(nvec->tx_scratch.data, "\x02\x07\x02", 3);
@@ -482,7 +478,7 @@ static void nvec_tx_set(struct nvec_chip *nvec)
 					    node);
 		nvec->tx->pos = 0;
 	}
-	spin_unlock_irqrestore(&nvec->tx_lock, flags);
+	spin_unlock(&nvec->tx_lock);
 
 	dev_dbg(nvec->dev, "Sending message of length %u, command 0x%x\n",
 		(uint)nvec->tx->size, nvec->tx->data[1]);
@@ -499,7 +495,6 @@ static void nvec_tx_set(struct nvec_chip *nvec)
  */
 static irqreturn_t nvec_interrupt(int irq, void *dev)
 {
-	unsigned long flags;
 	unsigned long status;
 	unsigned int received = 0;
 	unsigned char to_send = 0xff;
@@ -521,14 +516,9 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 
 	/* The EC did not request a read, so it send us something, read it */
 	if ((status & RNW) == 0) {
-		if (status & RCVD) {
-			local_irq_save(flags);
-			received = readl(nvec->base + I2C_SL_RCVD);
+		received = readl(nvec->base + I2C_SL_RCVD);
+		if (status & RCVD)
 			writel(0, nvec->base + I2C_SL_RCVD);
-			local_irq_restore(flags);
-		} else {
-			received = readl(nvec->base + I2C_SL_RCVD);
-		}
 	}
 
 	if (status == (I2C_SL_IRQ | RCVD))
