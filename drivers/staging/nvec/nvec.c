@@ -266,6 +266,8 @@ EXPORT_SYMBOL(nvec_write_async);
 struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 		const unsigned char *data, short size)
 {
+	struct nvec_msg *msg;
+
 	mutex_lock(&nvec->sync_write_mutex);
 
 	nvec->sync_write_pending = (data[1] << 8) + data[0];
@@ -284,9 +286,11 @@ struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 
 	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
 
+	msg = nvec->last_sync_msg;
+
 	mutex_unlock(&nvec->sync_write_mutex);
 
-	return nvec->last_sync_msg;
+	return msg;
 }
 EXPORT_SYMBOL(nvec_write_sync);
 
