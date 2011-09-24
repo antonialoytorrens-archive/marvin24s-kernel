@@ -136,13 +136,13 @@ static int nvec_status_notifier(struct notifier_block *nb,
 static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 				       enum nvec_msg_category category)
 {
-	size_t i;
-	size_t max = NVEC_POOL_SIZE;
+	int i;
+	int max = NVEC_POOL_SIZE;
 	if (category == NVEC_MSG_TX)
 		max = 3 * max / 4;
 	for (i = 0; i < max ; i++)
 		if (atomic_xchg(&nvec->msg_pool[i].used, 1) == 0) {
-			dev_vdbg(nvec->dev, "INFO: Alloc %u\n", (uint) i);
+			dev_vdbg(nvec->dev, "INFO: Alloc %i\n", i);
 			return &nvec->msg_pool[i];
 		}
 
