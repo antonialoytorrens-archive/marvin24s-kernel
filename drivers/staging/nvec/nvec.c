@@ -128,21 +128,17 @@ static int nvec_status_notifier(struct notifier_block *nb,
  * @nvec. The result shall be passed to nvec_msg_free() if no longer
  * used.
  *
- * Outgoing messages are placed in the lower 75% of the pool, keeping the
- * upper 25% available for RX buffers only. The reason is to prevent a
+ * Outgoing messages are placed in the upper 75% of the pool, keeping the
+ * lower 25% available for RX buffers only. The reason is to prevent a
  * situation where all buffers are full and a message is thus endlessly
  * retried because the response could never be processed.
  */
 static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 				       enum nvec_msg_category category)
 {
-	int i;
-	int max = NVEC_POOL_SIZE;
+	int i = (category == NVEC_MSG_TX) ? (NVEC_POOL_SIZE / 4) : 0;
 
-	if (category == NVEC_MSG_TX)
-		max = 3 * max / 4;
-
-	for (i = 0; i < max ; i++) {
+	for (; i < NVEC_POOL_SIZE; i++) {
 		if (atomic_xchg(&nvec->msg_pool[i].used, 1) == 0) {
 			dev_vdbg(nvec->dev, "INFO: Alloc %i\n", i);
 			return &nvec->msg_pool[i];
