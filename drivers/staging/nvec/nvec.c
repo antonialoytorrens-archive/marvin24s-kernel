@@ -137,13 +137,16 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 {
 	int i;
 	int max = NVEC_POOL_SIZE;
+
 	if (category == NVEC_MSG_TX)
 		max = 3 * max / 4;
-	for (i = 0; i < max ; i++)
+
+	for (i = 0; i < max ; i++) {
 		if (atomic_xchg(&nvec->msg_pool[i].used, 1) == 0) {
 			dev_vdbg(nvec->dev, "INFO: Alloc %i\n", i);
 			return &nvec->msg_pool[i];
 		}
+	}
 
 	dev_err(nvec->dev, "could not allocate %s buffer\n",
 		(category == NVEC_MSG_TX) ? "TX" : "RX");
