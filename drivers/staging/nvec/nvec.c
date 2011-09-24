@@ -306,6 +306,7 @@ static void nvec_request_master(struct work_struct *work)
 {
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
 	unsigned long flags;
+	long err;
 	struct nvec_msg *msg;
 
 	spin_lock_irqsave(&nvec->tx_lock, flags);
@@ -313,16 +314,21 @@ static void nvec_request_master(struct work_struct *work)
 		msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
 		spin_unlock_irqrestore(&nvec->tx_lock, flags);
 		nvec_gpio_set_value(nvec, 0);
-		if (!(wait_for_completion_interruptible_timeout(
-		      &nvec->ec_transfer, msecs_to_jiffies(5000)))) {
+		err = wait_for_completion_interruptible_timeout(
+				&nvec->ec_transfer, msecs_to_jiffies(5000));
+
+		if (err == 0) {
 			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
 			nvec_gpio_set_value(nvec, 1);
 			msg->pos = 0;
-		} else {
+		}
+
+		spin_lock_irqsave(&nvec->tx_lock, flags);
+
+		if (err > 0) {
 			list_del_init(&msg->node);
 			nvec_msg_free(nvec, msg);
 		}
-		spin_lock_irqsave(&nvec->tx_lock, flags);
 	}
 	spin_unlock_irqrestore(&nvec->tx_lock, flags);
 }
