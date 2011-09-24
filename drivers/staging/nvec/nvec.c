@@ -160,7 +160,8 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
  */
 inline void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
-	dev_vdbg(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->msg_pool));
+	if (msg != &nvec->tx_scratch)
+		dev_vdbg(nvec->dev, "INFO: Free %ti\n", msg - nvec->msg_pool);
 	atomic_set(&msg->used, 0);
 }
 EXPORT_SYMBOL_GPL(nvec_msg_free);
