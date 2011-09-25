@@ -782,11 +782,16 @@ static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
+	struct nvec_msg *msg;
 
 	dev_dbg(nvec->dev, "suspending\n");
+
 	/* keep these sync or you'll break suspend */
-	nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
-	nvec_write_sync(nvec, "\x04\x02", 2);
+	msg = nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
+	nvec_msg_free(nvec, msg);
+	msg = nvec_write_sync(nvec, "\x04\x02", 2);
+	nvec_msg_free(nvec, msg);
+
 	nvec_disable_i2c_slave(nvec);
 
 	return 0;
