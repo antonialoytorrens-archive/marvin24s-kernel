@@ -640,34 +640,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 
 	return IRQ_HANDLED;
 }
-/*
-static void tegra_init_i2c_slave(struct nvec_chip *nvec)
-{
-	u32 val;
 
-	clk_enable(nvec->clk);
-
-	tegra_periph_reset_assert(nvec->clk);
-	udelay(2);
-	tegra_periph_reset_deassert(nvec->clk);
-
-	val = I2C_CNFG_NEW_MASTER_SFM | I2C_CNFG_PACKET_MODE_EN |
-		(0x2 << I2C_CNFG_DEBOUNCE_CNT_SHIFT);
-	writel(val, nvec->base + I2C_CNFG);
-
-	clk_set_rate(nvec->clk, 8 * 80000);
-
-	writel(I2C_SL_NEWSL, nvec->base + I2C_SL_CNFG);
-	writel(0x1E, nvec->base + I2C_SL_DELAY_COUNT);
-
-	writel(nvec->i2c_addr>>1, nvec->base + I2C_SL_ADDR1);
-	writel(0, nvec->base + I2C_SL_ADDR2);
-
-	enable_irq(nvec->irq);
-
-	clk_disable(nvec->clk);
-}
-*/
 static void nvec_disable_i2c_slave(struct nvec_chip *nvec)
 {
 	disable_irq(nvec->irq);
