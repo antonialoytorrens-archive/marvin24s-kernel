@@ -125,8 +125,8 @@ struct nvec_subdev {
 struct nvec_platform_data {
 	int i2c_addr;
 	int gpio;
-	struct mfd_cell *custom_devices;
-	int nr_custom_devs;
+	struct mfd_cell *nvec_devices;
+	int nr_nvec_devs;
 };
 
 /**
@@ -166,8 +166,8 @@ struct nvec_chip {
 	struct device *dev;
 	int gpio;
 	int irq;
-	struct mfd_cell *custom_devices;
-	int nr_custom_devs;
+	struct mfd_cell *nvec_devices;
+	int nr_nvec_devs;
 	int i2c_addr;
 	void __iomem *base;
 	struct clk *i2c_clk;

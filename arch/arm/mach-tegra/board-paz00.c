@@ -230,7 +230,27 @@ static struct i2c_board_info __initdata adt7421_device = {
 	I2C_BOARD_INFO("adt7461", 0x4c),
 };
 
-static struct mfd_cell paz00_custom_devices[] = {
+static struct mfd_cell paz00_nvec_devices[] = {
+	{
+		.name = "nvec-kbd",
+		.id = 1,
+	},
+	{
+		.name = "nvec-mouse",
+		.id = 1,
+	},
+	{
+		.name = "nvec-power",
+		.id = 1,
+	},
+	{
+		.name = "nvec-power",
+		.id = 2,
+	},
+	{
+		.name = "nvec-leds",
+		.id = 1,
+	},
 	{
 		.name	= "nvec-event",
 		.id	= 1,
@@ -240,8 +260,8 @@ static struct mfd_cell paz00_custom_devices[] = {
 static struct nvec_platform_data nvec_pdata = {
 	.i2c_addr	= 0x8a,
 	.gpio		= TEGRA_NVEC_REQ,
-	.custom_devices = paz00_custom_devices,
-	.nr_custom_devs = ARRAY_SIZE(paz00_custom_devices),
+	.nvec_devices	= paz00_nvec_devices,
+	.nr_nvec_devs	= ARRAY_SIZE(paz00_nvec_devices),
 };
 
 static struct resource i2c_resource3[] = {

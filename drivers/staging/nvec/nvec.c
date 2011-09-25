@@ -77,30 +77,11 @@ static const unsigned char EC_DISABLE_EVENT_REPORTING[3] = "\x04\x00\x00";
 static const unsigned char EC_ENABLE_EVENT_REPORTING[3]  = "\x04\x00\x01";
 static const unsigned char EC_GET_FIRMWARE_VERSION[2]    = "\x07\x15";
 
+/**
+ * nvec_power_handle - holds the handle (pointer to a nvec_chip struct) of
+ *                     of the ec responsible for powering off
+ */
 static struct nvec_chip *nvec_power_handle;
-
-static struct mfd_cell nvec_devices[] = {
-	{
-		.name = "nvec-kbd",
-		.id = 1,
-	},
-	{
-		.name = "nvec-mouse",
-		.id = 1,
-	},
-	{
-		.name = "nvec-power",
-		.id = 1,
-	},
-	{
-		.name = "nvec-power",
-		.id = 2,
-	},
-	{
-		.name = "nvec-leds",
-		.id = 1,
-	},
-};
 
 /**
  * nvec_register_notifier - Register a notifier with nvec
@@ -733,8 +714,8 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	if (pdata) {
 		nvec->gpio = pdata->gpio;
 		nvec->i2c_addr = pdata->i2c_addr;
-		nvec->custom_devices = pdata->custom_devices;
-		nvec->nr_custom_devs = pdata->nr_custom_devs;
+		nvec->nvec_devices = pdata->nvec_devices;
+		nvec->nr_nvec_devs = pdata->nr_nvec_devs;
 	} else if (nvec->dev->of_node) {
 		nvec->gpio = of_get_named_gpio(nvec->dev->of_node, "request-gpios", 0);
 		if (nvec->gpio < 0) {
@@ -838,16 +819,13 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		nvec_msg_free(nvec, msg);
 	}
 
-	ret = mfd_add_devices(nvec->dev, -1, nvec_devices,
-			      ARRAY_SIZE(nvec_devices), base, 0);
-	if (ret)
-		dev_err(nvec->dev, "error adding subdevices\n");
-
-	if (nvec->custom_devices) {
-		ret = mfd_add_devices(nvec->dev, -1, nvec->custom_devices,
-			nvec->nr_custom_devs, nvec->base, 0);
+	if (nvec->nvec_devices) {
+		ret = mfd_add_devices(nvec->dev, -1, nvec->nvec_devices, nvec->nr_nvec_devs,
+				nvec->base, 0);
 		if (ret)
-			dev_err(nvec->dev, "error adding custom subdevices\n");
+			dev_err(nvec->dev, "error adding subdevices\n");
+		else
+			dev_info(nvec->dev, "added %d NVEC devices\n", nvec->nr_nvec_devs);
 	}
 
 	return 0;
