@@ -259,7 +259,27 @@ static struct tegra_suspend_platform_data paz00_suspend = {
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
 
-static struct mfd_cell paz00_custom_devices[] = {
+static struct mfd_cell paz00_nvec_devices[] = {
+	{
+		.name = "nvec-kbd",
+		.id = 1,
+	},
+	{
+		.name = "nvec-mouse",
+		.id = 1,
+	},
+	{
+		.name = "nvec-power",
+		.id = 1,
+	},
+	{
+		.name = "nvec-power",
+		.id = 2,
+	},
+	{
+		.name = "nvec-leds",
+		.id = 1,
+	},
 	{
 		.name	= "nvec-event",
 		.id	= 1,
@@ -269,8 +289,8 @@ static struct mfd_cell paz00_custom_devices[] = {
 static struct nvec_platform_data nvec_pdata = {
 	.adapter	= 3,
 	.gpio		= TEGRA_NVEC_REQ,
-	.custom_devices = paz00_custom_devices,
-	.nr_custom_devs = ARRAY_SIZE(paz00_custom_devices),
+	.nvec_devices	= paz00_nvec_devices,
+	.nr_nvec_devs	= ARRAY_SIZE(paz00_nvec_devices),
 };
 
 static struct platform_device nvec_device = {
