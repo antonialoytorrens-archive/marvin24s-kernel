@@ -127,6 +127,7 @@ struct nvec_platform_data {
 	int gpio;
 	struct mfd_cell *nvec_devices;
 	int nr_nvec_devs;
+	bool has_poweroff;
 };
 
 /**
