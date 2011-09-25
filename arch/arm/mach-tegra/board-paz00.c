@@ -262,6 +262,7 @@ static struct nvec_platform_data nvec_pdata = {
 	.gpio		= TEGRA_NVEC_REQ,
 	.nvec_devices	= paz00_nvec_devices,
 	.nr_nvec_devs	= ARRAY_SIZE(paz00_nvec_devices),
+	.has_poweroff	= true,
 };
 
 static struct resource i2c_resource3[] = {

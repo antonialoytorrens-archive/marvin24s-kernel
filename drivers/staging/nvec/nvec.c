@@ -805,8 +805,10 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
 
-	nvec_power_handle = nvec;
-	pm_power_off = nvec_power_off;
+	if (pdata->has_poweroff) {
+		nvec_power_handle = nvec;
+		pm_power_off = nvec_power_off;
+	}
 
 	/* Get Firmware Version */
 	msg = nvec_write_sync(nvec, EC_GET_FIRMWARE_VERSION,
