@@ -14,7 +14,7 @@ config KEYBOARD_NVEC
 
 config SERIO_NVEC_PS2
 	bool "PS2 on nVidia EC"
-	depends on MFD_NVEC && MOUSE_PS2=y
+	depends on MFD_NVEC && MOUSE_PS2
 	help
 	  Say Y here to enable support for a Touchpad / Mouse connected
 	  to a nVidia compliant embedded controller.
