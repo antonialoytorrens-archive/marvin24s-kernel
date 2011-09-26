@@ -526,11 +526,10 @@ static void __zram_make_request(struct zram *zram, struct bio *bio, int rw)
 
 	set_bit(BIO_UPTODATE, &bio->bi_flags);
 	bio_endio(bio, 0);
-	return 0;
+	return;
 
 out:
 	bio_io_error(bio);
-	return 0;
 }
 
 /*
