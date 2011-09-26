@@ -128,23 +128,22 @@ static int nvec_status_notifier(struct notifier_block *nb,
  * @nvec. The result shall be passed to nvec_msg_free() if no longer
  * used.
  *
- * Outgoing messages are placed in the lower 75% of the pool, keeping the
- * upper 25% available for RX buffers only. The reason is to prevent a
+ * Outgoing messages are placed in the upper 75% of the pool, keeping the
+ * lower 25% available for RX buffers only. The reason is to prevent a
  * situation where all buffers are full and a message is thus endlessly
  * retried because the response could never be processed.
  */
 static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 				       enum nvec_msg_category category)
 {
-	size_t i;
-	size_t max = NVEC_POOL_SIZE;
-	if (category == NVEC_MSG_TX)
-		max = 3 * max / 4;
-	for (i = 0; i < max ; i++)
+	int i = (category == NVEC_MSG_TX) ? (NVEC_POOL_SIZE / 4) : 0;
+
+	for (; i < NVEC_POOL_SIZE; i++) {
 		if (atomic_xchg(&nvec->msg_pool[i].used, 1) == 0) {
-			dev_vdbg(nvec->dev, "INFO: Alloc %u\n", (uint) i);
+			dev_vdbg(nvec->dev, "INFO: Alloc %i\n", i);
 			return &nvec->msg_pool[i];
 		}
+	}
 
 	dev_err(nvec->dev, "could not allocate %s buffer\n",
 		(category == NVEC_MSG_TX) ? "TX" : "RX");
@@ -161,7 +160,8 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
  */
 inline void nvec_msg_free(struct nvec_chip *nvec, struct nvec_msg *msg)
 {
-	dev_vdbg(nvec->dev, "INFO: Free %i\n", (int) (msg - nvec->msg_pool));
+	if (msg != &nvec->tx_scratch)
+		dev_vdbg(nvec->dev, "INFO: Free %ti\n", msg - nvec->msg_pool);
 	atomic_set(&msg->used, 0);
 }
 EXPORT_SYMBOL_GPL(nvec_msg_free);
@@ -266,6 +266,8 @@ EXPORT_SYMBOL(nvec_write_async);
 struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 		const unsigned char *data, short size)
 {
+	struct nvec_msg *msg;
+
 	mutex_lock(&nvec->sync_write_mutex);
 
 	nvec->sync_write_pending = (data[1] << 8) + data[0];
@@ -284,9 +286,11 @@ struct nvec_msg *nvec_write_sync(struct nvec_chip *nvec,
 
 	dev_dbg(nvec->dev, "nvec_sync_write: pong!\n");
 
+	msg = nvec->last_sync_msg;
+
 	mutex_unlock(&nvec->sync_write_mutex);
 
-	return nvec->last_sync_msg;
+	return msg;
 }
 EXPORT_SYMBOL(nvec_write_sync);
 
@@ -302,6 +306,7 @@ static void nvec_request_master(struct work_struct *work)
 {
 	struct nvec_chip *nvec = container_of(work, struct nvec_chip, tx_work);
 	unsigned long flags;
+	long err;
 	struct nvec_msg *msg;
 
 	spin_lock_irqsave(&nvec->tx_lock, flags);
@@ -309,16 +314,21 @@ static void nvec_request_master(struct work_struct *work)
 		msg = list_first_entry(&nvec->tx_data, struct nvec_msg, node);
 		spin_unlock_irqrestore(&nvec->tx_lock, flags);
 		nvec_gpio_set_value(nvec, 0);
-		if (!(wait_for_completion_interruptible_timeout(
-		      &nvec->ec_transfer, msecs_to_jiffies(5000)))) {
+		err = wait_for_completion_interruptible_timeout(
+				&nvec->ec_transfer, msecs_to_jiffies(5000));
+
+		if (err == 0) {
 			dev_warn(nvec->dev, "timeout waiting for ec transfer\n");
 			nvec_gpio_set_value(nvec, 1);
 			msg->pos = 0;
-		} else {
+		}
+
+		spin_lock_irqsave(&nvec->tx_lock, flags);
+
+		if (err > 0) {
 			list_del_init(&msg->node);
 			nvec_msg_free(nvec, msg);
 		}
-		spin_lock_irqsave(&nvec->tx_lock, flags);
 	}
 	spin_unlock_irqrestore(&nvec->tx_lock, flags);
 }
@@ -410,12 +420,15 @@ static void nvec_tx_completed(struct nvec_chip *nvec)
  */
 static void nvec_rx_completed(struct nvec_chip *nvec)
 {
-	unsigned long flags;
-
 	if (nvec->rx->pos != nvec_msg_size(nvec->rx)) {
 		dev_err(nvec->dev, "RX incomplete: Expected %u bytes, got %u\n",
 			   (uint) nvec_msg_size(nvec->rx),
 			   (uint) nvec->rx->pos);
+
+
+		print_hex_dump(KERN_DEBUG, "RX incomplete: Message is",
+				DUMP_PREFIX_NONE, 16, 1, nvec->rx->data,
+				nvec->rx->pos, true);
 
 		nvec_msg_free(nvec, nvec->rx);
 		nvec->state = 0;
@@ -426,13 +439,13 @@ static void nvec_rx_completed(struct nvec_chip *nvec)
 		return;
 	}
 
-	spin_lock_irqsave(&nvec->rx_lock, flags);
+	spin_lock(&nvec->rx_lock);
 
 	/* add the received data to the work list
 	   and move the ring buffer pointer to the next entry */
 	list_add_tail(&nvec->rx->node, &nvec->rx_data);
 
-	spin_unlock_irqrestore(&nvec->rx_lock, flags);
+	spin_unlock(&nvec->rx_lock);
 
 	nvec->state = 0;
 
@@ -467,9 +480,7 @@ static void nvec_invalid_flags(struct nvec_chip *nvec, unsigned int status,
  */
 static void nvec_tx_set(struct nvec_chip *nvec)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&nvec->tx_lock, flags);
+	spin_lock(&nvec->tx_lock);
 	if (list_empty(&nvec->tx_data)) {
 		dev_err(nvec->dev, "empty tx - sending no-op\n");
 		memcpy(nvec->tx_scratch.data, "\x02\x07\x02", 3);
@@ -482,7 +493,7 @@ static void nvec_tx_set(struct nvec_chip *nvec)
 					    node);
 		nvec->tx->pos = 0;
 	}
-	spin_unlock_irqrestore(&nvec->tx_lock, flags);
+	spin_unlock(&nvec->tx_lock);
 
 	dev_dbg(nvec->dev, "Sending message of length %u, command 0x%x\n",
 		(uint)nvec->tx->size, nvec->tx->data[1]);
@@ -499,7 +510,6 @@ static void nvec_tx_set(struct nvec_chip *nvec)
  */
 static irqreturn_t nvec_interrupt(int irq, void *dev)
 {
-	unsigned long flags;
 	unsigned long status;
 	unsigned int received = 0;
 	unsigned char to_send = 0xff;
@@ -521,14 +531,9 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 
 	/* The EC did not request a read, so it send us something, read it */
 	if ((status & RNW) == 0) {
-		if (status & RCVD) {
-			local_irq_save(flags);
-			received = readl(nvec->base + I2C_SL_RCVD);
+		received = readl(nvec->base + I2C_SL_RCVD);
+		if (status & RCVD)
 			writel(0, nvec->base + I2C_SL_RCVD);
-			local_irq_restore(flags);
-		} else {
-			received = readl(nvec->base + I2C_SL_RCVD);
-		}
 	}
 
 	if (status == (I2C_SL_IRQ | RCVD))
@@ -637,6 +642,15 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 		status & END_TRANS ? " END_TRANS" : "",
 		status & RCVD ? " RCVD" : "",
 		status & RNW ? " RNW" : "");
+
+
+	/*
+	 * TODO: A correct fix needs to be found for this.
+	 *
+	 * We experience less incomplete messages with this delay than without
+	 * it, but we don't know why. Help is appreciated.
+	 */
+	udelay(100);
 
 	return IRQ_HANDLED;
 }
