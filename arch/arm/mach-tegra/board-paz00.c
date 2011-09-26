@@ -219,7 +219,7 @@ static struct tegra_i2c_platform_data paz00_i2c3_platform_data = {
 	.slave_addr	= 0x8a,
 };
 
-static struct mfd_cell paz00_nvec_devices[] = {
+static const struct mfd_cell paz00_nvec_devices[] = {
 	{
 		.name = "nvec-kbd",
 		.id = 1,

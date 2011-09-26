@@ -125,7 +125,7 @@ struct nvec_subdev {
 struct nvec_platform_data {
 	int gpio;
 	int adapter;
-	struct mfd_cell *nvec_devices;
+	const struct mfd_cell *nvec_devices;
 	int nr_nvec_devs;
 	bool has_poweroff;
 };
@@ -167,7 +167,7 @@ struct nvec_chip {
 	struct device *dev;
 	int gpio;
 	int irq;
-	struct mfd_cell *nvec_devices;
+	const struct mfd_cell *nvec_devices;
 	int nr_nvec_devs;
 	int i2c_addr;
 	void __iomem *base;
