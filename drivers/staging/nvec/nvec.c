@@ -426,6 +426,11 @@ static void nvec_rx_completed(struct nvec_chip *nvec)
 			   (uint) nvec_msg_size(nvec->rx),
 			   (uint) nvec->rx->pos);
 
+
+		print_hex_dump(KERN_DEBUG, "RX incomplete: Message is",
+				DUMP_PREFIX_NONE, 16, 1, nvec->rx->data,
+				nvec->rx->pos, true);
+
 		nvec_msg_free(nvec, nvec->rx);
 		nvec->state = 0;
 
