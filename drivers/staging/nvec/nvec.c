@@ -139,7 +139,7 @@ static struct nvec_msg *nvec_msg_alloc(struct nvec_chip *nvec,
 
 	for (; i < NVEC_POOL_SIZE; i++) {
 		if (atomic_xchg(&nvec->msg_pool[i].used, 1) == 0) {
-			dev_vdbg(nvec->dev, "INFO: Alloc %i\n", i);
+			dev_vdbg(nvec->dev, "INFO: Allocate %i\n", i);
 			return &nvec->msg_pool[i];
 		}
 	}
@@ -435,6 +435,7 @@ static void nvec_rx_completed(struct nvec_chip *nvec)
 		/* Battery quirk - Often incomplete, and likes to crash */
 		if (nvec->rx->data[0] == NVEC_BAT)
 			complete(&nvec->ec_transfer);
+
 		return;
 	}
 
