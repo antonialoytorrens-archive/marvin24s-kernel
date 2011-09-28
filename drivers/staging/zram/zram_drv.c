@@ -573,7 +573,7 @@ static int zram_make_request(struct request_queue *queue, struct bio *bio)
 
 	__zram_make_request(zram, bio, bio_data_dir(bio));
 
-	return ret;
+	return 0;
 }
 
 void zram_reset_device(struct zram *zram)
