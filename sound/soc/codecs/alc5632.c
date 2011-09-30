@@ -209,31 +209,31 @@ static const char *alc5632_aux_out_input_sel[] = {
 static const struct soc_enum alc5632_aux_out_input_enum =
 SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 6, 4, alc5632_aux_out_input_sel);
 static const struct snd_kcontrol_new alc5632_auxout_mux_controls =
-SOC_DAPM_ENUM("Route", alc5632_aux_out_input_enum);
+SOC_DAPM_ENUM("AuxOut Mux", alc5632_aux_out_input_enum);
 
 /* speaker output mux */
 static const struct soc_enum alc5632_spkout_input_enum =
 SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 10, 4, alc5632_spkout_input_sel);
 static const struct snd_kcontrol_new alc5632_spkout_mux_controls =
-SOC_DAPM_ENUM("Route", alc5632_spkout_input_enum);
+SOC_DAPM_ENUM("SpeakerOut Mux", alc5632_spkout_input_enum);
 
 /* headphone left output mux */
 static const struct soc_enum alc5632_hpl_out_input_enum =
 SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 9, 2, alc5632_hpl_out_input_sel);
 static const struct snd_kcontrol_new alc5632_hpl_out_mux_controls =
-SOC_DAPM_ENUM("Route", alc5632_hpl_out_input_enum);
+SOC_DAPM_ENUM("Left Headphone Mux", alc5632_hpl_out_input_enum);
 
 /* headphone right output mux */
 static const struct soc_enum alc5632_hpr_out_input_enum =
 SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 8, 2, alc5632_hpr_out_input_sel);
 static const struct snd_kcontrol_new alc5632_hpr_out_mux_controls =
-SOC_DAPM_ENUM("Route", alc5632_hpr_out_input_enum);
+SOC_DAPM_ENUM("Right Headphone Mux", alc5632_hpr_out_input_enum);
 
 /* speaker output N select */
 static const struct soc_enum alc5632_spk_n_sour_enum =
 SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 14, 4, alc5632_spk_n_sour_sel);
 static const struct snd_kcontrol_new alc5632_spkoutn_mux_controls =
-SOC_DAPM_ENUM("Route", alc5632_spk_n_sour_enum);
+SOC_DAPM_ENUM("SpeakerOut N Mux", alc5632_spk_n_sour_enum);
 
 static const struct snd_soc_dapm_widget alc5632_dapm_widgets[] = {
 /* Muxes */
