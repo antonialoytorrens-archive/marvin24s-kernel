@@ -52,11 +52,8 @@
 #include "pm.h"
 #include "../../../drivers/staging/nvec/nvec.h"
 
-/* output atags / or not */
-#define PRINT_ATAGS 0
-
-#define ATAG_NVIDIA             0x41000801
-#define MAX_MEMHDL		8
+#define ATAG_NVIDIA	0x41000801
+#define MAX_MEMHDL	8
 
 struct tag_tegra {
 	__u32 bootarg_len;
@@ -86,11 +83,15 @@ static int num_memhdl = 0;
 static struct memhdl nv_memhdl[MAX_MEMHDL];
 static size_t fb_addr;
 
-#if PRINT_ATAGS
-#define PRINT_ATAG(fmt, ...) printk(fmt, ##__VA_ARGS__)
-#else
-#define PRINT_ATAG(fmt, ...) no_printk(fmt, ##__VA_ARGS__)
-#endif
+static const char atag_ids[][16] = {
+	"RM             ",
+	"DISPLAY        ",
+	"FRAMEBUFFER    ",
+	"CHIPSHMOO      ",
+	"CHIPSHMOO_PHYS ",
+	"CARVEOUT       ",
+	"WARMBOOT       ",
+};
 
 static int __init parse_tag_nvidia(const struct tag *tag)
 {
@@ -98,58 +99,42 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 	struct tag_tegra *nvtag = (struct tag_tegra *)tag;
 	__u32 id;
 
-	switch(nvtag->bootarg_nvkey) {
-		case RM:
-			PRINT_ATAG("RM             ");
-			break;
-		case DISPLAY:
-			PRINT_ATAG("DISPLAY        ");
-			break;
-		case FRAMEBUFFER:
-			id = nvtag->bootarg[1];
-			for(i=0; i<num_memhdl; i++)
-				if (nv_memhdl[i].id == id)
-					fb_addr = nv_memhdl[i].start;
-			PRINT_ATAG("FRAMEBUFFER    ");
-			break;
-		case CHIPSHMOO:
-			PRINT_ATAG("CHIPSHMOO      ");
-			break;
-		case CHIPSHMOO_PHYS:
-			PRINT_ATAG("CHIPSHMOO_PHYS ");
-			break;
-		case CARVEOUT:
-			PRINT_ATAG("CARVEOUT       ");
-			break;
-		case WARMBOOT:
-			id = nvtag->bootarg[1];
-			for(i=0; i<num_memhdl; i++) {
-				if (nv_memhdl[i].id == id) {
-					tegra_lp0_vec_start = nv_memhdl[i].start;
-					tegra_lp0_vec_size = nv_memhdl[i].size;
-				}
+	switch (nvtag->bootarg_nvkey) {
+	case FRAMEBUFFER:
+		id = nvtag->bootarg[1];
+		for (i=0; i<num_memhdl; i++)
+			if (nv_memhdl[i].id == id)
+				fb_addr = nv_memhdl[i].start;
+		break;
+	case WARMBOOT:
+		id = nvtag->bootarg[1];
+		for (i=0; i<num_memhdl; i++) {
+			if (nv_memhdl[i].id == id) {
+				tegra_lp0_vec_start = nv_memhdl[i].start;
+				tegra_lp0_vec_size = nv_memhdl[i].size;
 			}
-			PRINT_ATAG("WARMBOOT       ");
-			break;
-		default:
-			if(nvtag->bootarg_nvkey & 0x10000) {
-				id = nvtag->bootarg_nvkey;
-				if (num_memhdl < MAX_MEMHDL) {
-					nv_memhdl[num_memhdl].id = id;
-					nv_memhdl[num_memhdl].start = nvtag->bootarg[1];
-					nv_memhdl[num_memhdl].size = nvtag->bootarg[2];
-					num_memhdl++;
-				}
-				PRINT_ATAG("PreMemHdl %4d ", id & 0xffff);
-			}
-			else
-				PRINT_ATAG("unknown (%d) ", nvtag->bootarg_nvkey);
-			break;
+		}
+		break;
 	}
 
-	for(i=0; i < tag->hdr.size-2; i++)
-		PRINT_ATAG("%08x ", nvtag->bootarg[i]);
-	PRINT_ATAG("\n");
+	if (nvtag->bootarg_nvkey & 0x10000) {
+		char pmh[] = " PreMemHdl     ";
+		id = nvtag->bootarg_nvkey;
+		if (num_memhdl < MAX_MEMHDL) {
+			nv_memhdl[num_memhdl].id = id;
+			nv_memhdl[num_memhdl].start = nvtag->bootarg[1];
+			nv_memhdl[num_memhdl].size = nvtag->bootarg[2];
+			num_memhdl++;
+		}
+		pmh[11] = '0' + id;
+		print_hex_dump(KERN_INFO, pmh, DUMP_PREFIX_NONE,
+				32, 4, &nvtag->bootarg[0], 4*(tag->hdr.size-2), false);
+	}
+	else if (nvtag->bootarg_nvkey <= ARRAY_SIZE(atag_ids))
+		print_hex_dump(KERN_INFO, atag_ids[nvtag->bootarg_nvkey-1], DUMP_PREFIX_NONE,
+				32, 4, &nvtag->bootarg[0], 4*(tag->hdr.size-2), false);
+	else
+		pr_warning("unknown ATAG key %d\n", nvtag->bootarg_nvkey);
 
 	return 0;
 }
