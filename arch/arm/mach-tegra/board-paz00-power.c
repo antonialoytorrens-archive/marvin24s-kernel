@@ -26,6 +26,7 @@
 #include <linux/io.h>
 
 #include <mach/iomap.h>
+#include <mach/powergate.h>
 #include "board-paz00.h"
 
 #define PMC_CTRL                0x0
@@ -218,6 +219,8 @@ int __init paz00_power_init(void)
 		pr_warning("Unable to initialize regulator\n");
 		return -1;
 	}
+
+	tegra_powergate_power_off(TEGRA_POWERGATE_PCIE);
 
 	return 0;
 }
