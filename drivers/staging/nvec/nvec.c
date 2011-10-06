@@ -28,6 +28,7 @@
 #include <linux/irq.h>
 #include <linux/list.h>
 #include <linux/mfd/core.h>
+#include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/notifier.h>
 #include <linux/platform_device.h>
