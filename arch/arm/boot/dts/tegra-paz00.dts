@@ -1,0 +1,51 @@
+/dts-v1/;
+
+/memreserve/ 0x1c000000 0x04000000;
+/include/ "tegra20.dtsi"
+
+/ {
+	model = "Toshiba AC100 / Dynabook AZ";
+	compatible = "compal,paz00", "nvidia,tegra20";
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8 root=/dev/mmcblk1p1";
+	};
+
+	memory@0 {
+		reg = < 0x00000000 0x20000000 >;
+	};
+
+	i2c@7000c000 {
+		clock-frequency = <400000>;
+	};
+
+	i2c@7000c400 {
+		clock-frequency = <400000>;
+	};
+
+	i2c@7000c500 {
+		clock-frequency = <80000>;
+	};
+
+	i2c@7000d000 {
+		clock-frequency = <400000>;
+	};
+
+	serial@70006000 {
+		clock-frequency = < 216000000 >;
+	};
+
+	serial@70006300 {
+		clock-frequency = < 216000000 >;
+	};
+
+	sdhci@c8000000 {
+		cd-gpios = <&gpio 173 0>; /* gpio PV5 */
+		wp-gpios = <&gpio 57 0>;  /* gpio PH1 */
+		power-gpios = <&gpio 155 0>; /* gpio PT3 */
+	};
+
+	sdhci@c8000600 {
+		support-8bit;
+	};
+};
