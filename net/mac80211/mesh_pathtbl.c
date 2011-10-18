@@ -65,37 +65,42 @@ void mesh_table_free(struct mesh_table *tbl, bool free_leafs)
 	__mesh_table_free(tbl);
 }
 
-static int mesh_table_grow(struct mesh_table *oldtbl,
-		struct mesh_table *newtbl)
+static struct mesh_table *mesh_table_grow(struct mesh_table *tbl)
 {
+	struct mesh_table *newtbl;
 	struct hlist_head *oldhash;
 	struct hlist_node *p, *q;
 	int i;
 
-	if (atomic_read(&oldtbl->entries)
-			< oldtbl->mean_chain_len * (oldtbl->hash_mask + 1))
-		return -EAGAIN;
+	if (atomic_read(&tbl->entries)
+			< tbl->mean_chain_len * (tbl->hash_mask + 1))
+		goto endgrow;
 
+	newtbl = mesh_table_alloc(tbl->size_order + 1);
+	if (!newtbl)
+		goto endgrow;
 
-	newtbl->free_node = oldtbl->free_node;
-	newtbl->mean_chain_len = oldtbl->mean_chain_len;
-	newtbl->copy_node = oldtbl->copy_node;
-	atomic_set(&newtbl->entries, atomic_read(&oldtbl->entries));
+	newtbl->free_node = tbl->free_node;
+	newtbl->mean_chain_len = tbl->mean_chain_len;
+	newtbl->copy_node = tbl->copy_node;
+	atomic_set(&newtbl->entries, atomic_read(&tbl->entries));
 
-	oldhash = oldtbl->hash_buckets;
-	for (i = 0; i <= oldtbl->hash_mask; i++)
+	oldhash = tbl->hash_buckets;
+	for (i = 0; i <= tbl->hash_mask; i++)
 		hlist_for_each(p, &oldhash[i])
-			if (oldtbl->copy_node(p, newtbl) < 0)
+			if (tbl->copy_node(p, newtbl) < 0)
 				goto errcopy;
 
-	return 0;
+	return newtbl;
 
 errcopy:
 	for (i = 0; i <= newtbl->hash_mask; i++) {
 		hlist_for_each_safe(p, q, &newtbl->hash_buckets[i])
-			oldtbl->free_node(p, 0);
+			tbl->free_node(p, 0);
 	}
-	return -ENOMEM;
+	__mesh_table_free(newtbl);
+endgrow:
+	return NULL;
 }
 
 
@@ -329,13 +334,10 @@ void mesh_mpath_table_grow(void)
 {
 	struct mesh_table *oldtbl, *newtbl;
 
-	newtbl = mesh_table_alloc(mesh_paths->size_order + 1);
-	if (!newtbl)
-		return;
 	write_lock(&pathtbl_resize_lock);
 	oldtbl = mesh_paths;
-	if (mesh_table_grow(mesh_paths, newtbl) < 0) {
-		__mesh_table_free(newtbl);
+	newtbl = mesh_table_grow(mesh_paths);
+	if (!newtbl) {
 		write_unlock(&pathtbl_resize_lock);
 		return;
 	}
@@ -350,13 +352,10 @@ void mesh_mpp_table_grow(void)
 {
 	struct mesh_table *oldtbl, *newtbl;
 
-	newtbl = mesh_table_alloc(mpp_paths->size_order + 1);
-	if (!newtbl)
-		return;
 	write_lock(&pathtbl_resize_lock);
 	oldtbl = mpp_paths;
-	if (mesh_table_grow(mpp_paths, newtbl) < 0) {
-		__mesh_table_free(newtbl);
+	newtbl = mesh_table_grow(mpp_paths);
+	if (!newtbl) {
 		write_unlock(&pathtbl_resize_lock);
 		return;
 	}

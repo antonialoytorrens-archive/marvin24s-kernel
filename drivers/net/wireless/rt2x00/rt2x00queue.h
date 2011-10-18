@@ -217,7 +217,6 @@ enum txdone_entry_desc_flags {
 	TXDONE_FALLBACK,
 	TXDONE_FAILURE,
 	TXDONE_EXCESSIVE_RETRY,
-	TXDONE_AMPDU,
 };
 
 /**
@@ -306,27 +305,20 @@ struct txentry_desc {
 	u16 length;
 	u16 header_length;
 
-	union {
-		struct {
-			u16 length_high;
-			u16 length_low;
-			u16 signal;
-			u16 service;
-			enum ifs ifs;
-		} plcp;
+	u16 length_high;
+	u16 length_low;
+	u16 signal;
+	u16 service;
 
-		struct {
-			u16 mcs;
-			u8 stbc;
-			u8 ba_size;
-			u8 mpdu_density;
-			enum txop txop;
-		} ht;
-	} u;
-
-	enum rate_modulation rate_mode;
+	u16 mcs;
+	u16 stbc;
+	u16 ba_size;
+	u16 rate_mode;
+	u16 mpdu_density;
 
 	short retry_limit;
+	short ifs;
+	short txop;
 
 	enum cipher cipher;
 	u16 key_idx;
@@ -364,7 +356,6 @@ enum queue_entry_flags {
  * struct queue_entry: Entry inside the &struct data_queue
  *
  * @flags: Entry flags, see &enum queue_entry_flags.
- * @last_action: Timestamp of last change.
  * @queue: The data queue (&struct data_queue) to which this entry belongs.
  * @skb: The buffer which is currently being transmitted (for TX queue),
  *	or used to directly recieve data in (for RX queue).
@@ -374,7 +365,6 @@ enum queue_entry_flags {
  */
 struct queue_entry {
 	unsigned long flags;
-	unsigned long last_action;
 
 	struct data_queue *queue;
 
@@ -465,6 +455,7 @@ struct data_queue {
 	unsigned short threshold;
 	unsigned short length;
 	unsigned short index[Q_INDEX_MAX];
+	unsigned long last_action[Q_INDEX_MAX];
 
 	unsigned short txop;
 	unsigned short aifs;
@@ -581,22 +572,16 @@ struct data_queue_desc {
  * @queue: Pointer to @data_queue
  * @start: &enum queue_index Pointer to start index
  * @end: &enum queue_index Pointer to end index
- * @data: Data to pass to the callback function
  * @fn: The function to call for each &struct queue_entry
  *
  * This will walk through all entries in the queue, in chronological
  * order. This means it will start at the current @start pointer
  * and will walk through the queue until it reaches the @end pointer.
- *
- * If fn returns true for an entry rt2x00queue_for_each_entry will stop
- * processing and return true as well.
  */
-bool rt2x00queue_for_each_entry(struct data_queue *queue,
+void rt2x00queue_for_each_entry(struct data_queue *queue,
 				enum queue_index start,
 				enum queue_index end,
-				void *data,
-				bool (*fn)(struct queue_entry *entry,
-					   void *data));
+				void (*fn)(struct queue_entry *entry));
 
 /**
  * rt2x00queue_empty - Check if the queue is empty.
@@ -636,24 +621,22 @@ static inline int rt2x00queue_threshold(struct data_queue *queue)
 
 /**
  * rt2x00queue_status_timeout - Check if a timeout occured for STATUS reports
- * @entry: Queue entry to check.
+ * @queue: Queue to check.
  */
-static inline int rt2x00queue_status_timeout(struct queue_entry *entry)
+static inline int rt2x00queue_status_timeout(struct data_queue *queue)
 {
-	if (!test_bit(ENTRY_DATA_STATUS_PENDING, &entry->flags))
-		return false;
-	return time_after(jiffies, entry->last_action + msecs_to_jiffies(100));
+	return time_after(queue->last_action[Q_INDEX_DMA_DONE],
+			  queue->last_action[Q_INDEX_DONE] + (HZ / 10));
 }
 
 /**
- * rt2x00queuedma__timeout - Check if a timeout occured for DMA transfers
- * @entry: Queue entry to check.
+ * rt2x00queue_timeout - Check if a timeout occured for DMA transfers
+ * @queue: Queue to check.
  */
-static inline int rt2x00queue_dma_timeout(struct queue_entry *entry)
+static inline int rt2x00queue_dma_timeout(struct data_queue *queue)
 {
-	if (!test_bit(ENTRY_OWNER_DEVICE_DATA, &entry->flags))
-		return false;
-	return time_after(jiffies, entry->last_action + msecs_to_jiffies(100));
+	return time_after(queue->last_action[Q_INDEX],
+			  queue->last_action[Q_INDEX_DMA_DONE] + (HZ / 10));
 }
 
 /**
