@@ -794,6 +794,7 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 	struct nvec_msg *msg;
 
 	dev_dbg(nvec->dev, "suspending\n");
+	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
 
 	/* keep these sync or you'll break suspend */
 	msg = nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
@@ -815,6 +816,7 @@ static int tegra_nvec_resume(struct platform_device *pdev)
 	dev_dbg(nvec->dev, "resuming\n");
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
 
+	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
 	return 0;
 }
 
