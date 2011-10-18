@@ -207,6 +207,7 @@ static struct tegra_gpio_table common_gpio_table[] = {
 	{ .gpio = TEGRA_GPIO_NCT1008_THERM2_IRQ,.enable = true },
 	{ .gpio = TEGRA_GPIO_WLAN_POWER,	.enable = true },
 	{ .gpio = TEGRA_GPIO_BACKLIGHT,		.enable = true },
+	{ .gpio = TEGRA_GPIO_BACKLIGHT_VDD,	.enable = true },
 	{ .gpio = TEGRA_GPIO_LVDS_SHUTDOWN,	.enable = true },
 	{ .gpio = TEGRA_GPIO_EN_VDD_PNL,	.enable = true },
 	{ .gpio = TEGRA_GPIO_AC_ONLINE,		.enable = true },
@@ -224,13 +225,12 @@ static struct tegra_gpio_table common_gpio_table[] = {
 };
 
 static struct tegra_gpio_table seaboard_gpio_table[] = {
-	{ .gpio = SEABOARD_GPIO_BACKLIGHT_VDD,	.enable = true },
 	{ .gpio = SEABOARD_GPIO_MXT_RST,	.enable = true },
 };
 
 static struct tegra_gpio_table asymptote_gpio_table[] = {
-	{ .gpio = ASYMPTOTE_GPIO_BACKLIGHT_VDD,	.enable = true },
 	{ .gpio = ASYMPTOTE_GPIO_MXT_RST,	.enable = true },
+	{ .gpio = ASYMPTOTE_GPIO_TSL2563_IRQ,	.enable = true },
 };
 
 
@@ -378,9 +378,14 @@ void __init arthur_pinmux_init(void)
 	seaboard_common_pinmux_init();
 }
 
+static __initdata struct tegra_pingroup_config asymptote_pinmux[] = {
+	{TEGRA_PINGROUP_UCB,  TEGRA_MUX_NONE,      TEGRA_PUPD_NORMAL, TEGRA_TRI_NORMAL},
+};
+
 void __init asymptote_pinmux_init(void)
 {
 	wm8903_gpio_init();
+	update_pinmux(asymptote_pinmux, ARRAY_SIZE(asymptote_pinmux));
 	seaboard_common_pinmux_init();
 	tegra_gpio_config(asymptote_gpio_table,
 			  ARRAY_SIZE(asymptote_gpio_table));

@@ -34,6 +34,7 @@
 #include <linux/rfkill-gpio.h>
 #include <linux/leds.h>
 #include <linux/leds_pwm.h>
+#include <linux/memblock.h>
 
 #include <sound/max98095.h>
 #include <sound/wm8903.h>
@@ -66,7 +67,8 @@ static void (*legacy_arm_pm_restart)(char mode, const char *cmd);
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
 		/* Memory and IRQ filled in before registration */
-		.flags		= UPF_BOOT_AUTOCONF,
+		.flags		= UPF_BOOT_AUTOCONF | UPF_FIXED_TYPE,
+		.type		= PORT_TEGRA,
 		.iotype		= UPIO_MEM,
 		.regshift	= 2,
 		.uartclk	= 216000000,
@@ -94,6 +96,7 @@ static __initdata struct tegra_clk_init_table seaboard_clk_init_table[] = {
 	{ "audio_2x",   "audio",        22579200,       false},
 	{ "spdif_out",  "pll_a_out0",   11289600,       false},
 	{ "uartb",      "pll_p",        216000000,      false},
+	{ "uartc",      "pll_c",        600000000,      false},
 	{ "uartd",      "pll_p",        216000000,      false},
 	{ "pwm",        "clk_m",        12000000,       false},
 	{ "blink",      "clk_32k",      32768,          true},
@@ -152,7 +155,7 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 
 static struct cyapa_platform_data cyapa_i2c_platform_data = {
 	.flag				= 0,
-	.gen				= CYAPA_GEN2,
+	.gen				= CYAPA_GEN3,
 	.power_state			= CYAPA_PWR_ACTIVE,
 	.polling_interval_time_active	= CYAPA_POLLING_INTERVAL_TIME_ACTIVE,
 	.polling_interval_time_lowpower	= CYAPA_POLLING_INTERVAL_TIME_LOWPOWER,
@@ -610,6 +613,11 @@ static struct i2c_board_info __initdata isl29018_device = {
 	.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_ISL29018_IRQ),
 };
 
+static struct i2c_board_info __initdata tsl2563_device = {
+	I2C_BOARD_INFO("tsl2563", 0x29),
+	.irq = TEGRA_GPIO_TO_IRQ(ASYMPTOTE_GPIO_TSL2563_IRQ),
+};
+
 static struct i2c_board_info __initdata nct1008_device = {
 	I2C_BOARD_INFO("nct1008", 0x4c),
 	.irq = TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_NCT1008_THERM2_IRQ),
@@ -692,7 +700,7 @@ static struct mxt_platform_data seaboard_mxt_platform_data = {
 	.blen			= 0x16,
 	.threshold		= 0x28,
 	.voltage		= 3300000,	/* 3.3V */
-	.orient			= MXT_DIAGONAL,
+	.orient			= MXT_ROTATED_90,
 	.irqflags		= IRQF_TRIGGER_FALLING,
 	.config			= seaboard_mxt_config_data,
 	.config_length		= sizeof(seaboard_mxt_config_data),
@@ -712,7 +720,7 @@ static const u8 asymptote_mxt_config_data[] = {
 	/* MXT_GEN_ACQUIRE(8) */
 	0x0a, 0x00, 0x14, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	/* MXT_TOUCH_MULTI(9) */
-	0x0F, 0x00, 0x00, 0x20, 0x2a, 0x00, 0x10, 0x50, 0x03, 0x05,
+	0x0F, 0x00, 0x00, 0x20, 0x2a, 0x00, 0x10, 0x1e, 0x02, 0x05,
 	0x00, 0x02, 0x01, 0x00, 0x0a, 0x0a, 0x0a, 0x0a, 0x00, 0x03,
 	0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x0a, 0x00, 0x00, 0x00,
@@ -725,8 +733,8 @@ static const u8 asymptote_mxt_config_data[] = {
 	/* MXT_SPT_COMMSCONFIG(18) */
 	0x00, 0x00,
 	/* MXT_PROCG_NOISE(22) */
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x23, 0x00,
-	0x00, 0x00, 0x05, 0x0a, 0x14, 0x1e, 0x00,
+	0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x23, 0x00,
+	0x00, 0x0d, 0x05, 0x0a, 0x14, 0x1e, 0x00,
 	/* MXT_PROCI_ONETOUCH(24) */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -736,7 +744,7 @@ static const u8 asymptote_mxt_config_data[] = {
 	/* MXT_PROCI_TWOTOUCH(27) */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	/* MXT_SPT_CTECONFIG(28) */
-	0x00, 0x00, 0x00, 0x28, 0x28, 0x00,
+	0x00, 0x00, 0x00, 0x14, 0x14, 0x00,
 	/* MXT_PROCI_GRIP(40) */
 	0x00, 0x00, 0x00, 0x00, 0x00,
 	/* MXT_PROCI_PALM(41) */
@@ -750,10 +758,10 @@ static struct mxt_platform_data asymptote_mxt_platform_data = {
 	.y_line			= 42,
 	.x_size			= 768,
 	.y_size			= 1024,
-	.blen			= 0x16,
-	.threshold		= 0x3c,
+	.blen			= 0x00,
+	.threshold		= 0x1e,
 	.voltage		= 3300000,	/* 3.3V */
-	.orient			= MXT_DIAGONAL,
+	.orient			= MXT_ROTATED_90,
 	.irqflags		= IRQF_TRIGGER_FALLING,
 	.config			= asymptote_mxt_config_data,
 	.config_length		= sizeof(asymptote_mxt_config_data),
@@ -963,8 +971,12 @@ static void __init asymptote_i2c_register_devices(void)
 	gpio_request(TEGRA_GPIO_NCT1008_THERM2_IRQ, "temp_alert");
 	gpio_direction_input(TEGRA_GPIO_NCT1008_THERM2_IRQ);
 
+	gpio_request(TEGRA_GPIO_ISL29018_IRQ, "tsl2563");
+	gpio_direction_input(ASYMPTOTE_GPIO_TSL2563_IRQ);
+
 	i2c_register_board_info(0, &wm8903_device, 1);
 	i2c_register_board_info(0, &mpu3050_device, 1);
+	i2c_register_board_info(0, &tsl2563_device, 1);
 	i2c_register_board_info(2, &bq20z75_device, 1);
 	i2c_register_board_info(3, &asymptote_mxt_device, 1);
 	i2c_register_board_info(4, &nct1008_device, 1);
@@ -1117,7 +1129,7 @@ static void __init tegra_seaboard_init(void)
  * On boards that don't implement the reset hardware we fall back to the old
  * method.
  */
-static void kaen_machine_restart(char mode, const char *cmd)
+static void gpio_machine_restart(char mode, const char *cmd)
 {
 	/* Disable interrupts first */
 	local_irq_disable();
@@ -1161,6 +1173,14 @@ static void __init tegra_kaen_init(void)
 	/* setting skew makes WIFI stable when sdmmc1 runs 48MHz. */
 	tegra_set_clock_readskew("sdmmc1", 8);
 
+	/* change xcvr_setup to 13 to adjust USB driving to pass eye
+	 * diagram test.
+	 * xcvr_effect is only for USB1 to set FUSE_SETUP_SEL to zero
+	 */
+	utmi_phy_config[0].xcvr_effect = 1;
+	utmi_phy_config[0].xcvr_setup = 13;
+	utmi_phy_config[1].xcvr_setup = 13;
+
 	tegra_ehci1_device.dev.platform_data = &tegra_ehci_pdata[0];
 	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
 	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
@@ -1174,7 +1194,7 @@ static void __init tegra_kaen_init(void)
 
 	kaen_sensors_init();
 	legacy_arm_pm_restart = arm_pm_restart;
-	arm_pm_restart = kaen_machine_restart;
+	arm_pm_restart = gpio_machine_restart;
 }
 
 static void __init tegra_aebl_init(void)
@@ -1210,6 +1230,8 @@ static void __init tegra_aebl_init(void)
 	seaboard_i2c_init();
 
 	aebl_sensors_init();
+	legacy_arm_pm_restart = arm_pm_restart;
+	arm_pm_restart = gpio_machine_restart;
 }
 
 static void __init tegra_wario_init(void)
@@ -1317,6 +1339,9 @@ static void __init tegra_asymptote_init(void)
 	}
 
 	asymptote_i2c_register_devices();
+
+	/* The tsl2563 ALS on Asymptote doesn't play nice with a 400kHz bus */
+	seaboard_i2c1_platform_data.bus_clk_rate[0] = 100000;
 	seaboard_i2c_init();
 }
 
@@ -1365,6 +1390,36 @@ void __init tegra_ventana_init(void)
 	seaboard_i2c_init();
 }
 
+void __init tegra_common_reserve(void)
+{
+	unsigned long fb_size;
+
+	/*
+	 * reserve the first 4k bytes of physical memory, reset/interrupt
+	 * vectors, etc. are located there.
+	 */
+	if (memblock_reserve(0x0, 4096) < 0)
+		pr_warn("Cannot reserve first 4K of memory for safety\n");
+
+	/*
+	 * reserve 256MB for carveout, 1368*910*4*2 (=9959040) for fb_size,
+	 * and 0 for fb2_size.
+	 */
+	fb_size = round_up((1368 * 910 * 4 * 2), PAGE_SIZE);
+
+	if (machine_is_asymptote()) {
+		/*
+		 * This is a temporary hack for Asymptote only. Asymptotes will
+		 * not boot with 256MB carveout and without new firmware, so
+		 * in the meantime, only carve out 128MB. Once all of the
+		 * Asymptotes have been flashed, this will be removed.
+		 */
+		tegra_reserve(SZ_128M, fb_size, 0);
+	} else {
+		tegra_reserve(SZ_256M, fb_size, 0);
+	}
+}
+
 static const char *seaboard_dt_board_compat[] = {
 	"nvidia,seaboard",
 	NULL
@@ -1378,6 +1433,7 @@ MACHINE_START(SEABOARD, "seaboard")
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_seaboard_init,
 	.dt_compat	= seaboard_dt_board_compat,
+	.reserve	= tegra_common_reserve,
 MACHINE_END
 
 static const char *kaen_dt_board_compat[] = {
@@ -1393,6 +1449,7 @@ MACHINE_START(KAEN, "kaen")
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_kaen_init,
 	.dt_compat	= kaen_dt_board_compat,
+	.reserve	= tegra_common_reserve,
 MACHINE_END
 
 static const char *aebl_dt_board_compat[] = {
@@ -1408,6 +1465,7 @@ MACHINE_START(AEBL, "aebl")
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_aebl_init,
 	.dt_compat	= aebl_dt_board_compat,
+	.reserve	= tegra_common_reserve,
 MACHINE_END
 
 static const char const *asymptote_dt_board_compat[] = {
@@ -1423,6 +1481,7 @@ MACHINE_START(ASYMPTOTE, "asymptote")
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_asymptote_init,
 	.dt_compat	= asymptote_dt_board_compat,
+	.reserve	= tegra_common_reserve,
 MACHINE_END
 
 static const char *wario_dt_board_compat[] = {
@@ -1438,6 +1497,7 @@ MACHINE_START(WARIO, "wario")
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_wario_init,
 	.dt_compat	= wario_dt_board_compat,
+	.reserve	= tegra_common_reserve,
 MACHINE_END
 
 static const char *arthur_dt_board_compat[] = {
@@ -1453,6 +1513,7 @@ MACHINE_START(ARTHUR, "arthur")
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_arthur_init,
 	.dt_compat	= arthur_dt_board_compat,
+	.reserve	= tegra_common_reserve,
 MACHINE_END
 
 static const char *ventana_dt_board_compat[] = {
@@ -1468,4 +1529,5 @@ MACHINE_START(VENTANA, "ventana")
 	.timer          = &tegra_timer,
 	.init_machine	= tegra_ventana_init,
 	.dt_compat	= ventana_dt_board_compat,
+	.reserve	= tegra_common_reserve,
 MACHINE_END
