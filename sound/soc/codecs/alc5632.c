@@ -997,6 +997,7 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	}
 
 	alc5632_reset(codec);
+	alc5632_fill_cache(codec);
 
 	/* power on device  */
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
