@@ -876,6 +876,7 @@ static struct snd_soc_dai_driver alc5632_dai = {
 
 static int alc5632_suspend(struct snd_soc_codec *codec, pm_message_t mesg)
 {
+	alc5632_fill_cache(codec);
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_OFF);
 	return 0;
 }
@@ -996,7 +997,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	}
 
 	alc5632_reset(codec);
-	alc5632_fill_cache(codec);
 
 	/* power on device  */
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);

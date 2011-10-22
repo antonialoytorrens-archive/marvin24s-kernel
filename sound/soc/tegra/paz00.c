@@ -160,7 +160,7 @@ static const struct snd_soc_dapm_route paz00_audio_map[] = {
 	{"Headphone Jack", NULL, "HPL"},
 	{"Int Spk", NULL, "HPL"},
 	{"Int Spk", NULL, "SPKOUTN"},
-	{"Mic Bias1", NULL, "Mic Jack"},
+/*	{"Mic Bias1", NULL, "Mic Jack"}, */
 };
 
 static const struct snd_kcontrol_new paz00_controls[] = {
@@ -217,7 +217,7 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(dapm, paz00_audio_map,
 				ARRAY_SIZE(paz00_audio_map));
 
-	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias1");
+/*	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias1"); */
 
 	snd_soc_dapm_nc_pin(dapm, "AUXOUT");
 	snd_soc_dapm_nc_pin(dapm, "LINEINL");
