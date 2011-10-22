@@ -21,6 +21,7 @@
 #include <linux/i2c.h>
 #include <linux/i2c-tegra.h>
 #include <linux/i2c/atmel_mxt_ts.h>
+#include <linux/i2c/cyapa.h>
 #include <linux/delay.h>
 #include <linux/input.h>
 #include <linux/io.h>
@@ -30,7 +31,6 @@
 #include <linux/platform_data/tegra_usb.h>
 #include <linux/nct1008.h>
 #include <linux/power/bq20z75.h>
-#include <linux/cyapa.h>
 #include <linux/rfkill-gpio.h>
 #include <linux/leds.h>
 #include <linux/leds_pwm.h>
@@ -154,15 +154,8 @@ static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
 };
 
 static struct cyapa_platform_data cyapa_i2c_platform_data = {
-	.flag				= 0,
 	.gen				= CYAPA_GEN3,
-	.power_state			= CYAPA_PWR_ACTIVE,
-	.polling_interval_time_active	= CYAPA_POLLING_INTERVAL_TIME_ACTIVE,
-	.polling_interval_time_lowpower	= CYAPA_POLLING_INTERVAL_TIME_LOWPOWER,
-	.active_touch_timeout		= CYAPA_ACTIVE_TOUCH_TIMEOUT,
-	.name				= CYAPA_I2C_NAME,
 	.irq_gpio			= TEGRA_GPIO_CYTP_INT,
-	.report_rate			= CYAPA_REPORT_RATE,
 };
 
 static struct tegra_i2c_platform_data seaboard_i2c1_platform_data = {
@@ -641,7 +634,7 @@ static struct i2c_board_info __initdata ak8975_device = {
 };
 
 static struct i2c_board_info __initdata cyapa_device = {
-	I2C_BOARD_INFO("cypress_i2c_apa", 0x67),
+	I2C_BOARD_INFO(CYAPA_I2C_NAME, 0x67),
 	.irq		= TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CYTP_INT),
 	.platform_data	= &cyapa_i2c_platform_data,
 };
@@ -1406,18 +1399,7 @@ void __init tegra_common_reserve(void)
 	 * and 0 for fb2_size.
 	 */
 	fb_size = round_up((1368 * 910 * 4 * 2), PAGE_SIZE);
-
-	if (machine_is_asymptote()) {
-		/*
-		 * This is a temporary hack for Asymptote only. Asymptotes will
-		 * not boot with 256MB carveout and without new firmware, so
-		 * in the meantime, only carve out 128MB. Once all of the
-		 * Asymptotes have been flashed, this will be removed.
-		 */
-		tegra_reserve(SZ_128M, fb_size, 0);
-	} else {
-		tegra_reserve(SZ_256M, fb_size, 0);
-	}
+	tegra_reserve(SZ_256M, fb_size, 0);
 }
 
 static const char *seaboard_dt_board_compat[] = {
