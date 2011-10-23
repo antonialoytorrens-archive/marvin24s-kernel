@@ -217,6 +217,17 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(dapm, paz00_audio_map,
 				ARRAY_SIZE(paz00_audio_map));
 
+	paz00_hp_jack_gpios[0].gpio = pdata->gpio_hp_det;
+
+	snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+			 &paz00_hp_jack);
+	snd_soc_jack_add_pins(&paz00_hp_jack,
+			      ARRAY_SIZE(paz00_hp_jack_pins),
+			      paz00_hp_jack_pins);
+	snd_soc_jack_add_gpios(&paz00_hp_jack,
+			       ARRAY_SIZE(paz00_hp_jack_gpios),
+			       paz00_hp_jack_gpios);
+
 /*	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias1"); */
 
 	snd_soc_dapm_nc_pin(dapm, "AUXOUT");
