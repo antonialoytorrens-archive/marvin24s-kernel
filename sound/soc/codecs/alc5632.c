@@ -2,8 +2,6 @@
  * Based on ALC5623.c
  */
 
-#define DEBUG 1
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -22,6 +20,42 @@
 
 #include "alc5632.h"
 
+#define ALC5632_VERSION	"0.1"
+
+/*
+ * ALC5632 register cache
+ */                                     
+static const u16 alc5632_reg[] = {
+	0x59B4, 0x0000, 0x8080, 0x0000, /* 0 */
+	0x8080, 0x0000, 0x8080, 0x0000, /* 4 */
+	0xC800, 0x0000, 0xE808, 0x0000, /* 8 */
+	0x1010, 0x0000, 0x0808, 0x0000, /* 12 */
+	0xEE0F, 0x0000, 0xCBCB, 0x0000, /* 16 */
+	0x7F7F, 0x0000, 0x0000, 0x0000, /* 20 */
+	0xE010, 0x0000, 0x0000, 0x0000, /* 24 */
+	0x8008, 0x0000, 0x0000, 0x0000, /* 28 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 32 */
+	0x00C0, 0x0000, 0xEF00, 0x0000, /* 36 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 40 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 44 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 48 */
+	0x8000, 0x0000, 0x0000, 0x0000, /* 52 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 56 */
+	0x0000, 0x0000, 0x8000, 0x0000, /* 60 */
+	0x0C0A, 0x0000, 0x0000, 0x0000, /* 64 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 68 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 72 */
+	0xBE3E, 0x0000, 0xBE3E, 0x0000, /* 76 */
+	0x0000, 0x0000, 0x0000, 0x0000, /* 80 */
+	0x803A, 0x0000, 0x0000, 0x0000, /* 84 */
+	0x0000, 0x0000, 0x0009, 0x0000, /* 88 */
+	0x0000, 0x0000, 0x3000, 0x0000, /* 92 */
+	0x3075, 0x0000, 0x1010, 0x0000, /* 96 */
+	0x3110, 0x0000, 0x0000, 0x0000, /* 100 */
+	0x0553, 0x0000, 0x0000, 0x0000, /* 104 */
+    0x0000, 0x0000, 0x0000, 0x0000, /* 108 */
+};
+
 static int caps_charge = 2000;
 module_param(caps_charge, int, 0);
 MODULE_PARM_DESC(caps_charge, "ALC5632 cap charge time (msecs)");
@@ -33,20 +67,10 @@ struct alc5632_priv {
 	struct mutex mutex;
 	u8 id;
 	unsigned int sysclk;
-	u16 reg_cache[ALC5632_VENDOR_ID2+2];
+	u16 reg_cache[ARRAY_SIZE(alc5632_reg)];
 	unsigned int add_ctrl;
 	unsigned int jack_det_ctrl;
 };
-
-static void alc5632_fill_cache(struct snd_soc_codec *codec)
-{
-	int i, step = codec->driver->reg_cache_step;
-	u16 *cache = codec->reg_cache;
-
-	/* not really efficient ... */
-	for (i = 0 ; i < codec->driver->reg_cache_size ; i += step)
-		cache[i] = codec->hw_read(codec, i);
-}
 
 static inline int alc5632_reset(struct snd_soc_codec *codec)
 {
@@ -782,8 +806,6 @@ static int alc5632_mute(struct snd_soc_dai *dai, int mute)
 
 static void enable_power_depop(struct snd_soc_codec *codec)
 {
-	struct alc5632_priv *alc5632 = snd_soc_codec_get_drvdata(codec);
-
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
 				ALC5632_PWR_ADD1_SOFTGEN_EN,
 				ALC5632_PWR_ADD1_SOFTGEN_EN);
@@ -870,7 +892,6 @@ static struct snd_soc_dai_driver alc5632_dai = {
 
 static int alc5632_suspend(struct snd_soc_codec *codec, pm_message_t mesg)
 {
-	alc5632_fill_cache(codec);
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_OFF);
 	return 0;
 }
@@ -921,7 +942,7 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret;
 	
-	dev_dbg(codec->dev, "in codec probe ...\n");
+	dev_dbg(codec->dev, "ALC5632 Audio Codec Version %s\n", ALC5632_VERSION);
 
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, alc5632->control_type);
 	if (ret < 0) {
@@ -986,9 +1007,10 @@ static struct snd_soc_codec_driver soc_codec_device_alc5632 = {
 	.suspend = alc5632_suspend,
 	.resume = alc5632_resume,
 	.set_bias_level = alc5632_set_bias_level,
-	.reg_cache_size = ALC5632_VENDOR_ID2+2,
 	.reg_word_size = sizeof(u16),
 	.reg_cache_step = 2,
+	.reg_cache_default = alc5632_reg,
+	.reg_cache_size = ARRAY_SIZE(alc5632_reg),
 };
 
 /*
