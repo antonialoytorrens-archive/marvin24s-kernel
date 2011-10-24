@@ -679,9 +679,6 @@ static int alc5632_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	case SND_SOC_DAIFMT_I2S:
 		iface |= ALC5632_DAI_I2S_DF_I2S;
 		break;
-/*	case SND_SOC_DAIFMT_RIGHT_J:
-		iface |= ALC5632_DAI_I2S_DF_RIGHT;
-		break; */
 	case SND_SOC_DAIFMT_LEFT_J:
 		iface |= ALC5632_DAI_I2S_DF_LEFT;
 		break;
@@ -737,9 +734,6 @@ static int alc5632_pcm_hw_params(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_FORMAT_S24_LE:
 		iface |= ALC5632_DAI_I2S_DL_24;
 		break;
-/*	case SNDRV_PCM_FORMAT_S32_LE:
-		iface |= ALC5632_DAI_I2S_DL_32;
-		break; */
 	default:
 		return -EINVAL;
 	}
@@ -921,67 +915,6 @@ static int alc5632_resume(struct snd_soc_codec *codec)
 
 #define ALC5632_SPK_OUT_VOL_COMP(x) (int)( x / ALC5632_SPK_OUT_VOL_STEP )
 
-static void androids_init(struct snd_soc_codec *codec)
-{
-	/* unmute stuff (right + left) 0x3f3f @ 14 */
-	snd_soc_write(codec, ALC5632_ADC_REC_MIXER,
-		(ALC5632_REC_UNMUTE << 8 | ALC5632_REC_UNMUTE) );
-
-	/* volume control to level 4 (right + left), 0x1010 @ 0c */
-	snd_soc_write(codec, ALC5632_STEREO_DAC_IN_VOL,
-		(1 << 4 | 1 << (8+4) ) );
-
-	/* MIC2 boost +20db (right + left) 0x0500 @ 22 */
-	snd_soc_write(codec, ALC5632_MIC_CTRL, ( ALC5632_MIC_BOOST_20DB << 8 |
-		ALC5632_MIC_BOOST_20DB << (2+8) ) );
-
-	/* MIC routing (mic1 + mic2) 0xee00 @ 10) */
-	snd_soc_write(codec, ALC5632_MIC_ROUTING_CTRL, ( ALC5632_MIC_ROUTE << 9 |
-		ALC5632_MIC_ROUTE << (9+4) ) );
-
-	/* set ad/dc filter divider to 2, 0x1010 @ 62 */
-	snd_soc_write(codec, ALC5632_DAC_CLK_CTRL2, 
-		( ALC5632_DAC_CLK_CTRL2_DIV1_2 << 4 |
-		  ALC5632_DAC_CLK_CTRL2_DIV1_2 << (4+8) ) );
-
-	/* I2S module enable 3A | 0x0C00 @ 3A */
-	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
-		ALC5632_PWR_ADD1_MAIN_I2S_EN, ALC5632_PWR_ADD1_MAIN_I2S_EN);
-
-	/* MIC1 bias short current detect  | 0x0C20 @ 3A */
-	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
-		ALC5632_PWR_ADD1_MIC1_SHORT_CURR, ALC5632_PWR_ADD1_MIC1_SHORT_CURR);
-
-	/* ??? set bit on readonly bits 0x000f @ 26 */
-	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS,
-		ALC5632_PWR_DEFAULT);
-
-	/* enable pwr on main bias | 0x0c22 @ 3a */
-	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
-		ALC5632_PWR_ADD1_MAIN_BIAS, ALC5632_PWR_ADD1_MAIN_BIAS);
-
-	/* set record gain to 25.5 db (right + left), 0xdcdc @ 12 */
-	snd_soc_update_bits(codec, ALC5632_ADC_REC_GAIN,
-		ALC5632_ADC_REC_GAIN_RANGE, ( ALC5632_ADC_REC_GAIN_COMP(25.5) |
-				ALC5632_ADC_REC_GAIN_COMP(25.5) << 8 ) );
-
-	/* set ADC digital boost to 24db | 0x00c4 @ 24 */
-	snd_soc_update_bits(codec, ALC5632_DIGI_BOOST_CTRL,
-		ALC5632_MIC_BOOST_RANGE, ALC5632_MIC_BOOST_COMP(24));
-
-	/* setup ouput mixers | 0x348 @ 1c */
-	snd_soc_write(codec, ALC5632_OUTPUT_MIXER_CTRL,
-		( ALC5632_OUTPUT_MIXER_HP_R | 
-                  ALC5632_OUTPUT_MIXER_HP_L |
-                  ALC5632_OUTPUT_MIXER_AUX_HP_LR | 0x08 ) );
-
-	/* setup output volume for speaker and headphone to 4.5 db | 0x8383 @ 02 */
-	snd_soc_update_bits(codec, ALC5632_SPK_OUT_VOL, ALC5632_ADC_REC_GAIN_RANGE,
-		( ALC5632_SPK_OUT_VOL_COMP(4.5) |
-		  ALC5632_SPK_OUT_VOL_COMP(4.5) << 8) );
-
-}
-
 static int alc5632_probe(struct snd_soc_codec *codec)
 {
 	struct alc5632_priv *alc5632 = snd_soc_codec_get_drvdata(codec);
@@ -1019,14 +952,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	/* enable slave mode 0x8000 @ 34 */
 	snd_soc_write(codec, ALC5632_DAI_CONTROL, ALC5632_DAI_SDP_SLAVE_MODE);
 
-/* these are maybe not needed, but just do for now */
-	androids_init(codec);
-
-/*	if (alc5632->jack_det_ctrl) {
-		snd_soc_write(codec, ALC5632_JACK_DET_CTRL,
-				alc5632->jack_det_ctrl);
-	} */
-
 	switch (alc5632->id) {
 	case 0x5c:
 		snd_soc_add_controls(codec, alc5632_vol_snd_controls,
@@ -1044,10 +969,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 
 	/* set up audio path interconnects */
 	snd_soc_dapm_add_routes(dapm, intercon, ARRAY_SIZE(intercon));
-
-/*	snd_soc_dapm_add_routes(dapm, intercon_amp_spk,
-					ARRAY_SIZE(intercon_amp_spk));
-*/
 
 	return ret;
 }
