@@ -975,6 +975,14 @@ static void __init tegra_kaen_init(void)
 	/* setting skew makes WIFI stable when sdmmc1 runs 48MHz. */
 	tegra_set_clock_readskew("sdmmc1", 8);
 
+	/* change xcvr_setup to 13 to adjust USB driving to pass eye
+	 * diagram test.
+	 * xcvr_effect is only for USB1 to set FUSE_SETUP_SEL to zero
+	 */
+	usb1_phy_config.xcvr_effect = 1;
+	usb1_phy_config.xcvr_setup = 13;
+	usb3_phy_config.xcvr_setup = 13;
+
 	kaen_common_init();
 	kaen_emc_init();
 
@@ -1072,7 +1080,6 @@ static void __init tegra_asymptote_init(void)
 	seaboard_kbc_platform_data.keymap_data = &cros_keymap_data;
 
 	asymptote_common_init();
-	seaboard_panel_init();
 	/* asymptote has same memory config as seaboard (for now) */
 	seaboard_emc_init();
 
@@ -1086,6 +1093,9 @@ static void __init tegra_asymptote_init(void)
 	}
 
 	asymptote_i2c_register_devices();
+
+	/* The tsl2563 ALS on Asymptote doesn't play nice with a 400kHz bus */
+	seaboard_i2c1_platform_data.bus_clk_rate[0] = 100000;
 	seaboard_i2c_init();
 }
 

@@ -1149,6 +1149,10 @@ static irqreturn_t tegra_dc_irq(int irq, void *ptr)
 			val = tegra_dc_readl(dc, DC_CMD_INT_ENABLE);
 			val &= ~FRAME_END_INT;
 			tegra_dc_writel(dc, val, DC_CMD_INT_ENABLE);
+
+			val = tegra_dc_readl(dc, DC_CMD_INT_MASK);
+			val &= ~FRAME_END_INT;
+			tegra_dc_writel(dc, val, DC_CMD_INT_MASK);
 		}
 
 		if (completed)
@@ -1357,8 +1361,7 @@ static int tegra_dc_init(struct tegra_dc *dc)
 	tegra_dc_writel(dc, 0x00202020, DC_DISP_MEM_HIGH_PRIORITY);
 	tegra_dc_writel(dc, 0x00010101, DC_DISP_MEM_HIGH_PRIORITY_TIMER);
 
-	tegra_dc_writel(dc, (FRAME_END_INT |
-			     V_BLANK_INT |
+	tegra_dc_writel(dc, (V_BLANK_INT |
 			     WIN_A_UF_INT |
 			     WIN_B_UF_INT |
 			     WIN_C_UF_INT), DC_CMD_INT_MASK);
@@ -1403,9 +1406,6 @@ static bool _tegra_dc_enable(struct tegra_dc *dc)
 
 	tegra_dc_io_start(dc);
 
-	if (dc->out && dc->out->enable)
-		dc->out->enable();
-
 	tegra_dc_setup_clk(dc, dc->clk);
 
 	clk_enable(dc->clk);
@@ -1419,6 +1419,9 @@ static bool _tegra_dc_enable(struct tegra_dc *dc)
 
 	if (dc->out_ops && dc->out_ops->enable)
 		dc->out_ops->enable(dc);
+
+	if (dc->out && dc->out->enable)
+		dc->out->enable();
 
 	/* force a full blending update */
 	dc->blend.z[0] = -1;
@@ -1449,15 +1452,15 @@ static void _tegra_dc_disable(struct tegra_dc *dc)
 
 	disable_irq(dc->irq);
 
+	if (dc->out && dc->out->disable)
+		dc->out->disable();
+
 	if (dc->out_ops && dc->out_ops->disable)
 		dc->out_ops->disable(dc);
 
 	clk_disable(dc->emc_clk);
 	clk_disable(dc->clk);
 	tegra_dvfs_set_rate(dc->clk, 0);
-
-	if (dc->out && dc->out->disable)
-		dc->out->disable();
 
 	/* flush any pending syncpt waits */
 	for (i = 0; i < dc->n_windows; i++) {

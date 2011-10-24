@@ -192,6 +192,7 @@ static const struct snd_soc_dapm_widget tegra_wm8903_dapm_widgets[] = {
 	SND_SOC_DAPM_SPK("Int Spk", tegra_wm8903_event_int_spk),
 	SND_SOC_DAPM_HP("Headphone Jack", tegra_wm8903_event_hp),
 	SND_SOC_DAPM_MIC("Mic Jack", NULL),
+	SND_SOC_DAPM_MIC("Digital Mic", NULL),
 };
 
 static const struct snd_soc_dapm_route harmony_audio_map[] = {
@@ -214,6 +215,7 @@ static const struct snd_soc_dapm_route seaboard_audio_map[] = {
 	{"Int Spk", NULL, "LON"},
 	{"Mic Bias", NULL, "Mic Jack"},
 	{"IN1R", NULL, "Mic Bias"},
+	{"DMICDAT", NULL, "Digital Mic"},
 };
 
 static const struct snd_soc_dapm_route kaen_audio_map[] = {
@@ -225,6 +227,7 @@ static const struct snd_soc_dapm_route kaen_audio_map[] = {
 	{"Int Spk", NULL, "LON"},
 	{"Mic Bias", NULL, "Mic Jack"},
 	{"IN2R", NULL, "Mic Bias"},
+	{"DMICDAT", NULL, "Digital Mic"},
 };
 
 static const struct snd_soc_dapm_route aebl_audio_map[] = {
@@ -234,11 +237,136 @@ static const struct snd_soc_dapm_route aebl_audio_map[] = {
 	{"Int Spk", NULL, "LINEOUTL"},
 	{"Mic Bias", NULL, "Mic Jack"},
 	{"IN1R", NULL, "Mic Bias"},
+	{"DMICDAT", NULL, "Digital Mic"},
 };
 
 static const struct snd_kcontrol_new tegra_wm8903_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Int Spk"),
 };
+
+/* tegra_wm8903_disconnect_pins
+ *
+ *   Disconnect pins which are not actually connected.
+ *
+ *   This implementation is easy to reason about, easy to maintain,
+ *   and very easy to extend.
+ *
+ *   Unless specifically connected on a board, each pin will be marked
+ *   as disconnected.
+ *
+ *   Add a New Machine
+ *
+ *      Add new machine by adding elements to the MACHINES macro.
+ *
+ *   Add a new Pin:
+ *
+ *      Insert the pin name into the 'wm8903_connected_pins' array.
+ *      See 'Connect a Pin' to connect the pin.
+ *
+ *   Connect a Pin:
+ *
+ *      To connect a pin on a particular machine, use the CONNECT()
+ *      macro.
+ *
+ *  Note: There is one distasteful artifact in this system, which I
+ *        believe is acceptable due to the other advantages (listed
+ *        above) of this implementation.  Notably, the expansion of
+ *        'MACHINES' in the assignment to 'disconnect' below looks
+ *        like syntactically incorrect code.
+ */
+static void tegra_wm8903_disconnect_pins(struct snd_soc_card *card,
+					 struct snd_soc_dapm_context *dapm)
+{
+#define MACHINES                                \
+	M(aebl)                                 \
+	M(harmony)                              \
+	M(kaen)                                 \
+	M(seaboard)                             \
+	M(ventana)
+
+#define M(_x) mn_##_x,
+	enum machine_names {
+		MACHINES
+		N_MACHINES
+	};
+#undef M
+	static const struct wm8903_connected_pins {
+		const char *name;
+		bool connected[N_MACHINES];
+	} pins[] = {
+#define CONNECT(_machine) .connected[mn_##_machine] = true
+		{
+			.name = "IN1L",
+			CONNECT(harmony),
+			CONNECT(ventana),
+		},
+		{
+			.name = "IN1R",
+			CONNECT(seaboard),
+			CONNECT(aebl),
+		},
+		{
+			.name = "IN2L",
+		},
+		{
+			.name = "IN2R",
+			CONNECT(kaen),
+		},
+		{
+			.name = "IN3L",
+		},
+		{
+			.name = "IN3R",
+		},
+		{
+			.name = "LON",
+			CONNECT(harmony),
+			CONNECT(ventana),
+			CONNECT(seaboard),
+			CONNECT(kaen),
+		},
+		{
+			.name = "RON",
+			CONNECT(harmony),
+			CONNECT(ventana),
+			CONNECT(seaboard),
+			CONNECT(kaen),
+		},
+		{
+			.name = "ROP",
+			CONNECT(harmony),
+			CONNECT(ventana),
+			CONNECT(seaboard),
+			CONNECT(kaen),
+		},
+		{
+			.name = "LOP",
+			CONNECT(harmony),
+			CONNECT(ventana),
+			CONNECT(seaboard),
+			CONNECT(kaen),
+		},
+		{
+			.name = "LINEOUTR",
+			CONNECT(aebl),
+		},
+		{
+			.name = "LINEOUTL",
+			CONNECT(aebl),
+		},
+#undef CONNECT
+	};
+	unsigned i;
+
+	/* FIXME: Calculate automatically based on DAPM routes? */
+	for (i = 0; i < ARRAY_SIZE(pins); ++i) {
+#define M(_x) || (machine_is_##_x() && !pins[i].connected[mn_##_x])
+		const bool disconnect = false MACHINES;
+		if (disconnect)
+			snd_soc_dapm_nc_pin(dapm, pins[i].name);
+#undef M
+	}
+}
 
 static int tegra_wm8903_init(struct snd_soc_pcm_runtime *rtd)
 {
@@ -318,27 +446,7 @@ static int tegra_wm8903_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias");
 
-	/* FIXME: Calculate automatically based on DAPM routes? */
-	if (!machine_is_harmony() && !machine_is_ventana())
-		snd_soc_dapm_nc_pin(dapm, "IN1L");
-	if (!machine_is_seaboard() && !machine_is_aebl())
-		snd_soc_dapm_nc_pin(dapm, "IN1R");
-	snd_soc_dapm_nc_pin(dapm, "IN2L");
-	if (!machine_is_kaen())
-		snd_soc_dapm_nc_pin(dapm, "IN2R");
-	snd_soc_dapm_nc_pin(dapm, "IN3L");
-	snd_soc_dapm_nc_pin(dapm, "IN3R");
-
-	if (machine_is_aebl()) {
-		snd_soc_dapm_nc_pin(dapm, "LON");
-		snd_soc_dapm_nc_pin(dapm, "RON");
-		snd_soc_dapm_nc_pin(dapm, "ROP");
-		snd_soc_dapm_nc_pin(dapm, "LOP");
-	} else {
-		snd_soc_dapm_nc_pin(dapm, "LINEOUTR");
-		snd_soc_dapm_nc_pin(dapm, "LINEOUTL");
-	}
-
+	tegra_wm8903_disconnect_pins(card, dapm);
 	snd_soc_dapm_sync(dapm);
 
 	return 0;
