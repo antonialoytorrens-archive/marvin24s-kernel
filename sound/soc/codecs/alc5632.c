@@ -204,17 +204,17 @@ SOC_DAPM_SINGLE("LI2HP Playback Switch", ALC5632_LINE_IN_VOL, 15, 1, 1),
 SOC_DAPM_SINGLE("PHONE2HP Playback Switch", ALC5632_PHONE_IN_VOL, 15, 1, 1),
 SOC_DAPM_SINGLE("MIC12HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 15, 1, 1),
 SOC_DAPM_SINGLE("MIC22HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 11, 1, 1),
-SOC_DAPM_SINGLE("DACL2HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 3, 1, 1),
-SOC_DAPM_SINGLE("DACR2HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 2, 1, 1),
 SOC_DAPM_SINGLE("VOICE2HP Playback Switch", ALC5632_VOICE_DAC_VOL, 15, 1, 1),
 };
 
 static const struct snd_kcontrol_new alc5632_hpl_mixer_controls[] = {
 SOC_DAPM_SINGLE("ADC2HP_L Playback Switch", ALC5632_ADC_REC_GAIN, 15, 1, 1),
+SOC_DAPM_SINGLE("DACL2HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 3, 1, 1),
 };
 
 static const struct snd_kcontrol_new alc5632_hpr_mixer_controls[] = {
 SOC_DAPM_SINGLE("ADC2HP_R Playback Switch", ALC5632_ADC_REC_GAIN, 7, 1, 1),
+SOC_DAPM_SINGLE("DACR2HP Playback Switch", ALC5632_MIC_ROUTING_CTRL, 2, 1, 1),
 };
 
 static const struct snd_kcontrol_new alc5632_mono_mixer_controls[] = {
@@ -416,10 +416,9 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"HP Mix", "PHONE2HP Playback Switch",		"Phone Mix"},
 	{"HP Mix", "MIC12HP Playback Switch",		"MIC1 PGA"},
 	{"HP Mix", "MIC22HP Playback Switch",		"MIC2 PGA"},
-
-	{"HP Mix", "DACR2HP Playback Switch",		"I2S Mix"},
-	{"HP Mix", "DACL2HP Playback Switch",		"I2S Mix"},
-
+	
+	{"HPR Mix", "DACR2HP Playback Switch",          "Right DAC"},
+	{"HPL Mix", "DACL2HP Playback Switch",          "Left DAC"},
 
 	/* speaker mixer */
 	{"Speaker Mix", "LI2SPK Playback Switch",	"Line Mix"},
