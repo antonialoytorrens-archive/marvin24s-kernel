@@ -25,7 +25,7 @@
 /*
  * ALC5632 register cache
  */                                     
-static const u16 alc5632_reg[] = {
+static const u16 alc5632_reg_defaults[] = {
 	0x59B4, 0x0000, 0x8080, 0x0000, /* 0 */
 	0x8080, 0x0000, 0x8080, 0x0000, /* 4 */
 	0xC800, 0x0000, 0xE808, 0x0000, /* 8 */
@@ -1008,8 +1008,8 @@ static struct snd_soc_codec_driver soc_codec_device_alc5632 = {
 	.set_bias_level = alc5632_set_bias_level,
 	.reg_word_size = sizeof(u16),
 	.reg_cache_step = 2,
-	.reg_cache_default = alc5632_reg,
-	.reg_cache_size = ARRAY_SIZE(alc5632_reg),
+	.reg_cache_default = alc5632_reg_defaults,
+	.reg_cache_size = ARRAY_SIZE(alc5632_reg_defaults),
 };
 
 /*
