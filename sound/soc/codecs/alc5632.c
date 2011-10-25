@@ -1,6 +1,21 @@
 /*
- * Based on ALC5623.c
- */
+* ALC5632  --  ALC5632 ALSA SoC Audio Codec
+*
+* Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.lauchpad.net>
+*
+* Authors:  Leon Romanovsky <leon@leon.nu>
+* 			Andrey Danin <danindrey@mail.ru>
+*           Ilya Petrov <ilya.muromec@gmail.com>
+*           Marc Dietrich <marvin24@gmx.de>
+*
+* Based on alc5623.c by Arnaud Patard
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
+
+/* #define DEBUG */
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -1156,4 +1171,5 @@ static void __exit alc5632_modexit(void)
 module_exit(alc5632_modexit);
 
 MODULE_DESCRIPTION("ASoC ALC5632 driver");
+MODULE_AUTHOR("Leon Romanovsky <leon@leon.nu>");
 MODULE_LICENSE("GPL");
