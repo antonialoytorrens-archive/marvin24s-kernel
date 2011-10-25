@@ -71,6 +71,24 @@ struct alc5632_priv {
 	unsigned int jack_det_ctrl;
 };
 
+static int alc5632_volatile_register(struct snd_soc_codec *codec, unsigned int reg)
+{
+	switch (reg) {
+	case ALC5632_RESET:
+	case ALC5632_PWR_DOWN_CTRL_STATUS:
+	case ALC5632_GPIO_PIN_STATUS:
+	case ALC5632_OVER_CURR_STATUS:
+	case ALC5632_HID_CTRL_DATA:
+	case ALC5632_EQ_CTRL:
+		return 1;
+
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 static inline int alc5632_reset(struct snd_soc_codec *codec)
 {
 	snd_soc_write(codec, ALC5632_RESET, 0);
@@ -1010,6 +1028,7 @@ static struct snd_soc_codec_driver soc_codec_device_alc5632 = {
 	.reg_cache_step = 2,
 	.reg_cache_default = alc5632_reg_defaults,
 	.reg_cache_size = ARRAY_SIZE(alc5632_reg_defaults),
+	.volatile_register = alc5632_volatile_register,
 };
 
 /*
