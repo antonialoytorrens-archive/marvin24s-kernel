@@ -67,7 +67,6 @@ struct alc5632_priv {
 	struct mutex mutex;
 	u8 id;
 	unsigned int sysclk;
-	u16 reg_cache[ARRAY_SIZE(alc5632_reg)];
 	unsigned int add_ctrl;
 	unsigned int jack_det_ctrl;
 };
