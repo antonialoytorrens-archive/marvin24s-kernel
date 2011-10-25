@@ -1,23 +1,24 @@
 /*
- * alc5632.h  --  alc562[123] ALSA Soc Audio driver
- *
- * Copyright 2008 Realtek Microelectronics
- * Copyright 2010 Arnaud Patard <arnaud.patard@rtp-net.org>
- *
- * Author: flove <flove@realtek.com>
- * Arnaud Patard <arnaud.patard@rtp-net.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- */
+* alc5632.h  --  ALC5632 ALSA SoC Audio Codec
+*
+* Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.lauchpad.net>
+*
+* Authors:  Leon Romanovsky <leon@leon.nu>
+*           Andrey Danin <danindrey@mail.ru>
+*           Ilya Petrov <ilya.muromec@gmail.com>
+*           Marc Dietrich <marvin24@gmx.de>
+*
+* Based on alc5623.h by Arnaud Patard
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
 
 #ifndef _ALC5632_H
 #define _ALC5632_H
 
 #define ALC5632_RESET				0x00
-/*				5621 5622 5623 5632 */
 /* speaker output vol		   2    2           */
 /* line output vol                      4    2      */
 /* HP output vol		   4    0    4      */

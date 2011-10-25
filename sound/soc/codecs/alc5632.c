@@ -1,5 +1,5 @@
 /*
-* ALC5632  --  ALC5632 ALSA SoC Audio Codec
+* alc5632.c  --  ALC5632 ALSA SoC Audio Codec
 *
 * Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.lauchpad.net>
 *
