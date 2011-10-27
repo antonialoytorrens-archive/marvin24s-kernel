@@ -1012,9 +1012,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
 		0, ALC5632_PWR_ADD2_VREF);
 
-	/* enable slave mode 0x8000 @ 34 */
-	snd_soc_write(codec, ALC5632_DAI_CONTROL, ALC5632_DAI_SDP_SLAVE_MODE);
-
 	switch (alc5632->id) {
 	case 0x5c:
 		snd_soc_add_controls(codec, alc5632_vol_snd_controls,
