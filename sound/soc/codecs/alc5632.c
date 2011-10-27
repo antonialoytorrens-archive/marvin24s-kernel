@@ -69,10 +69,6 @@ static const u16 alc5632_reg_defaults[] = {
 	0x0000, 0x0000, 0x0000, 0x0000, /* 108 */
 };
 
-static int caps_charge = 2000;
-module_param(caps_charge, int, 0);
-MODULE_PARM_DESC(caps_charge, "ALC5632 cap charge time (msecs)");
-
 /* codec private data */
 struct alc5632_priv {
 	enum snd_soc_control_type control_type;
