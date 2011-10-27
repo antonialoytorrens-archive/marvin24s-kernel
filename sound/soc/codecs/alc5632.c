@@ -35,8 +35,6 @@
 
 #include "alc5632.h"
 
-#define ALC5632_VERSION	"0.1"
-
 /*
  * ALC5632 register cache
  */
