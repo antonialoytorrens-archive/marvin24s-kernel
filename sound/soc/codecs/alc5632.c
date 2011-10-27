@@ -1104,7 +1104,6 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 		alc5632_dai.name = "alc5632-hifi";
 		break;
 	default:
-		devm_kfree(&client->dev, alc5632);
 		return -EINVAL;
 	}
 
@@ -1117,7 +1116,6 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 		&soc_codec_device_alc5632, &alc5632_dai, 1);
 	if (ret != 0) {
 		dev_err(&client->dev, "Failed to register codec: %d\n", ret);
-		devm_kfree(&client->dev, alc5632);
 	}
 
 	return ret;
@@ -1128,7 +1126,6 @@ static int alc5632_i2c_remove(struct i2c_client *client)
 	struct alc5632_priv *alc5632 = i2c_get_clientdata(client);
 
 	snd_soc_unregister_codec(&client->dev);
-	devm_kfree(&client->dev, alc5632);
 	return 0;
 }
 
