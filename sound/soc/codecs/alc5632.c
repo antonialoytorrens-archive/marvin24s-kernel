@@ -393,7 +393,7 @@ static const struct snd_soc_dapm_widget alc5632_dapm_amp_widgets[] = {
 SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
 	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
 SND_SOC_DAPM_PGA("AB Amp", ALC5632_PWR_MANAG_ADD2, 15, 0, NULL, 0),
-SND_SOC_DAPM_MUX("AB-D Amp Mux", SND_SOC_NOPM, 0, 0,
+SND_SOC_DAPM_MUX("AB-D Amp Mux", ALC5632_PWR_MANAG_ADD1, 10, 0,
 	&alc5632_amp_mux_controls),
 };
 
@@ -1000,10 +1000,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1,
 				alc5632->add_ctrl);
 	}
-
-	/* spk amp pwr enable 3A | 0x0400 @ 3A */
-	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
-		0, ALC5632_PWR_ADD1_SPK_AMP_EN);
 
 	/* "normal" mode: 0 @ 26 */
 	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS, 0);
