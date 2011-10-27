@@ -813,8 +813,6 @@ static int alc5632_pcm_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 
 	coeff = coeff_div[coeff].regvalue;
-	dev_dbg(codec->dev, "%s: sysclk=%d,rate=%d,coeff=0x%04x\n",
-		__func__, alc5632->sysclk, rate, coeff);
 	snd_soc_write(codec, ALC5632_DAC_CLK_CTRL1, coeff);
 
 	return 0;
@@ -988,8 +986,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret;
 
-	dev_dbg(codec->dev, "ALC5632 Audio Codec Ver. %s\n", ALC5632_VERSION);
-
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, alc5632->control_type);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -1073,8 +1069,6 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 	struct alc5632_priv *alc5632;
 	int ret, vid1, vid2;
 
-	dev_dbg(&client->dev, "in i2c probe...\n");
-
 	vid1 = i2c_smbus_read_word_data(client, ALC5632_VENDOR_ID1);
 	if (vid1 < 0) {
 		dev_err(&client->dev, "failed to read I2C\n");
@@ -1100,8 +1094,6 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 				vid1, vid2);
 		return -ENODEV;
 	}
-
-	dev_dbg(&client->dev, "Found codec: ALC5632 (ID: %x)\n", vid2);
 
 	alc5632 = devm_kzalloc(&client->dev, sizeof(struct alc5632_priv), GFP_KERNEL);
 	if (alc5632 == NULL)
