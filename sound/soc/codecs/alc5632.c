@@ -934,12 +934,13 @@ static int alc5632_suspend(struct snd_soc_codec *codec, pm_message_t mesg)
 
 static int alc5632_resume(struct snd_soc_codec *codec)
 {
-	int i, step = codec->driver->reg_cache_step;
-	u16 *cache = codec->reg_cache;
+	int ret;
 
-	/* Sync reg_cache with the hardware */
-	for (i = 2 ; i < codec->driver->reg_cache_size ; i += step)
-		snd_soc_write(codec, i, cache[i]);
+	ret = snd_soc_cache_sync(codec);
+	if (ret != 0) {
+		dev_err(codec->dev, "Failed to sync cache: %d\n", ret);
+		return ret;
+	}
 
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	return 0;
