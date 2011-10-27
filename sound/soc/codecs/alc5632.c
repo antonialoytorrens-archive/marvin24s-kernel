@@ -650,19 +650,19 @@ static int alc5632_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 	if (!pll_div)
 		return -EINVAL;
 
-/* choose MCLK/BCLK/VBCLK */
+	/* choose MCLK/BCLK/VBCLK */
 	snd_soc_write(codec, ALC5632_GPCR2, gbl_clk);
-/* choose PLL1 clock rate */
+	/* choose PLL1 clock rate */
 	snd_soc_write(codec, ALC5632_PLL1_CTRL, pll_div);
-/* enable PLL1 */
+	/* enable PLL1 */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
 				ALC5632_PWR_ADD2_PLL1,
 				ALC5632_PWR_ADD2_PLL1);
-/* enable PLL2 */
+	/* enable PLL2 */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
 				ALC5632_PWR_ADD2_PLL2,
 				ALC5632_PWR_ADD2_PLL2);
-/* use PLL1 as main SYSCLK */
+	/* use PLL1 as main SYSCLK */
 	snd_soc_update_bits(codec, ALC5632_GPCR1,
 			ALC5632_GPCR1_CLK_SYS_SRC_SEL_PLL1,
 			ALC5632_GPCR1_CLK_SYS_SRC_SEL_PLL1);
@@ -1129,7 +1129,7 @@ static const struct i2c_device_id alc5632_i2c_table[] = {
 };
 MODULE_DEVICE_TABLE(i2c, alc5632_i2c_table);
 
-/*  i2c codec control layer */
+/* i2c codec control layer */
 static struct i2c_driver alc5632_i2c_driver = {
 	.driver = {
 		.name = "alc5632",
