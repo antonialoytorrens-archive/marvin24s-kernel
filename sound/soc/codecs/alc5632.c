@@ -942,14 +942,6 @@ static int alc5632_resume(struct snd_soc_codec *codec)
 		snd_soc_write(codec, i, cache[i]);
 
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-	/* charge alc5632 caps */
-	if (codec->dapm.suspend_bias_level == SND_SOC_BIAS_ON) {
-		alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-		codec->dapm.bias_level = SND_SOC_BIAS_ON;
-		alc5632_set_bias_level(codec, codec->dapm.bias_level);
-	}
-
 	return 0;
 }
 
