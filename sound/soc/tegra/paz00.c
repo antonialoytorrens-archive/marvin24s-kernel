@@ -118,7 +118,6 @@ static struct snd_soc_jack_gpio paz00_hp_jack_gpios[] = {
 		.name = "headphone detect",
 		.report = SND_JACK_HEADPHONE,
 		.debounce_time = 150,
-		.invert = 1,
 	}
 };
 
