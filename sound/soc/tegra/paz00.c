@@ -158,7 +158,7 @@ static const struct snd_soc_dapm_widget paz00_dapm_widgets[] = {
 static const struct snd_soc_dapm_route paz00_audio_map[] = {
 	{"Headphone Jack", NULL, "HPR"},
 	{"Headphone Jack", NULL, "HPL"},
-	{"Int Spk", NULL, "HPL"},
+	{"Int Spk", NULL, "SPKOUT"},
 	{"Int Spk", NULL, "SPKOUTN"},
 /*	{"Mic Bias1", NULL, "Mic Jack"}, */
 };
