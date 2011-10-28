@@ -996,9 +996,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 		return -EINVAL;
 	}
 
-	snd_soc_add_controls(codec, alc5632_snd_controls,
-			ARRAY_SIZE(alc5632_snd_controls));
-
 	return ret;
 }
 
@@ -1020,6 +1017,8 @@ static struct snd_soc_codec_driver soc_codec_device_alc5632 = {
 	.reg_cache_default = alc5632_reg_defaults,
 	.reg_cache_size = ARRAY_SIZE(alc5632_reg_defaults),
 	.volatile_register = alc5632_volatile_register,
+	.controls = alc5632_snd_controls,
+	.num_controls = ARRAY_SIZE(alc5632_snd_controls),
 	.dapm_widgets = alc5632_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(alc5632_dapm_widgets),
 	.dapm_routes = alc5632_dapm_routes,
