@@ -300,7 +300,7 @@ static const char *alc5632_amp_names[] = {"AB Amp", "D Amp"};
 static const struct soc_enum alc5632_amp_enum =
 	SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 13, 2, alc5632_amp_names);
 static const struct snd_kcontrol_new alc5632_amp_mux_controls =
-	SOC_DAPM_ENUM("Route", alc5632_amp_enum);
+	SOC_DAPM_ENUM("AB-D Amp Mux", alc5632_amp_enum);
 
 
 static const struct snd_soc_dapm_widget alc5632_dapm_widgets[] = {
