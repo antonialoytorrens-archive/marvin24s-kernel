@@ -922,6 +922,7 @@ static struct snd_soc_dai_driver alc5632_dai = {
 		.formats = ALC5632_FORMATS,},
 
 	.ops = &alc5632_dai_ops,
+	.symmetric_rates = 1,
 };
 
 static int alc5632_suspend(struct snd_soc_codec *codec, pm_message_t mesg)
