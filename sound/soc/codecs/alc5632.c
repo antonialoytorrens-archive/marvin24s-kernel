@@ -295,6 +295,14 @@ SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 14, 4, alc5632_spk_n_sour_sel);
 static const struct snd_kcontrol_new alc5632_spkoutn_mux_controls =
 SOC_DAPM_ENUM("SpeakerOut N Mux", alc5632_spk_n_sour_enum);
 
+/* speaker amplifier */
+static const char *alc5632_amp_names[] = {"AB Amp", "D Amp"};
+static const struct soc_enum alc5632_amp_enum =
+	SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 13, 2, alc5632_amp_names);
+static const struct snd_kcontrol_new alc5632_amp_mux_controls =
+	SOC_DAPM_ENUM("Route", alc5632_amp_enum);
+
+
 static const struct snd_soc_dapm_widget alc5632_dapm_widgets[] = {
 /* Muxes */
 SND_SOC_DAPM_MUX("AuxOut Mux", SND_SOC_NOPM, 0, 0,
@@ -361,6 +369,12 @@ SND_SOC_DAPM_PGA("MIC2 Pre Amp", ALC5632_PWR_MANAG_ADD3, 0, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("Mic Bias1", ALC5632_PWR_MANAG_ADD1, 3, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("Mic Bias2", ALC5632_PWR_MANAG_ADD1, 2, 0, NULL, 0),
 
+SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
+	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+SND_SOC_DAPM_PGA("AB Amp", ALC5632_PWR_MANAG_ADD2, 15, 0, NULL, 0),
+SND_SOC_DAPM_MUX("AB-D Amp Mux", ALC5632_PWR_MANAG_ADD1, 10, 0,
+	&alc5632_amp_mux_controls),
+
 SND_SOC_DAPM_OUTPUT("AUXOUT"),
 SND_SOC_DAPM_OUTPUT("HPL"),
 SND_SOC_DAPM_OUTPUT("HPR"),
@@ -375,21 +389,8 @@ SND_SOC_DAPM_INPUT("MIC2"),
 SND_SOC_DAPM_VMID("Vmid"),
 };
 
-static const char *alc5632_amp_names[] = {"AB Amp", "D Amp"};
-static const struct soc_enum alc5632_amp_enum =
-	SOC_ENUM_SINGLE(ALC5632_OUTPUT_MIXER_CTRL, 13, 2, alc5632_amp_names);
-static const struct snd_kcontrol_new alc5632_amp_mux_controls =
-	SOC_DAPM_ENUM("Route", alc5632_amp_enum);
 
-static const struct snd_soc_dapm_widget alc5632_dapm_amp_widgets[] = {
-SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
-	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
-SND_SOC_DAPM_PGA("AB Amp", ALC5632_PWR_MANAG_ADD2, 15, 0, NULL, 0),
-SND_SOC_DAPM_MUX("AB-D Amp Mux", ALC5632_PWR_MANAG_ADD1, 10, 0,
-	&alc5632_amp_mux_controls),
-};
-
-static const struct snd_soc_dapm_route intercon[] = {
+static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 	/* virtual mixer - mixes left & right channels */
 	{"I2S Mix", NULL,				"Left DAC"},
 	{"I2S Mix", NULL,				"Right DAC"},
@@ -503,15 +504,10 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"SPKOUT", NULL,				"Right Speaker"},
 
 	{"SPKOUTN", NULL,				"SpeakerOut N Mux"},
-};
 
-static const struct snd_soc_dapm_route intercon_spk[] = {
 	{"Right Speaker", NULL,				"SpeakerOut Mux"},
 	{"Left Speaker", NULL,				"SpeakerOut Mux"},
 
-};
-
-static const struct snd_soc_dapm_route intercon_amp_spk[] = {
 	{"AB Amp", NULL,				"SpeakerOut Mux"},
 	{"D Amp", NULL,					"SpeakerOut Mux"},
 	{"AB-D Amp Mux", "AB Amp",			"AB Amp"},
@@ -967,7 +963,6 @@ static int alc5632_resume(struct snd_soc_codec *codec)
 static int alc5632_probe(struct snd_soc_codec *codec)
 {
 	struct alc5632_priv *alc5632 = snd_soc_codec_get_drvdata(codec);
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	int ret;
 
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, alc5632->control_type);
@@ -1004,12 +999,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	snd_soc_add_controls(codec, alc5632_snd_controls,
 			ARRAY_SIZE(alc5632_snd_controls));
 
-	snd_soc_dapm_new_controls(dapm, alc5632_dapm_widgets,
-					ARRAY_SIZE(alc5632_dapm_widgets));
-
-	/* set up audio path interconnects */
-	snd_soc_dapm_add_routes(dapm, intercon, ARRAY_SIZE(intercon));
-
 	return ret;
 }
 
@@ -1031,6 +1020,10 @@ static struct snd_soc_codec_driver soc_codec_device_alc5632 = {
 	.reg_cache_default = alc5632_reg_defaults,
 	.reg_cache_size = ARRAY_SIZE(alc5632_reg_defaults),
 	.volatile_register = alc5632_volatile_register,
+	.dapm_widgets = alc5632_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(alc5632_dapm_widgets),
+	.dapm_routes = alc5632_dapm_routes,
+	.num_dapm_routes = ARRAY_SIZE(alc5632_dapm_routes),
 };
 
 /*
