@@ -771,7 +771,6 @@ static int alc5632_pcm_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
-	struct alc5632_priv *alc5632 = snd_soc_codec_get_drvdata(codec);
 	int coeff, rate;
 	u16 iface;
 
@@ -1105,9 +1104,8 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 
 static int alc5632_i2c_remove(struct i2c_client *client)
 {
-	struct alc5632_priv *alc5632 = i2c_get_clientdata(client);
-
 	snd_soc_unregister_codec(&client->dev);
+
 	return 0;
 }
 
