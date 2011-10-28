@@ -499,20 +499,18 @@ static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 	{"SpeakerOut N Mux", "LN/-R",			"Right Speaker"},
 	{"SpeakerOut N Mux", "Mute",			"Vmid"},
 
+	{"AB Amp", NULL,				"SpeakerOut Mux"},
+	{"D Amp", NULL,					"SpeakerOut Mux"},
+	{"AB-D Amp Mux", "AB Amp",			"AB Amp"},
+	{"AB-D Amp Mux", "D Amp",			"D Amp"},
+	{"Left Speaker", NULL,				"AB-D Amp Mux"},
+	{"Right Speaker", NULL,				"AB-D Amp Mux"},
 
 	{"SPKOUT", NULL,				"Left Speaker"},
 	{"SPKOUT", NULL,				"Right Speaker"},
 
 	{"SPKOUTN", NULL,				"SpeakerOut N Mux"},
 
-	{"Right Speaker", NULL,				"SpeakerOut Mux"},
-	{"Left Speaker", NULL,				"SpeakerOut Mux"},
-
-	{"AB Amp", NULL,				"SpeakerOut Mux"},
-	{"D Amp", NULL,					"SpeakerOut Mux"},
-	{"AB-D Amp Mux", "AB Amp",			"AB Amp"},
-	{"AB-D Amp Mux", "D Amp",			"D Amp"},
-	{"SpeakerOut", NULL,				"AB-D Amp Mux"},
 };
 
 /* PLL divisors */
