@@ -984,7 +984,9 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 	}
 
 	/* "normal" mode: 0 @ 26 */
-	snd_soc_write(codec, ALC5632_PWR_DOWN_CTRL_STATUS, 0);
+	/* set all PR0-7 mixers to 0 */
+	snd_soc_update_bits(codec, ALC5632_PWR_DOWN_CTRL_STATUS, 0xEF00, 0);
+
 
 	/* power on VREF on all analog circuits 0x2000 @ 3C */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
