@@ -829,7 +829,7 @@ static int alc5632_mute(struct snd_soc_dai *dai, int mute)
 #define ALC5632_ADD3_POWER_EN (ALC5632_PWR_ADD3_MIC1_BOOST_AD)
 
 #define ALC5632_ADD1_POWER_EN \
-		( ALC5632_PWR_ADD1_DAC_REF \
+		(ALC5632_PWR_ADD1_DAC_REF \
 		| ALC5632_PWR_ADD1_SOFTGEN_EN \
 		| ALC5632_PWR_ADD1_HP_OUT_AMP \
 		| ALC5632_PWR_ADD1_HP_OUT_ENH_AMP \
@@ -1101,9 +1101,8 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 
 	ret =  snd_soc_register_codec(&client->dev,
 		&soc_codec_device_alc5632, &alc5632_dai, 1);
-	if (ret != 0) {
+	if (ret != 0)
 		dev_err(&client->dev, "Failed to register codec: %d\n", ret);
-	}
 
 	return ret;
 }
