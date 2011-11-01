@@ -1054,8 +1054,8 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 		dev_err(&client->dev, "failed to read I2C\n");
 		return -EIO;
 	} else {
-		dev_err(&client->dev, "got vid1: %x\n", vid1);
-		}
+		dev_info(&client->dev, "got vid1: %x\n", vid1);
+	}
 	vid1 = ((vid1 & 0xff) << 8) | (vid1 >> 8);
 
 	vid2 = i2c_smbus_read_word_data(client, ALC5632_VENDOR_ID2);
@@ -1063,7 +1063,7 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 		dev_err(&client->dev, "failed to read I2C\n");
 		return -EIO;
 	} else {
-		dev_err(&client->dev, "got vid2: %x\n", vid2);
+		dev_info(&client->dev, "got vid2: %x\n", vid2);
 	}
 	vid2 = (vid2 & 0xff);
 
