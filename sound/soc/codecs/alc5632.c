@@ -592,7 +592,7 @@ static int alc5632_set_dai_pll(struct snd_soc_dai *codec_dai, int pll_id,
 	u16 reg;
 
 	if (pll_id < ALC5632_PLL_FR_MCLK || pll_id > ALC5632_PLL_FR_VBCLK)
-		return -ENODEV;
+		return -EINVAL;
 
 	/* Disable PLL power */
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
