@@ -712,6 +712,6 @@ static int __init tegra_cpuidle_debug_init(void)
 
 	return 0;
 }
+late_initcall(tegra_cpuidle_debug_init);
 #endif
 
-late_initcall(tegra_cpuidle_debug_init);
