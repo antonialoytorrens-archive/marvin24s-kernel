@@ -849,6 +849,12 @@ static void enable_power_depop(struct snd_soc_codec *codec)
 				ALC5632_MISC_HP_DEPOP_MODE2_EN,
 				ALC5632_MISC_HP_DEPOP_MODE2_EN);
 
+	/* "normal" mode: 0 @ 26 */
+	/* set all PR0-7 mixers to 0 */
+	snd_soc_update_bits(codec, ALC5632_PWR_DOWN_CTRL_STATUS,
+				ALC5632_PWR_DOWN_CTRL_STATUS_MASK,
+				0);
+
 	msleep(500);
 
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
@@ -877,16 +883,25 @@ static int alc5632_set_bias_level(struct snd_soc_codec *codec,
 		break;
 	case SND_SOC_BIAS_STANDBY:
 		/* everything off except vref/vmid, */
-		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1,
+		snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
+				ALC5632_PWR_MANAG_ADD1_MASK,
 				ALC5632_PWR_ADD1_MAIN_BIAS);
-		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD2,
+		snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
+				ALC5632_PWR_MANAG_ADD2_MASK,
 				ALC5632_PWR_ADD2_VREF);
+		/* "normal" mode: 0 @ 26 */
+		snd_soc_update_bits(codec, ALC5632_PWR_DOWN_CTRL_STATUS,
+				ALC5632_PWR_DOWN_CTRL_STATUS_MASK,
+				0xffff ^ (ALC5632_PWR_VREF_PR3 | ALC5632_PWR_VREF_PR2));
 		break;
 	case SND_SOC_BIAS_OFF:
 		/* everything off, dac mute, inactive */
-		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD2, 0);
-		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD3, 0);
-		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1, 0);
+		snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
+				ALC5632_PWR_MANAG_ADD2_MASK, 0);
+		snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD3,
+				ALC5632_PWR_MANAG_ADD3_MASK, 0);
+		snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
+				ALC5632_PWR_MANAG_ADD1_MASK, 0);
 		break;
 	}
 	codec->dapm.bias_level = level;
@@ -991,15 +1006,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1,
 				alc5632->add_ctrl);
 	}
-
-	/* "normal" mode: 0 @ 26 */
-	/* set all PR0-7 mixers to 0 */
-	snd_soc_update_bits(codec, ALC5632_PWR_DOWN_CTRL_STATUS, 0xEF00, 0);
-
-
-	/* power on VREF on all analog circuits 0x2000 @ 3C */
-	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
-		0, ALC5632_PWR_ADD2_VREF);
 
 	switch (alc5632->id) {
 	case 0x5c:
