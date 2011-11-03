@@ -938,6 +938,9 @@ static int alc5632_resume(struct snd_soc_codec *codec)
 {
 	int ret;
 
+	/* mark cache as needed to sync */
+	codec->cache_sync = 1;
+
 	ret = snd_soc_cache_sync(codec);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to sync cache: %d\n", ret);
