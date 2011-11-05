@@ -343,7 +343,8 @@ SND_SOC_DAPM_DAC("Left DAC", "HiFi Playback",
 SND_SOC_DAPM_DAC("Right DAC", "HiFi Playback",
 	ALC5632_PWR_MANAG_ADD2, 8, 0),
 SND_SOC_DAPM_MIXER("DAC Left Channel", ALC5632_PWR_MANAG_ADD1, 15, 0, NULL, 0),
-SND_SOC_DAPM_MIXER("DAC Right Channel", ALC5632_PWR_MANAG_ADD1, 14, 0, NULL, 0),
+SND_SOC_DAPM_MIXER("DAC Right Channel",
+	ALC5632_PWR_MANAG_ADD1, 14, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("I2S Mix", ALC5632_PWR_MANAG_ADD1, 11, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("Phone Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("Line Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
@@ -390,34 +391,34 @@ SND_SOC_DAPM_VMID("Vmid"),
 
 static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 	/* virtual mixer - mixes left & right channels */
-	{"I2S Mix", 	NULL,	"Left DAC"},
-	{"I2S Mix", 	NULL,	"Right DAC"},
-	{"Line Mix", 	NULL,	"Right LineIn"},
-	{"Line Mix", 	NULL,	"Left LineIn"},
-	{"Phone Mix", 	NULL,	"Phone"},
-	{"Phone Mix", 	NULL,	"Phone ADMix"},
-	{"AUXOUT", 		NULL,	"Aux Out"},
+	{"I2S Mix",	NULL,	"Left DAC"},
+	{"I2S Mix",	NULL,	"Right DAC"},
+	{"Line Mix",	NULL,	"Right LineIn"},
+	{"Line Mix",	NULL,	"Left LineIn"},
+	{"Phone Mix",	NULL,	"Phone"},
+	{"Phone Mix",	NULL,	"Phone ADMix"},
+	{"AUXOUT",		NULL,	"Aux Out"},
 
 	/* DAC */
 	{"DAC Right Channel",	NULL,	"I2S Mix"},
 	{"DAC Left Channel",	NULL,   "I2S Mix"},
 
 	/* HP mixer */
-	{"HPL Mix",	"ADC2HP_L Playback Switch",		"Left Capture Mix"},
-	{"HPL Mix", NULL,							"HP Mix"},
-	{"HPR Mix", "ADC2HP_R Playback Switch",		"Right Capture Mix"},
-	{"HPR Mix", NULL,							"HP Mix"},
-	{"HP Mix", 	"LI2HP Playback Switch",		"Line Mix"},
-	{"HP Mix",	"PHONE2HP Playback Switch",		"Phone Mix"},
-	{"HP Mix",	"MIC12HP Playback Switch",		"MIC1 PGA"},
-	{"HP Mix", 	"MIC22HP Playback Switch",		"MIC2 PGA"},
-	
-	{"HPR Mix", "DACR2HP Playback Switch",		"DAC Right Channel"},
-	{"HPL Mix", "DACL2HP Playback Switch",      "DAC Left Channel"},
+	{"HPL Mix",	"ADC2HP_L Playback Switch",	"Left Capture Mix"},
+	{"HPL Mix", NULL,					"HP Mix"},
+	{"HPR Mix", "ADC2HP_R Playback Switch",	"Right Capture Mix"},
+	{"HPR Mix", NULL,					"HP Mix"},
+	{"HP Mix",	"LI2HP Playback Switch",	"Line Mix"},
+	{"HP Mix",	"PHONE2HP Playback Switch",	"Phone Mix"},
+	{"HP Mix",	"MIC12HP Playback Switch",	"MIC1 PGA"},
+	{"HP Mix",	"MIC22HP Playback Switch",	"MIC2 PGA"},
+
+	{"HPR Mix", "DACR2HP Playback Switch",	"DAC Right Channel"},
+	{"HPL Mix", "DACL2HP Playback Switch",	"DAC Left Channel"},
 
 	/* speaker mixer */
 	{"Speaker Mix", "LI2SPK Playback Switch",	"Line Mix"},
-	{"Speaker Mix", "PHONE2SPK Playback Switch",	"Phone Mix"},
+	{"Speaker Mix", "PHONE2SPK Playback Switch","Phone Mix"},
 	{"Speaker Mix", "MIC12SPK Playback Switch",	"MIC1 PGA"},
 	{"Speaker Mix", "MIC22SPK Playback Switch",	"MIC2 PGA"},
 	{"Speaker Mix", "DAC2SPK Playback Switch",	"DAC Left Channel"},
@@ -888,7 +889,8 @@ static int alc5632_set_bias_level(struct snd_soc_codec *codec,
 		/* "normal" mode: 0 @ 26 */
 		snd_soc_update_bits(codec, ALC5632_PWR_DOWN_CTRL_STATUS,
 				ALC5632_PWR_DOWN_CTRL_STATUS_MASK,
-				0xffff ^ (ALC5632_PWR_VREF_PR3 | ALC5632_PWR_VREF_PR2));
+				0xffff ^ (ALC5632_PWR_VREF_PR3
+				| ALC5632_PWR_VREF_PR2));
 		break;
 	case SND_SOC_BIAS_OFF:
 		/* everything off, dac mute, inactive */
@@ -1075,7 +1077,8 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-	alc5632 = devm_kzalloc(&client->dev, sizeof(struct alc5632_priv), GFP_KERNEL);
+	alc5632 = devm_kzalloc(&client->dev,
+			 sizeof(struct alc5632_priv), GFP_KERNEL);
 	if (alc5632 == NULL)
 		return -ENOMEM;
 
