@@ -37,8 +37,6 @@
 #include <asm/mach/time.h>
 #include <asm/setup.h>
 
-#include <sound/alc5632.h>
-
 #include <mach/iomap.h>
 #include <mach/irqs.h>
 #include <mach/sdhci.h>
@@ -249,11 +247,6 @@ static struct platform_device nvec_device = {
 	}
 };
 
-static struct alc5632_platform_data alc5632_pdata = {
-	.add_ctrl = 0x0400,
-	.jack_det_ctrl = -1,
-};
-
 static struct paz00_audio_platform_data audio_pdata = {
 /* speaker enable goes via nvec */
 	.gpio_hp_det	= TEGRA_HP_DET,
@@ -269,7 +262,6 @@ static struct platform_device audio_device = {
 
 static struct i2c_board_info __initdata alc5632_board_info = {
 	I2C_BOARD_INFO("alc5632", 0x1e),
-	.platform_data = &alc5632_pdata,
 };
 
 static struct i2c_board_info __initdata atd7461_board_info = {

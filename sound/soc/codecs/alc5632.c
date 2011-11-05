@@ -22,14 +22,12 @@
 #include <linux/pm.h>
 #include <linux/i2c.h>
 #include <linux/slab.h>
-#include <linux/platform_device.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/tlv.h>
 #include <sound/soc.h>
 #include <sound/initval.h>
-#include <sound/alc5632.h>
 
 #include "alc5632.h"
 
@@ -74,8 +72,6 @@ struct alc5632_priv {
 	struct mutex mutex;
 	u8 id;
 	unsigned int sysclk;
-	unsigned int add_ctrl;
-	unsigned int jack_det_ctrl;
 };
 
 static int alc5632_volatile_register(struct snd_soc_codec *codec,
@@ -1002,10 +998,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 
 	/* power on device  */
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-	if (alc5632->add_ctrl) {
-		snd_soc_write(codec, ALC5632_PWR_MANAG_ADD1,
-				alc5632->add_ctrl);
-	}
 
 	switch (alc5632->id) {
 	case 0x5c:
@@ -1054,7 +1046,6 @@ static struct snd_soc_codec_driver soc_codec_device_alc5632 = {
 static int alc5632_i2c_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
-	struct alc5632_platform_data *pdata;
 	struct alc5632_priv *alc5632;
 	int ret, vid1, vid2;
 
@@ -1087,12 +1078,6 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 	alc5632 = devm_kzalloc(&client->dev, sizeof(struct alc5632_priv), GFP_KERNEL);
 	if (alc5632 == NULL)
 		return -ENOMEM;
-
-	pdata = client->dev.platform_data;
-	if (pdata) {
-		alc5632->add_ctrl = pdata->add_ctrl;
-		alc5632->jack_det_ctrl = pdata->jack_det_ctrl;
-	}
 
 	alc5632->id = vid2;
 	switch (alc5632->id) {
