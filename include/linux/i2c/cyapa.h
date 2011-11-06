@@ -21,29 +21,15 @@
 #define CYAPA_I2C_NAME  "cyapa"
 #define CYAPA_MISC_NAME  "cyapa"
 
-/* trackpad device */
-enum cyapa_work_mode {
-	CYAPA_STREAM_MODE = 0x00,
-	CYAPA_BOOTLOAD_MODE = 0x01,
-};
-
 /* APA trackpad firmware generation */
 enum cyapa_gen {
-	CYAPA_GEN1 = 0x01,   /* only one finger supported. */
+	CYAPA_GEN1 = 0x01,  /* only one finger supported. */
 	CYAPA_GEN2 = 0x02,  /* max five fingers supported. */
-	CYAPA_GEN3 = 0x03,  /* support MT-protocol with tracking ID. */
+	CYAPA_GEN3 = 0x03,  /* support MT-protocol B with tracking ID. */
 };
-
-struct cyapa_platform_data {
-	enum cyapa_gen gen;  /* trackpad firmware generation. */
-
-	/* the gpio id used for interrupt to notify host data is ready. */
-	__s16 irq_gpio;
-};
-
 
 /*
- * Data structures for /dev/cyapa device ioclt read/write.
+ * Data structures for /dev/cyapa device ioctl read/write.
  */
 struct cyapa_misc_ioctl_data {
 	__u8 *buf;  /* pointer to a buffer for read/write data. */
