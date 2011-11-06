@@ -26,10 +26,10 @@
 #include <linux/gpio_keys.h>
 #include <linux/i2c-tegra.h>
 #include <linux/i2c/atmel_mxt_ts.h>
+#include <linux/i2c/cyapa.h>
 #include <linux/clk.h>
 #include <linux/power/bq20z75.h>
 #include <linux/rfkill-gpio.h>
-#include <linux/cyapa.h>
 #include <linux/platform_data/tegra_usb.h>
 #include <linux/memblock.h>
 
@@ -87,29 +87,18 @@ static __initdata struct tegra_clk_init_table seaboard_clk_init_table[] = {
 	{ "pll_p_out4",	"pll_p",	24000000,	true},
 	{ "pll_a",      "pll_p_out1",   56448000,       true},
 	{ "pll_a_out0", "pll_a",        11289600,       true},
-	{ "cdev1",      "pll_a_out0",   11289600,       true},
+	{ "cdev1",      NULL,           0,              true},
 	{ "i2s1",       "pll_a_out0",   11289600,       false},
 	{ "audio",      "pll_a_out0",   11289600,       false},
 	{ "audio_2x",   "audio",        22579200,       false},
 	{ "spdif_out",  "pll_a_out0",   11289600,       false},
 	{ "vi_sensor",  "pll_m",        24000000,       false},
 	{ "uartb",      "pll_p",        216000000,      false},
+	{ "uartc",      "pll_c",        600000000,      false},
 	{ "uartd",      "pll_p",        216000000,      false},
 	{ "pwm",        "clk_m",        12000000,       false},
 	{ "blink",      "clk_32k",      32768,          true},
 	{ NULL,		NULL,		0,		0},
-};
-
-static struct cyapa_platform_data cyapa_i2c_platform_data = {
-	.flag				= 0,
-	.gen				= CYAPA_GEN2,
-	.power_state			= CYAPA_PWR_ACTIVE,
-	.polling_interval_time_active	= CYAPA_POLLING_INTERVAL_TIME_ACTIVE,
-	.polling_interval_time_lowpower	= CYAPA_POLLING_INTERVAL_TIME_LOWPOWER,
-	.active_touch_timeout		= CYAPA_ACTIVE_TOUCH_TIMEOUT,
-	.name				= CYAPA_I2C_NAME,
-	.irq_gpio			= TEGRA_GPIO_CYTP_INT,
-	.report_rate			= CYAPA_REPORT_RATE,
 };
 
 static struct tegra_i2c_platform_data seaboard_i2c1_platform_data = {
@@ -354,6 +343,7 @@ static struct tegra_wm8903_platform_data seaboard_audio_pdata = {
 	.gpio_hp_mute		= -1,
 	.gpio_int_mic_en	= -1,
 	.gpio_ext_mic_en	= -1,
+	.gpio_hp_invert		= 1,
 };
 
 static struct platform_device seaboard_audio_device = {
@@ -362,6 +352,11 @@ static struct platform_device seaboard_audio_device = {
 	.dev	= {
 		.platform_data  = &seaboard_audio_pdata,
 	},
+};
+
+static struct platform_device spdif_dit_device = {
+	.name   = "spdif-dit",
+	.id     = -1,
 };
 
 static struct platform_device *seaboard_devices[] __initdata = {
@@ -378,6 +373,8 @@ static struct platform_device *seaboard_devices[] __initdata = {
 	&tegra_das_device,
 	&tegra_pcm_device,
 	&seaboard_audio_device,
+	&tegra_spdif_device,
+	&spdif_dit_device,
 	&bt_rfkill_device,
 	&tegra_avp_device,
 };
@@ -566,9 +563,8 @@ static __initdata struct tegra_pingroup_config mxt_pinmux_config[] = {
 };
 
 static struct i2c_board_info __initdata cyapa_device = {
-	I2C_BOARD_INFO("cypress_i2c_apa", 0x67),
+	I2C_BOARD_INFO(CYAPA_I2C_NAME, 0x67),
 	.irq		= TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CYTP_INT),
-	.platform_data	= &cyapa_i2c_platform_data,
 };
 
 static struct tegra_utmip_config usb1_phy_config = {
@@ -975,6 +971,14 @@ static void __init tegra_kaen_init(void)
 	/* setting skew makes WIFI stable when sdmmc1 runs 48MHz. */
 	tegra_set_clock_readskew("sdmmc1", 8);
 
+	/* change xcvr_setup to 13 to adjust USB driving to pass eye
+	 * diagram test.
+	 * xcvr_effect is only for USB1 to set FUSE_SETUP_SEL to zero
+	 */
+	usb1_phy_config.xcvr_effect = 1;
+	usb1_phy_config.xcvr_setup = 13;
+	usb3_phy_config.xcvr_setup = 13;
+
 	kaen_common_init();
 	kaen_emc_init();
 
@@ -1065,6 +1069,7 @@ static void __init tegra_asymptote_init(void)
 {
 	struct clk *c, *p;
 
+	seaboard_audio_pdata.gpio_hp_invert = 0;
 	tegra_init_suspend(&seaboard_suspend);
 
 	__init_debug_uart_B();
@@ -1072,7 +1077,6 @@ static void __init tegra_asymptote_init(void)
 	seaboard_kbc_platform_data.keymap_data = &cros_keymap_data;
 
 	asymptote_common_init();
-	seaboard_panel_init();
 	/* asymptote has same memory config as seaboard (for now) */
 	seaboard_emc_init();
 
@@ -1086,6 +1090,9 @@ static void __init tegra_asymptote_init(void)
 	}
 
 	asymptote_i2c_register_devices();
+
+	/* The tsl2563 ALS on Asymptote doesn't play nice with a 400kHz bus */
+	seaboard_i2c1_platform_data.bus_clk_rate[0] = 100000;
 	seaboard_i2c_init();
 }
 
@@ -1146,7 +1153,7 @@ void __init tegra_common_reserve(void)
 	 * and 0 for fb2_size.
 	 */
 	fb_size = round_up((1368 * 910 * 4 * 2), PAGE_SIZE);
-	tegra_reserve(SZ_128M, fb_size, 0);
+	tegra_reserve(256 * 1024 * 1024, fb_size, 0);
 }
 
 static const char *seaboard_dt_board_compat[] = {

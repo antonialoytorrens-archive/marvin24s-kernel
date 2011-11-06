@@ -516,7 +516,7 @@ static int add_volume(struct hda_codec *codec, const char *name,
 		      int index, unsigned int pval, int dir,
 		      struct snd_kcontrol **kctlp)
 {
-	char tmp[32];
+	char tmp[44];
 	struct snd_kcontrol_new knew =
 		HDA_CODEC_VOLUME_IDX(tmp, index, 0, 0, HDA_OUTPUT);
 	knew.private_value = pval;
@@ -1310,12 +1310,14 @@ static int patch_cs420x(struct hda_codec *codec)
 /* CS4210 boards */
 enum {
 	CS421X_CDB4210,
+	STUMPY_CDB4210,
 	CS421X_MODELS
 };
 
 /* CS4210 board names */
 static const char *cs421x_models[CS421X_MODELS] = {
 	[CS421X_CDB4210] = "cdb4210",
+	[STUMPY_CDB4210] = "stumpy",
 };
 
 static struct snd_pci_quirk cs421x_cfg_tbl[] = {
@@ -1338,6 +1340,7 @@ static struct cs_pincfg cdb4210_pincfgs[] = {
 
 static struct cs_pincfg *cs421x_pincfgs[CS421X_MODELS] = {
 	[CS421X_CDB4210] = cdb4210_pincfgs,
+	[STUMPY_CDB4210] = cdb4210_pincfgs,
 };
 
 static struct hda_verb cs421x_coef_init_verbs[] = {

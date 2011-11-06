@@ -205,6 +205,7 @@ static struct tegra_gpio_table common_gpio_table[] = {
 	{ .gpio = TEGRA_GPIO_NCT1008_THERM2_IRQ,.enable = true },
 	{ .gpio = TEGRA_GPIO_WLAN_POWER,	.enable = true },
 	{ .gpio = TEGRA_GPIO_AC_ONLINE,		.enable = true },
+	{ .gpio = TEGRA_GPIO_HP_DET,		.enable = true },
 	{ .gpio = TEGRA_GPIO_MXT_IRQ,		.enable = true },
 	{ .gpio = TEGRA_GPIO_HDMI_ENB,		.enable = true },
 	{ .gpio = TEGRA_GPIO_MPU3050_IRQ,	.enable = true },
@@ -340,8 +341,13 @@ void __init aebl_pinmux_init(void)
 	fixup_pinmux_for_26Mhz();
 }
 
+static __initdata struct tegra_pingroup_config asymptote_pinmux[] = {
+	{TEGRA_PINGROUP_UCB,  TEGRA_MUX_NONE,      TEGRA_PUPD_NORMAL, TEGRA_TRI_NORMAL},
+};
+
 void __init asymptote_pinmux_init(void)
 {
+	update_pinmux(asymptote_pinmux, ARRAY_SIZE(asymptote_pinmux));
 	seaboard_common_pinmux_init();
 	tegra_gpio_config(asymptote_gpio_table,
 			  ARRAY_SIZE(asymptote_gpio_table));
