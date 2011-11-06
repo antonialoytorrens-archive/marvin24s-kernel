@@ -1493,6 +1493,9 @@ static int soc_probe_codec(struct snd_soc_card *card,
 		}
 	}
 
+	if (driver->controls)
+		snd_soc_add_controls(codec, driver->controls,
+				     driver->num_controls);
 	if (driver->dapm_widgets)
 		snd_soc_dapm_new_controls(&codec->dapm, driver->dapm_widgets,
 					  driver->num_dapm_widgets);
@@ -1890,6 +1893,14 @@ static void snd_soc_instantiate_card(struct snd_soc_card *card)
 		}
 	}
 
+	/* We should have a non-codec control add function but we don't */
+	if (card->controls)
+		snd_soc_add_controls(list_first_entry(&card->codec_dev_list,
+						      struct snd_soc_codec,
+						      card_list),
+				     card->controls,
+				     card->num_controls);
+
 	if (card->dapm_widgets)
 		snd_soc_dapm_new_controls(&card->dapm, card->dapm_widgets,
 					  card->num_dapm_widgets);
@@ -2254,7 +2265,7 @@ int snd_soc_update_bits(struct snd_soc_codec *codec, unsigned short reg,
 		return ret;
 
 	old = ret;
-	new = (old & ~mask) | value;
+	new = (old & ~mask) | (value & mask);
 	change = old != new;
 	if (change) {
 		ret = snd_soc_write(codec, reg, new);

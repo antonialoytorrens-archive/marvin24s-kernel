@@ -118,7 +118,6 @@ static struct snd_soc_jack_gpio paz00_hp_jack_gpios[] = {
 		.name = "headphone detect",
 		.report = SND_JACK_HEADPHONE,
 		.debounce_time = 150,
-		.invert = 1,
 	}
 };
 
@@ -158,7 +157,7 @@ static const struct snd_soc_dapm_widget paz00_dapm_widgets[] = {
 static const struct snd_soc_dapm_route paz00_audio_map[] = {
 	{"Headphone Jack", NULL, "HPR"},
 	{"Headphone Jack", NULL, "HPL"},
-	{"Int Spk", NULL, "HPL"},
+	{"Int Spk", NULL, "SPKOUT"},
 	{"Int Spk", NULL, "SPKOUTN"},
 /*	{"Mic Bias1", NULL, "Mic Jack"}, */
 };
@@ -216,6 +215,17 @@ static int paz00_asoc_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_add_routes(dapm, paz00_audio_map,
 				ARRAY_SIZE(paz00_audio_map));
+
+	paz00_hp_jack_gpios[0].gpio = pdata->gpio_hp_det;
+
+	snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+			 &paz00_hp_jack);
+	snd_soc_jack_add_pins(&paz00_hp_jack,
+			      ARRAY_SIZE(paz00_hp_jack_pins),
+			      paz00_hp_jack_pins);
+	snd_soc_jack_add_gpios(&paz00_hp_jack,
+			       ARRAY_SIZE(paz00_hp_jack_gpios),
+			       paz00_hp_jack_gpios);
 
 /*	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias1"); */
 
