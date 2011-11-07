@@ -36,13 +36,11 @@ struct nvec_sys_event {
 static void paz00_unmute(struct nvec_chip *nvec) {
 	nvec_write_async(nvec, "\x0d\x10\x59\x95", 4);
 }
-EXPORT_SYMBOL(paz00_unmute);
 
 /* mutes the audio amplifier */
 static void paz00_mute(struct nvec_chip *nvec) {
 	nvec_write_async(nvec, "\x0d\x10\x59\x94", 4);
 }
-EXPORT_SYMBOL(paz00_mute);
 
 static int nvec_event_notifier(struct notifier_block *nb,
 			       unsigned long event_type, void *data)
@@ -82,6 +80,28 @@ static int nvec_event_notifier(struct notifier_block *nb,
 
 	return NOTIFY_STOP;
 }
+
+#ifdef CONFIG_PM
+ 
+static int nvec_event_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
+	paz00_mute(nvec);
+	return 0;
+}
+
+static int nvec_event_resume(struct platform_device *pdev)
+{
+	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
+	paz00_unmute(nvec);
+	return 0;
+}
+
+#else
+#define nvec_event_suspend NULL
+#define nvec_event_resume NULL
+#endif
+
 
 static int __devinit nvec_event_probe(struct platform_device *pdev)
 {
@@ -142,6 +162,8 @@ fail:
 
 static struct platform_driver nvec_event_driver = {
 	.probe = nvec_event_probe,
+	.suspend = nvec_event_suspend,
+	.resume = nvec_event_resume,
 	.driver = {
 		.name = "nvec-event",
 		.owner = THIS_MODULE,
