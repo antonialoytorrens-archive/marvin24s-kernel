@@ -67,16 +67,22 @@ static int nvec_ps2_notifier(struct notifier_block *nb,
 	case NVEC_PS2_EVT:
 		for (i = 0; i < msg[1]; i++)
 			serio_interrupt(ps2_dev.ser_dev, msg[2 + i], 0);
+		print_hex_dump(KERN_DEBUG, "ps/2 mouse event: ",
+			DUMP_PREFIX_NONE, 16, 1, &msg[2], msg[1], false);
 		return NOTIFY_STOP;
 
 	case NVEC_PS2:
-		if (msg[2] == 1)
+		if (msg[2] == 1) {
 			for (i = 0; i < (msg[1] - 2); i++)
 				serio_interrupt(ps2_dev.ser_dev, msg[i + 4], 0);
+			print_hex_dump(KERN_DEBUG, "ps/2 mouse reply: ",
+				DUMP_PREFIX_NONE, 16, 1, &msg[4], msg[1] - 2, false);
+		}
+
 		else if (msg[1] != 2) {	/* !ack */
 			print_hex_dump(KERN_WARNING, "unhandled mouse event: ",
 				DUMP_PREFIX_NONE, 16, 1,
-				msg, msg[1] + 2, true);
+				msg, msg[1] + 2, false);
 		}
 
 		return NOTIFY_STOP;
