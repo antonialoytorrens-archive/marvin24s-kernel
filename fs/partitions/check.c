@@ -38,6 +38,7 @@
 #include "efi.h"
 #include "karma.h"
 #include "sysv68.h"
+#include "tegrapart.h"
 #include "nvtegra.h"
 
 #ifdef CONFIG_BLK_DEV_MD
@@ -112,6 +113,9 @@ static int (*check_part[])(struct parsed_partitions *) = {
 #endif
 #ifdef CONFIG_SYSV68_PARTITION
 	sysv68_partition,
+#endif
+#ifdef CONFIG_TEGRAPART_PARTITION
+	tegrapart_partition,
 #endif
 #ifdef CONFIG_NVTEGRA_PARTITION
 	nvtegra_partition,
