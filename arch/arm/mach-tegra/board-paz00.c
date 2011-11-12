@@ -294,7 +294,7 @@ static struct paz00_audio_platform_data audio_pdata = {
 };
 
 static struct platform_device audio_device = {
-	.name	= "tegra-snd-paz00",
+	.name	= "tegra-snd-alc5632",
 	.id	= 0,
 	.dev	= {
 		.platform_data = &audio_pdata,

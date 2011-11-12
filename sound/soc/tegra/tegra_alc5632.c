@@ -250,7 +250,7 @@ static struct snd_soc_dai_link paz00_alc5632_dai = {
 };
 
 static struct snd_soc_card snd_soc_paz00 = {
-	.name = "tegra-paz00",
+	.name = "tegra-alc5632",
 	.dai_link = &paz00_alc5632_dai,
 	.num_links = 1,
 };
