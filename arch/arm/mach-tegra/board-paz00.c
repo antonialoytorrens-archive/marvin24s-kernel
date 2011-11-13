@@ -288,7 +288,7 @@ static struct platform_device nvec_device = {
 	}
 };
 
-static struct paz00_audio_platform_data audio_pdata = {
+static struct tegra_alc5632_audio_platform_data audio_pdata = {
 /* speaker enable goes via nvec */
 	.gpio_hp_det	= TEGRA_HP_DET,
 };

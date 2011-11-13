@@ -1,3 +1,3 @@
-struct paz00_audio_platform_data {
+struct tegra_alc5632_audio_platform_data {
 	int gpio_hp_det;
 };
