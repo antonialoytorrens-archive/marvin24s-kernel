@@ -34,6 +34,7 @@
 
 #include "devices.h"
 #include "gpio-names.h"
+#include "board.h"
 #include "board-seaboard.h"
 #include "power.h"
 
@@ -130,7 +131,7 @@ static int seaboard_backlight_notify(struct device *unused, int brightness)
 		gpio_set_value(TEGRA_GPIO_LVDS_SHUTDOWN, 1);
 		tegra_msleep(panel_timings.en_lvds_en_blvdd_ms);
 
-		gpio_set_value(SEABOARD_GPIO_BACKLIGHT_VDD, 1);
+		gpio_set_value(TEGRA_GPIO_BACKLIGHT_VDD, 1);
 		tegra_msleep(panel_timings.en_blvdd_en_pwm_ms);
 	}
 
@@ -141,7 +142,7 @@ static void seaboard_bl_notify_after(struct device *unused, int brightness)
 {
 	if (panel_is_enabled && !brightness) {
 		tegra_msleep(panel_timings.dis_pwm_dis_blvdd_ms);
-		gpio_set_value(SEABOARD_GPIO_BACKLIGHT_VDD, 0);
+		gpio_set_value(TEGRA_GPIO_BACKLIGHT_VDD, 0);
 		rtc_ms_at_panel_off = tegra_rtc_read_ms();
 		panel_is_enabled = 0;
 	} else if (!panel_is_enabled && brightness) {
@@ -244,9 +245,6 @@ static struct resource seaboard_disp1_resources[] = {
 	},
 	{
 		.name	= "fbmem",
-		.start	= 0x18012000,
-		/* enough space for 1368*910 32bpp */
-		.end	= 0x18012000 + 0x97f680 - 1,
 		.flags	= IORESOURCE_MEM,
 	},
 };
@@ -451,8 +449,6 @@ static struct nvmap_platform_carveout seaboard_carveouts[] = {
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0x18C00000,
-		.size		= SZ_128M - 0xC00000,
 		.buddy_size	= SZ_32K,
 	},
 };
@@ -477,7 +473,7 @@ static struct platform_device *seaboard_gfx_devices[] __initdata = {
 	&seaboard_backlight_device,
 };
 
-static void __init seaboard_common_panel_gpio_init(void)
+static void __init seaboard_panel_gpio_init(void)
 {
 	gpio_request(TEGRA_GPIO_EN_VDD_PNL, "en_vdd_pnl");
 	gpio_direction_output(TEGRA_GPIO_EN_VDD_PNL, 1);
@@ -492,36 +488,42 @@ static void __init seaboard_common_panel_gpio_init(void)
 	gpio_request(TEGRA_GPIO_HDMI_HPD, "hdmi_hpd");
 	gpio_direction_input(TEGRA_GPIO_HDMI_HPD);
 
+	gpio_request(TEGRA_GPIO_BACKLIGHT_VDD, "bl_vdd");
+	gpio_direction_output(TEGRA_GPIO_BACKLIGHT_VDD, 1);
+
 	panel_is_enabled = 1;
-}
-
-static void __init seaboard_panel_gpio_init(void)
-{
-	seaboard_common_panel_gpio_init();
-	gpio_request(SEABOARD_GPIO_BACKLIGHT_VDD, "bl_vdd");
-	gpio_direction_output(SEABOARD_GPIO_BACKLIGHT_VDD, 1);
-}
-
-static void __init asymptote_panel_gpio_init(void)
-{
-	seaboard_common_panel_gpio_init();
-	gpio_request(ASYMPTOTE_GPIO_BACKLIGHT_VDD, "bl_vdd");
-	gpio_direction_output(ASYMPTOTE_GPIO_BACKLIGHT_VDD, 1);
 }
 
 static int __init seaboard_panel_register_devices(void)
 {
 	int err;
+	struct resource *res;
+
+	seaboard_carveouts[1].base = tegra_carveout_start;
+	seaboard_carveouts[1].size = tegra_carveout_size;
 
 	err = platform_add_devices(seaboard_gfx_devices,
 				   ARRAY_SIZE(seaboard_gfx_devices));
+	if (err)
+		goto fail;
 
-	if (!err)
-		err = nvhost_device_register(&seaboard_disp1_device);
+	err = nvhost_device_register(&seaboard_disp1_device);
+	if (err)
+		goto fail;
 
-	if (!err)
-		err = nvhost_device_register(&seaboard_disp2_device);
+	res = nvhost_get_resource_byname(&seaboard_disp1_device, IORESOURCE_MEM,
+					 "fbmem");
+	if (!res) {
+		pr_err("Failed to get fbmem resource!\n");
+		err = -ENXIO;
+		goto fail;
+	}
+	res->start = tegra_fb_start;
+	res->end = tegra_fb_start + tegra_fb_size - 1;
 
+	err = nvhost_device_register(&seaboard_disp2_device);
+
+fail:
 	return err;
 }
 
@@ -557,7 +559,7 @@ int __init arthur_panel_init(void)
 #ifdef CONFIG_MACH_ASYMPTOTE
 int __init asymptote_panel_init(void)
 {
-	asymptote_panel_gpio_init();
+	seaboard_panel_gpio_init();
 	seaboard_disp1_out.modes = asymptote_panel_modes;
 	seaboard_disp1_pdata.fb = &asymptote_fb_data;
 	return seaboard_panel_register_devices();

@@ -169,7 +169,7 @@ static __le16 ieee80211_duration(struct ieee80211_tx_data *tx, int group_addr,
 	return cpu_to_le16(dur);
 }
 
-static inline int is_ieee80211_device(struct ieee80211_local *local,
+static int inline is_ieee80211_device(struct ieee80211_local *local,
 				      struct net_device *dev)
 {
 	return local == wdev_priv(dev->ieee80211_ptr);
@@ -232,7 +232,6 @@ ieee80211_tx_h_dynamic_ps(struct ieee80211_tx_data *tx)
 	if (local->hw.conf.flags & IEEE80211_CONF_PS) {
 		ieee80211_stop_queues_by_reason(&local->hw,
 						IEEE80211_QUEUE_STOP_REASON_PS);
-		ifmgd->flags &= ~IEEE80211_STA_NULLFUNC_ACKED;
 		ieee80211_queue_work(&local->hw,
 				     &local->dynamic_ps_disable_work);
 	}
@@ -254,8 +253,7 @@ ieee80211_tx_h_check_assoc(struct ieee80211_tx_data *tx)
 	if (unlikely(info->flags & IEEE80211_TX_CTL_INJECTED))
 		return TX_CONTINUE;
 
-	if (unlikely(test_bit(SCAN_SW_SCANNING, &tx->local->scanning)) &&
-	    test_bit(SDATA_STATE_OFFCHANNEL, &tx->sdata->state) &&
+	if (unlikely(test_bit(SCAN_OFF_CHANNEL, &tx->local->scanning)) &&
 	    !ieee80211_is_probe_req(hdr->frame_control) &&
 	    !ieee80211_is_nullfunc(hdr->frame_control))
 		/*
@@ -1036,10 +1034,13 @@ static bool __ieee80211_parse_tx_radiotap(struct ieee80211_tx_data *tx,
 	struct ieee80211_radiotap_iterator iterator;
 	struct ieee80211_radiotap_header *rthdr =
 		(struct ieee80211_radiotap_header *) skb->data;
+	struct ieee80211_supported_band *sband;
 	bool hw_frag;
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 	int ret = ieee80211_radiotap_iterator_init(&iterator, rthdr, skb->len,
 						   NULL);
+
+	sband = tx->local->hw.wiphy->bands[tx->channel->band];
 
 	info->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
 	tx->flags &= ~IEEE80211_TX_FRAGMENTED;
@@ -1406,8 +1407,7 @@ static int invoke_tx_handlers(struct ieee80211_tx_data *tx)
 	/* handlers after fragment must be aware of tx info fragmentation! */
 	CALL_TXH(ieee80211_tx_h_stats);
 	CALL_TXH(ieee80211_tx_h_encrypt);
-	if (!(tx->local->hw.flags & IEEE80211_HW_HAS_RATE_CONTROL))
-		CALL_TXH(ieee80211_tx_h_calculate_duration);
+	CALL_TXH(ieee80211_tx_h_calculate_duration);
 #undef CALL_TXH
 
  txh_done:
@@ -1439,7 +1439,10 @@ static bool ieee80211_tx(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_tx_data tx;
 	ieee80211_tx_result res_prepare;
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+	u16 queue;
 	bool result = true;
+
+	queue = skb_get_queue_mapping(skb);
 
 	if (unlikely(skb->len < 10)) {
 		dev_kfree_skb(skb);
@@ -1476,7 +1479,12 @@ static int ieee80211_skb_resize(struct ieee80211_local *local,
 {
 	int tail_need = 0;
 
-	if (may_encrypt && local->crypto_tx_tailroom_needed_cnt) {
+	/*
+	 * This could be optimised, devices that do full hardware
+	 * crypto (including TKIP MMIC) need no tailroom... But we
+	 * have no drivers for such devices currently.
+	 */
+	if (may_encrypt) {
 		tail_need = IEEE80211_ENCRYPT_TAILROOM;
 		tail_need -= skb_tailroom(skb);
 		tail_need = max_t(int, tail_need, 0);
@@ -1690,7 +1698,7 @@ netdev_tx_t ieee80211_subif_start_xmit(struct sk_buff *skb,
 	__le16 fc;
 	struct ieee80211_hdr hdr;
 	struct ieee80211s_hdr mesh_hdr __maybe_unused;
-	struct mesh_path __maybe_unused *mppath = NULL;
+	struct mesh_path *mppath = NULL;
 	const u8 *encaps_data;
 	int encaps_len, skip_header_bytes;
 	int nh_pos, h_pos;
@@ -1755,19 +1763,19 @@ netdev_tx_t ieee80211_subif_start_xmit(struct sk_buff *skb,
 			mppath = mpp_path_lookup(skb->data, sdata);
 
 		/*
-		 * Use address extension if it is a packet from
-		 * another interface or if we know the destination
-		 * is being proxied by a portal (i.e. portal address
-		 * differs from proxied address)
+		 * Do not use address extension, if it is a packet from
+		 * the same interface and the destination is not being
+		 * proxied by any other mest point.
 		 */
 		if (compare_ether_addr(sdata->vif.addr,
 				       skb->data + ETH_ALEN) == 0 &&
-		    !(mppath && compare_ether_addr(mppath->mpp, skb->data))) {
+		    (!mppath || !compare_ether_addr(mppath->mpp, skb->data))) {
 			hdrlen = ieee80211_fill_mesh_addresses(&hdr, &fc,
 					skb->data, skb->data + ETH_ALEN);
 			meshhdrlen = ieee80211_new_mesh_header(&mesh_hdr,
 					sdata, NULL, NULL);
 		} else {
+			/* packet from other interface */
 			int is_mesh_mcast = 1;
 			const u8 *mesh_da;
 
@@ -2118,8 +2126,6 @@ static void ieee80211_beacon_add_tim(struct ieee80211_if_ap *bss,
 	if (bss->dtim_count == 0 && !skb_queue_empty(&bss->ps_bc_buf))
 		aid0 = 1;
 
-	bss->dtim_bc_mc = aid0 == 1;
-
 	if (have_bits) {
 		/* Find largest even number N1 so that bits numbered 1 through
 		 * (N1 x 8) - 1 in the bitmap are 0 and number N2 so that bits
@@ -2183,7 +2189,7 @@ struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
 	if (sdata->vif.type == NL80211_IFTYPE_AP) {
 		ap = &sdata->u.ap;
 		beacon = rcu_dereference(ap->beacon);
-		if (beacon) {
+		if (ap && beacon) {
 			/*
 			 * headroom, head length,
 			 * tail length and maximum TIM length
@@ -2244,14 +2250,9 @@ struct sk_buff *ieee80211_beacon_get_tim(struct ieee80211_hw *hw,
 		struct ieee80211_mgmt *mgmt;
 		u8 *pos;
 
-#ifdef CONFIG_MAC80211_MESH
-		if (!sdata->u.mesh.mesh_id_len)
-			goto out;
-#endif
-
 		/* headroom, head length, tail length and maximum TIM length */
 		skb = dev_alloc_skb(local->tx_headroom + 400 +
-				sdata->u.mesh.ie_len);
+				sdata->u.mesh.vendor_ie_len);
 		if (!skb)
 			goto out;
 
@@ -2474,6 +2475,7 @@ ieee80211_get_buffered_bc(struct ieee80211_hw *hw,
 {
 	struct ieee80211_local *local = hw_to_local(hw);
 	struct sk_buff *skb = NULL;
+	struct sta_info *sta;
 	struct ieee80211_tx_data tx;
 	struct ieee80211_sub_if_data *sdata;
 	struct ieee80211_if_ap *bss = NULL;
@@ -2489,7 +2491,7 @@ ieee80211_get_buffered_bc(struct ieee80211_hw *hw,
 	if (sdata->vif.type != NL80211_IFTYPE_AP || !beacon || !beacon->head)
 		goto out;
 
-	if (bss->dtim_count != 0 || !bss->dtim_bc_mc)
+	if (bss->dtim_count != 0)
 		goto out; /* send buffered bc/mc only after DTIM beacon */
 
 	while (1) {
@@ -2515,6 +2517,7 @@ ieee80211_get_buffered_bc(struct ieee80211_hw *hw,
 
 	info = IEEE80211_SKB_CB(skb);
 
+	sta = tx.sta;
 	tx.flags |= IEEE80211_TX_PS_BUFFERED;
 	tx.channel = local->hw.conf.channel;
 	info->band = tx.channel->band;

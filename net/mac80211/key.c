@@ -101,10 +101,6 @@ static int ieee80211_key_enable_hw_accel(struct ieee80211_key *key)
 
 	if (!ret) {
 		key->flags |= KEY_FLAG_UPLOADED_TO_HARDWARE;
-
-		if (!(key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC))
-			key->local->crypto_tx_tailroom_needed_cnt--;
-
 		return 0;
 	}
 
@@ -160,9 +156,6 @@ static void ieee80211_key_disable_hw_accel(struct ieee80211_key *key)
 			  key->conf.keyidx, sta ? sta->addr : bcast_addr, ret);
 
 	key->flags &= ~KEY_FLAG_UPLOADED_TO_HARDWARE;
-
-	if (!(key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC))
-		key->local->crypto_tx_tailroom_needed_cnt++;
 }
 
 void ieee80211_key_removed(struct ieee80211_key_conf *key_conf)
@@ -349,7 +342,7 @@ struct ieee80211_key *ieee80211_key_alloc(u32 cipher, int idx, size_t key_len,
 		if (IS_ERR(key->u.ccmp.tfm)) {
 			err = PTR_ERR(key->u.ccmp.tfm);
 			kfree(key);
-			return ERR_PTR(err);
+			key = ERR_PTR(err);
 		}
 		break;
 	case WLAN_CIPHER_SUITE_AES_CMAC:
@@ -367,7 +360,7 @@ struct ieee80211_key *ieee80211_key_alloc(u32 cipher, int idx, size_t key_len,
 		if (IS_ERR(key->u.aes_cmac.tfm)) {
 			err = PTR_ERR(key->u.aes_cmac.tfm);
 			kfree(key);
-			return ERR_PTR(err);
+			key = ERR_PTR(err);
 		}
 		break;
 	}
@@ -395,10 +388,8 @@ static void __ieee80211_key_destroy(struct ieee80211_key *key)
 		ieee80211_aes_key_free(key->u.ccmp.tfm);
 	if (key->conf.cipher == WLAN_CIPHER_SUITE_AES_CMAC)
 		ieee80211_aes_cmac_key_free(key->u.aes_cmac.tfm);
-	if (key->local) {
+	if (key->local)
 		ieee80211_debugfs_key_remove(key);
-		key->local->crypto_tx_tailroom_needed_cnt--;
-	}
 
 	kfree(key);
 }
@@ -409,12 +400,11 @@ int ieee80211_key_link(struct ieee80211_key *key,
 {
 	struct ieee80211_key *old_key;
 	int idx, ret;
-	bool pairwise;
+	bool pairwise = key->conf.flags & IEEE80211_KEY_FLAG_PAIRWISE;
 
 	BUG_ON(!sdata);
 	BUG_ON(!key);
 
-	pairwise = key->conf.flags & IEEE80211_KEY_FLAG_PAIRWISE;
 	idx = key->conf.keyidx;
 	key->local = sdata->local;
 	key->sdata = sdata;
@@ -460,8 +450,6 @@ int ieee80211_key_link(struct ieee80211_key *key,
 
 	ieee80211_debugfs_key_add(key);
 
-	key->local->crypto_tx_tailroom_needed_cnt++;
-
 	ret = ieee80211_key_enable_hw_accel(key);
 
 	mutex_unlock(&sdata->local->key_mtx);
@@ -503,12 +491,8 @@ void ieee80211_enable_keys(struct ieee80211_sub_if_data *sdata)
 
 	mutex_lock(&sdata->local->key_mtx);
 
-	sdata->local->crypto_tx_tailroom_needed_cnt = 0;
-
-	list_for_each_entry(key, &sdata->key_list, list) {
-		sdata->local->crypto_tx_tailroom_needed_cnt++;
+	list_for_each_entry(key, &sdata->key_list, list)
 		ieee80211_key_enable_hw_accel(key);
-	}
 
 	mutex_unlock(&sdata->local->key_mtx);
 }

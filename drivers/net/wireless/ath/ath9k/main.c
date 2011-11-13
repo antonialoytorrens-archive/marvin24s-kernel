@@ -291,6 +291,21 @@ int ath_set_channel(struct ath_softc *sc, struct ieee80211_hw *hw,
 		ath_start_ani(common);
 	}
 
+	if (sc->ant_rx != 3) {
+		struct ath_hw_antcomb_conf div_ant_conf;
+		u8 lna_conf;
+
+		ath9k_hw_antdiv_comb_conf_get(ah, &div_ant_conf);
+		if (sc->ant_rx == 1)
+			lna_conf = ATH_ANT_DIV_COMB_LNA1;
+		else
+			lna_conf = ATH_ANT_DIV_COMB_LNA2;
+		div_ant_conf.main_lna_conf = lna_conf;
+		div_ant_conf.alt_lna_conf = lna_conf;
+
+		ath9k_hw_antdiv_comb_conf_set(ah, &div_ant_conf);
+	}
+
  ps_restore:
 	ieee80211_wake_queues(hw);
 
@@ -529,6 +544,7 @@ set_timer:
 	* The interval must be the shortest necessary to satisfy ANI,
 	* short calibration and long calibration.
 	*/
+	ath9k_debug_samp_bb_mac(sc);
 	cal_interval = ATH_LONG_CALINTERVAL;
 	if (sc->sc_ah->config.enable_ani)
 		cal_interval = min(cal_interval,
@@ -974,6 +990,7 @@ int ath_reset(struct ath_softc *sc, bool retry_tx)
 	struct ieee80211_hw *hw = sc->hw;
 	int r;
 
+	ath9k_debug_samp_bb_mac(sc);
 	/* Stop ANI */
 	del_timer_sync(&common->ani.timer);
 
@@ -2038,7 +2055,7 @@ static int ath9k_ampdu_action(struct ieee80211_hw *hw,
 			      struct ieee80211_vif *vif,
 			      enum ieee80211_ampdu_mlme_action action,
 			      struct ieee80211_sta *sta,
-			      u16 tid, u16 *ssn)
+			      u16 tid, u16 *ssn, u8 buf_size)
 {
 	struct ath_wiphy *aphy = hw->priv;
 	struct ath_softc *sc = aphy->sc;
@@ -2139,6 +2156,7 @@ static void ath9k_sw_scan_start(struct ieee80211_hw *hw)
 		return;
 	}
 
+	ath9k_debug_samp_bb_mac(sc);
 	aphy->state = ATH_WIPHY_SCAN;
 	ath9k_wiphy_pause_all_forced(sc, aphy);
 	mutex_unlock(&sc->mutex);
@@ -2153,6 +2171,7 @@ static void ath9k_sw_scan_complete(struct ieee80211_hw *hw)
 	struct ath_wiphy *aphy = hw->priv;
 	struct ath_softc *sc = aphy->sc;
 
+	ath9k_debug_samp_bb_mac(sc);
 	mutex_lock(&sc->mutex);
 	aphy->state = ATH_WIPHY_ACTIVE;
 	mutex_unlock(&sc->mutex);
@@ -2168,6 +2187,62 @@ static void ath9k_set_coverage_class(struct ieee80211_hw *hw, u8 coverage_class)
 	ah->coverage_class = coverage_class;
 	ath9k_hw_init_global_settings(ah);
 	mutex_unlock(&sc->mutex);
+}
+
+static u32 fill_chainmask(u32 cap, u32 new)
+{
+	u32 filled = 0;
+	int i;
+
+	for (i = 0; cap && new; i++, cap >>= 1) {
+		if (!(cap & BIT(0)))
+			continue;
+
+		if (new & BIT(0))
+			filled |= BIT(i);
+
+		new >>= 1;
+	}
+
+	return filled;
+}
+
+static int ath9k_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
+{
+	struct ath_wiphy *aphy = hw->priv;
+	struct ath_softc *sc = aphy->sc;
+	struct ath_hw *ah = sc->sc_ah;
+
+	if (!rx_ant || !tx_ant)
+		return -EINVAL;
+
+	sc->ant_rx = rx_ant;
+	sc->ant_tx = tx_ant;
+
+	if (ah->caps.rx_chainmask == 1)
+		return 0;
+	/*
+	 * AR9100 runs into calibration issues if not all rx chains are enabled
+	 */
+	if (AR_SREV_9100(ah))
+		ah->rxchainmask = 0x7;
+	else
+		ah->rxchainmask = fill_chainmask(ah->caps.rx_chainmask, rx_ant);
+
+	ah->txchainmask = fill_chainmask(ah->caps.tx_chainmask, tx_ant);
+	ath9k_reload_chainmask_settings(sc);
+
+	return 0;
+}
+
+static int ath9k_get_antenna(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx_ant)
+{
+	struct ath_wiphy *aphy = hw->priv;
+	struct ath_softc *sc = aphy->sc;
+
+	*tx_ant = sc->ant_tx;
+	*rx_ant = sc->ant_rx;
+	return 0;
 }
 
 struct ieee80211_ops ath9k_ops = {
@@ -2193,4 +2268,6 @@ struct ieee80211_ops ath9k_ops = {
 	.sw_scan_complete   = ath9k_sw_scan_complete,
 	.rfkill_poll        = ath9k_rfkill_poll_state,
 	.set_coverage_class = ath9k_set_coverage_class,
+	.set_antenna        = ath9k_set_antenna,
+	.get_antenna        = ath9k_get_antenna,
 };

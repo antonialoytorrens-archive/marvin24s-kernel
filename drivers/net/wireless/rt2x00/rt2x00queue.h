@@ -54,7 +54,7 @@
  * @QID_RX: RX queue
  * @QID_OTHER: None of the above (don't use, only present for completeness)
  * @QID_BEACON: Beacon queue (value unspecified, don't send it to device)
- * @QID_ATIM: Atim queue (value unspeficied, don't send it to device)
+ * @QID_ATIM: Atim queue (value unspecified, don't send it to device)
  */
 enum data_queue_qid {
 	QID_AC_VO = 0,
@@ -288,8 +288,8 @@ enum txentry_desc_flags {
  * @signal: PLCP signal.
  * @service: PLCP service.
  * @msc: MCS.
- * @stbc: STBC.
- * @ba_size: BA size.
+ * @stbc: Use Space Time Block Coding (only available for MCS rates < 8).
+ * @ba_size: Size of the recepients RX reorder buffer - 1.
  * @rate_mode: Rate mode (See @enum rate_modulation).
  * @mpdu_density: MDPU density.
  * @retry_limit: Max number of retries.
@@ -321,6 +321,7 @@ struct txentry_desc {
 			u8 ba_size;
 			u8 mpdu_density;
 			enum txop txop;
+			int wcid;
 		} ht;
 	} u;
 
@@ -345,8 +346,8 @@ struct txentry_desc {
  *	only be touched after the device has signaled it is done with it.
  * @ENTRY_DATA_PENDING: This entry contains a valid frame and is waiting
  *	for the signal to start sending.
- * @ENTRY_DATA_IO_FAILED: Hardware indicated that an IO error occured
- *	while transfering the data to the hardware. No TX status report will
+ * @ENTRY_DATA_IO_FAILED: Hardware indicated that an IO error occurred
+ *	while transferring the data to the hardware. No TX status report will
  *	be expected from the hardware.
  * @ENTRY_DATA_STATUS_PENDING: The entry has been send to the device and
  *	returned. It is now waiting for the status reporting before the
@@ -367,7 +368,7 @@ enum queue_entry_flags {
  * @last_action: Timestamp of last change.
  * @queue: The data queue (&struct data_queue) to which this entry belongs.
  * @skb: The buffer which is currently being transmitted (for TX queue),
- *	or used to directly recieve data in (for RX queue).
+ *	or used to directly receive data in (for RX queue).
  * @entry_idx: The entry index number.
  * @priv_data: Private data belonging to this queue entry. The pointer
  *	points to data specific to a particular driver and queue type.
@@ -391,7 +392,7 @@ struct queue_entry {
  * @Q_INDEX: Index pointer to the current entry in the queue, if this entry is
  *	owned by the hardware then the queue is considered to be full.
  * @Q_INDEX_DMA_DONE: Index pointer for the next entry which will have been
- *	transfered to the hardware.
+ *	transferred to the hardware.
  * @Q_INDEX_DONE: Index pointer to the next entry which will be completed by
  *	the hardware and for which we need to run the txdone handler. If this
  *	entry is not owned by the hardware the queue is considered to be empty.

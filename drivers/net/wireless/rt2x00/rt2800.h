@@ -618,7 +618,7 @@
  * READ_CONTROL: 0 write BBP, 1 read BBP
  * BUSY: ASIC is busy executing BBP commands
  * BBP_PAR_DUR: 0 4 MAC clocks, 1 8 MAC clocks
- * BBP_RW_MODE: 0 serial, 1 paralell
+ * BBP_RW_MODE: 0 serial, 1 parallel
  */
 #define BBP_CSR_CFG			0x101c
 #define BBP_CSR_CFG_VALUE		FIELD32(0x000000ff)
@@ -664,6 +664,9 @@
 
 /*
  * LED_CFG: LED control
+ * ON_PERIOD: LED active time (ms) during TX (only used for LED mode 1)
+ * OFF_PERIOD: LED inactive time (ms) during TX (only used for LED mode 1)
+ * SLOW_BLINK_PERIOD: LED blink interval in seconds (only used for LED mode 2)
  * color LED's:
  *   0: off
  *   1: blinking upon TX2
