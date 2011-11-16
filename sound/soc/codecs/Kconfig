@@ -168,6 +168,7 @@ config SND_SOC_ALC5623
 	tristate
 
 config SND_SOC_ALC5632
+	select REGMAP_I2C
 	tristate
 
 config SND_SOC_CQ0093VC
