@@ -44,6 +44,24 @@ static int synaptics_send_cmd(struct psmouse *psmouse, unsigned char c,
 }
 
 /*
+ * V3 and later support this fast command
+ */
+static int elantech_send_cmd(struct psmouse *psmouse, unsigned char c,
+				unsigned char *param)
+{
+	struct ps2dev *ps2dev = &psmouse->ps2dev;
+
+	if (ps2_command(ps2dev, NULL, ETP_PS2_CUSTOM_COMMAND) ||
+	    ps2_command(ps2dev, NULL, c) ||
+	    ps2_command(ps2dev, param, PSMOUSE_CMD_GETINFO)) {
+		pr_err("%s query 0x%02x failed.\n", __func__, c);
+		return -1;
+	}
+
+	return 0;
+}
+
+/*
  * A retrying version of ps2_command
  */
 static int elantech_ps2_command(struct psmouse *psmouse,
@@ -861,13 +879,13 @@ static int elantech_set_range(struct psmouse *psmouse,
 			i = (etd->fw_version > 0x020800 &&
 			     etd->fw_version < 0x020900) ? 1 : 2;
 
-			if (synaptics_send_cmd(psmouse, ETP_FW_ID_QUERY, param))
+			if (etd->send_cmd(psmouse, ETP_FW_ID_QUERY, param))
 				return -1;
 
 			fixed_dpi = param[1] & 0x10;
 
 			if (((etd->fw_version >> 16) == 0x14) && fixed_dpi) {
-				if (synaptics_send_cmd(psmouse, ETP_SAMPLE_QUERY, param))
+				if (etd->send_cmd(psmouse, ETP_SAMPLE_QUERY, param))
 					return -1;
 
 				*x_max = (etd->capabilities[1] - i) * param[1] / 2;
@@ -886,7 +904,7 @@ static int elantech_set_range(struct psmouse *psmouse,
 		break;
 
 	case 3:
-		if (synaptics_send_cmd(psmouse, ETP_FW_ID_QUERY, param))
+		if (etd->send_cmd(psmouse, ETP_FW_ID_QUERY, param))
 			return -1;
 
 		*x_max = (0x0f & param[0]) << 8 | param[1];
@@ -894,7 +912,7 @@ static int elantech_set_range(struct psmouse *psmouse,
 		break;
 
 	case 4:
-		if (synaptics_send_cmd(psmouse, ETP_FW_ID_QUERY, param))
+		if (etd->send_cmd(psmouse, ETP_FW_ID_QUERY, param))
 			return -1;
 
 		*x_max = (0x0f & param[0]) << 8 | param[1];
@@ -1224,9 +1242,11 @@ static int elantech_set_properties(struct elantech_data *etd)
 		}
 	}
 
-	/*
-	 * Turn on packet checking by default.
-	 */
+	/* decide which send_cmd we're gonna use early */
+	etd->send_cmd = etd->hw_version >= 3 ? elantech_send_cmd :
+					       synaptics_send_cmd;
+
+	/* Turn on packet checking by default */
 	etd->paritycheck = 1;
 
 	/*
@@ -1282,7 +1302,7 @@ int elantech_init(struct psmouse *psmouse)
 		"(with firmware version 0x%02x%02x%02x)\n",
 		etd->hw_version, param[0], param[1], param[2]);
 
-	if (synaptics_send_cmd(psmouse, ETP_CAPABILITIES_QUERY,
+	if (etd->send_cmd(psmouse, ETP_CAPABILITIES_QUERY,
 	    etd->capabilities)) {
 		pr_err("failed to query capabilities.\n");
 		goto init_fail;
