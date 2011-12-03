@@ -810,7 +810,13 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 static int tegra_nvec_resume(struct platform_device *pdev)
 {
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
+
 	dev_dbg(nvec->dev, "resuming\n");
+
+	clk_enable(nvec->clk);
+	enable_irq(nvec->irq);
+
+	/* when making the next line nvec_write_sync, resume seems to stop working */
 	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
 
 	return 0;
