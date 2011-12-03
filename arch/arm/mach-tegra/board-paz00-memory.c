@@ -145,8 +145,7 @@ static const struct tegra_emc_table paz00_emc_tables_Hynix_333Mhz[] =
 static const struct tegra_emc_table paz00_emc_tables_Micron_333Mhz[] = {
 	{
 
-/*** FIXME ! should be for 166 MHz ****/
-		.rate = 190000,   /* SDRAM frequency */
+		.rate = 166500,   /* SDRAM frequency */
 		.regs = {
 			0x0000000b,   /* RC */
 			0x00000026,   /* RFC */
@@ -279,16 +278,11 @@ void __init paz00_emc_init(void)
 	ram_id = (reg & RAM_ID_MASK) >> RAM_CODE_SHIFT;
 
 	pr_warning("EMC table: ramd_id: %d, tegra_sku_id %d\n", ram_id, tegra_sku_id);
-/* FIXME:
-   Add timings for Micron chips @ 166 MHz (no switching is done for Micron so far)
-   Hynix may work, but I can test it because of missing hardware, so disable it
-   all together */
+
 	if(ram_id <= ARRAY_SIZE(paz00_emc))
 	{
 		pr_warning("EMC table: using %s\n", paz00_emc[ram_id].name);
-#if 0
 		tegra_init_emc(paz00_emc[ram_id].table, paz00_emc[ram_id].table_size);
-#endif
 	} else {
 		pr_warning("EMC table: unknown RAM ID - Please report !!!\n");
 		tegra_init_emc(NULL, 0);
