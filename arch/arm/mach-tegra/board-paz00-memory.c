@@ -142,6 +142,7 @@ static const struct tegra_emc_table paz00_emc_tables_Hynix_333Mhz[] =
 	}
 };
 
+/* MT47H128M8CF-25:H */
 static const struct tegra_emc_table paz00_emc_tables_Micron_333Mhz[] = {
 	{
 
