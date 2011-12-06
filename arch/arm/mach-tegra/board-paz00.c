@@ -305,6 +305,10 @@ static struct i2c_board_info __initdata alc5632_board_info = {
 	I2C_BOARD_INFO("alc5632", 0x1e),
 };
 
+static struct i2c_board_info __initdata adt7421_device = {
+	I2C_BOARD_INFO("adt7461", 0x4c),
+};
+
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_pmu_device,
@@ -374,6 +378,7 @@ static void __init paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device4);
 
 	i2c_register_board_info(0, &alc5632_board_info, 1);
+	i2c_register_board_info(4, &adt7421_device, 1);
 }
 
 static void paz00_usb_init(void)
