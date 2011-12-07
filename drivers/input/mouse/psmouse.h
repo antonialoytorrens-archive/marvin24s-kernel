@@ -32,7 +32,8 @@ enum psmouse_state {
 typedef enum {
 	PSMOUSE_BAD_DATA,
 	PSMOUSE_GOOD_DATA,
-	PSMOUSE_FULL_PACKET
+	PSMOUSE_FULL_PACKET,
+	PSMOUSE_SHIFT_PACKET
 } psmouse_ret_t;
 
 struct psmouse {
