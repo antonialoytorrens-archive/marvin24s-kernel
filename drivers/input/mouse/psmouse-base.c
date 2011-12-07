@@ -279,6 +279,11 @@ static int psmouse_handle_byte(struct psmouse *psmouse)
 		}
 		break;
 
+	case PSMOUSE_SHIFT_PACKET:
+		memmove(psmouse->packet, psmouse->packet + 1, psmouse->pktsize - 1);
+		psmouse->pktcnt--;
+		break;
+
 	case PSMOUSE_GOOD_DATA:
 		break;
 	}
