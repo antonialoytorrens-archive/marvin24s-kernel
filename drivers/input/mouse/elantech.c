@@ -728,7 +728,7 @@ static psmouse_ret_t elantech_process_byte(struct psmouse *psmouse)
 	switch (etd->hw_version) {
 	case 1:
 		if (etd->paritycheck && !elantech_packet_check_v1(psmouse))
-			return PSMOUSE_BAD_DATA;
+			return PSMOUSE_SHIFT_PACKET;
 
 		elantech_report_absolute_v1(psmouse);
 		break;
@@ -739,7 +739,7 @@ static psmouse_ret_t elantech_process_byte(struct psmouse *psmouse)
 			return PSMOUSE_FULL_PACKET;
 
 		if (etd->paritycheck && !elantech_packet_check_v2(psmouse))
-			return PSMOUSE_BAD_DATA;
+			return PSMOUSE_SHIFT_PACKET;
 
 		elantech_report_absolute_v2(psmouse);
 		break;
@@ -751,7 +751,7 @@ static psmouse_ret_t elantech_process_byte(struct psmouse *psmouse)
 			return PSMOUSE_FULL_PACKET;
 
 		if (packet_type == PACKET_UNKNOWN)
-			return PSMOUSE_BAD_DATA;
+			return PSMOUSE_SHIFT_PACKET;
 
 		elantech_report_absolute_v3(psmouse, packet_type);
 		break;
