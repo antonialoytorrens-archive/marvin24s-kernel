@@ -284,9 +284,22 @@ static int ath9k_reg_notifier(struct wiphy *wiphy,
 {
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct ath_softc *sc = hw->priv;
-	struct ath_regulatory *reg = ath9k_hw_regulatory(sc->sc_ah);
+	struct ath_hw *ah = sc->sc_ah;
+	struct ath_regulatory *reg = ath9k_hw_regulatory(ah);
+	int ret;
 
-	return ath_reg_notifier_apply(wiphy, request, reg);
+	ret = ath_reg_notifier_apply(wiphy, request, reg);
+
+	/* Set tx power */
+	if (ah->curchan) {
+		sc->config.txpowlimit = 2 * ah->curchan->chan->max_power;
+		ath9k_ps_wakeup(sc);
+		ath9k_hw_set_txpowerlimit(ah, sc->config.txpowlimit, false);
+		sc->curtxpow = ath9k_hw_regulatory(ah)->power_limit;
+		ath9k_ps_restore(sc);
+	}
+
+	return ret;
 }
 
 /*
@@ -565,6 +578,7 @@ static int ath9k_init_softc(u16 devid, struct ath_softc *sc, u16 subsysid,
 	ah->reg_ops.read = ath9k_ioread32;
 	ah->reg_ops.write = ath9k_iowrite32;
 	ah->reg_ops.rmw = ath9k_reg_rmw;
+	atomic_set(&ah->intr_ref_cnt, -1);
 	sc->sc_ah = ah;
 
 	if (!pdata) {

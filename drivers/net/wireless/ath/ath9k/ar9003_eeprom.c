@@ -1309,8 +1309,8 @@ static const struct ar9300_eeprom ar9300_h112 = {
 		.txEndToRxOn = 0x2,
 		.txFrameToXpaOn = 0xe,
 		.thresh62 = 28,
-		.papdRateMaskHt20 = LE32(0x80c080),
-		.papdRateMaskHt40 = LE32(0x80c080),
+		.papdRateMaskHt20 = LE32(0x0c80c080),
+		.papdRateMaskHt40 = LE32(0x0080c080),
 		.futureModal = {
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		},
@@ -1322,7 +1322,7 @@ static const struct ar9300_eeprom ar9300_h112 = {
 	.calFreqPier2G = {
 		FREQ2FBIN(2412, 1),
 		FREQ2FBIN(2437, 1),
-		FREQ2FBIN(2472, 1),
+		FREQ2FBIN(2462, 1),
 	},
 	/* ar9300_cal_data_per_freq_op_loop 2g */
 	.calPierData2G = {
@@ -1332,7 +1332,7 @@ static const struct ar9300_eeprom ar9300_h112 = {
 	},
 	.calTarget_freqbin_Cck = {
 		FREQ2FBIN(2412, 1),
-		FREQ2FBIN(2484, 1),
+		FREQ2FBIN(2472, 1),
 	},
 	.calTarget_freqbin_2G = {
 		FREQ2FBIN(2412, 1),
@@ -1533,7 +1533,7 @@ static const struct ar9300_eeprom ar9300_h112 = {
 		FREQ2FBIN(5500, 0),
 		FREQ2FBIN(5600, 0),
 		FREQ2FBIN(5700, 0),
-		FREQ2FBIN(5825, 0)
+		FREQ2FBIN(5785, 0)
 	},
 	.calPierData5G = {
 		{
@@ -2477,7 +2477,7 @@ static const struct ar9300_eeprom ar9300_h116 = {
 	.calFreqPier2G = {
 		FREQ2FBIN(2412, 1),
 		FREQ2FBIN(2437, 1),
-		FREQ2FBIN(2472, 1),
+		FREQ2FBIN(2462, 1),
 	 },
 	/* ar9300_cal_data_per_freq_op_loop 2g */
 	.calPierData2G = {
@@ -2681,7 +2681,7 @@ static const struct ar9300_eeprom ar9300_h116 = {
 		.xatten1MarginHigh = {0, 0, 0}
 	 },
 	.calFreqPier5G = {
-		FREQ2FBIN(5180, 0),
+		FREQ2FBIN(5160, 0),
 		FREQ2FBIN(5220, 0),
 		FREQ2FBIN(5320, 0),
 		FREQ2FBIN(5400, 0),
@@ -4590,7 +4590,7 @@ static void ar9003_hw_set_power_per_rate_table(struct ath_hw *ah,
 	struct ath_regulatory *regulatory = ath9k_hw_regulatory(ah);
 	struct ath_common *common = ath9k_hw_common(ah);
 	struct ar9300_eeprom *pEepData = &ah->eeprom.ar9300_eep;
-	u16 twiceMaxEdgePower = MAX_RATE_POWER;
+	u16 twiceMaxEdgePower;
 	static const u16 tpScaleReductionTable[5] = {
 		0, 3, 6, 9, MAX_RATE_POWER
 	};
@@ -4716,6 +4716,7 @@ static void ar9003_hw_set_power_per_rate_table(struct ath_hw *ah,
 			ctlNum = AR9300_NUM_CTLS_5G;
 		}
 
+		twiceMaxEdgePower = MAX_RATE_POWER;
 		for (i = 0; (i < ctlNum) && ctlIndex[i]; i++) {
 			ath_dbg(common, ATH_DBG_REGULATORY,
 				"LOOP-Ctlidx %d: cfgCtl 0x%2.2x pCtlMode 0x%2.2x ctlIndex 0x%2.2x chan %d\n",
@@ -4897,6 +4898,21 @@ static void ath9k_hw_ar9300_set_txpower(struct ath_hw *ah,
 			regulatory->max_power_level = targetPowerValT2[i];
 	}
 
+	switch (ar5416_get_ntxchains(ah->txchainmask)) {
+	case 1:
+		break;
+	case 2:
+		regulatory->max_power_level += INCREASE_MAXPOW_BY_TWO_CHAIN;
+		break;
+	case 3:
+		regulatory->max_power_level += INCREASE_MAXPOW_BY_THREE_CHAIN;
+		break;
+	default:
+		ath_dbg(ath9k_hw_common(ah), ATH_DBG_EEPROM,
+			"Invalid chainmask configuration\n");
+		break;
+	}
+
 	if (test)
 		return;
 
@@ -4905,25 +4921,7 @@ static void ath9k_hw_ar9300_set_txpower(struct ath_hw *ah,
 			"TPC[%02d] 0x%08x\n", i, targetPowerValT2[i]);
 	}
 
-	/*
-	 * This is the TX power we send back to driver core,
-	 * and it can use to pass to userspace to display our
-	 * currently configured TX power setting.
-	 *
-	 * Since power is rate dependent, use one of the indices
-	 * from the AR9300_Rates enum to select an entry from
-	 * targetPowerValT2[] to report. Currently returns the
-	 * power for HT40 MCS 0, HT20 MCS 0, or OFDM 6 Mbps
-	 * as CCK power is less interesting (?).
-	 */
-	i = ALL_TARGET_LEGACY_6_24; /* legacy */
-	if (IS_CHAN_HT40(chan))
-		i = ALL_TARGET_HT40_0_8_16; /* ht40 */
-	else if (IS_CHAN_HT20(chan))
-		i = ALL_TARGET_HT20_0_8_16; /* ht20 */
-
-	ah->txpower_limit = targetPowerValT2[i];
-	regulatory->max_power_level = targetPowerValT2[i];
+	ah->txpower_limit = regulatory->max_power_level;
 
 	/* Write target power array to registers */
 	ar9003_hw_tx_power_regwrite(ah, targetPowerValT2);
@@ -4994,9 +4992,212 @@ unsigned int ar9003_get_paprd_scale_factor(struct ath_hw *ah,
 	}
 }
 
+static u32 ath9k_hw_ar9003_dump_eep_power(struct ath_hw *ah, u8 *buf,
+					  u32 len, u32 size)
+{
+	struct ar9300_eeprom *eep = &ah->eeprom.ar9300_eep;
+	int i, j;
+#define PR_EEP(_s, _val)						\
+	do {								\
+		len += snprintf(buf + len, size - len, _s, (_val));	\
+	} while (0)
+
+	PR_EEP("macAddr : %pM\n", eep->macAddr);
+	len += snprintf(buf + len, size - len, "calPierData2G :\n");
+	len += snprintf(buf + len, size - len,
+			"Chain  refPower voltMeas tempMeas "
+			"rxNoisefloorCal rxNoisefloorPower rxTempMeas\n");
+	for (i = 0; i < AR9300_MAX_CHAINS; i++) {
+		if (!(ah->txchainmask & BIT(i)))
+			continue;
+
+		for (j = 0; j < AR9300_NUM_2G_CAL_PIERS; j++) {
+			len += snprintf(buf + len, size - len,
+				"%2d %8d %8d %10d %10d %20d %8d\n", i,
+				eep->calPierData2G[i][j].refPower,
+				eep->calPierData2G[i][j].voltMeas,
+				eep->calPierData2G[i][j].tempMeas,
+				eep->calPierData2G[i][j].rxNoisefloorCal,
+				eep->calPierData2G[i][j].rxNoisefloorPower,
+				eep->calPierData2G[i][j].rxTempMeas);
+		}
+	}
+	len += snprintf(buf + len, size - len, "\ncalTarget_freqbin_Cck :\n");
+	for (i = 0; i < AR9300_NUM_2G_CCK_TARGET_POWERS; i++)
+		PR_EEP("%u ", FBIN2FREQ(eep->calTarget_freqbin_Cck[i], 1));
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len, "\ncalTarget_freqbin_2G :\n");
+	for (i = 0; i < AR9300_NUM_2G_20_TARGET_POWERS; i++)
+		PR_EEP("%u ", FBIN2FREQ(eep->calTarget_freqbin_2G[i], 1));
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len,
+			"\ncalTarget_freqbin_2GHT20 :\n");
+	for (i = 0; i < AR9300_NUM_2G_20_TARGET_POWERS; i++)
+		PR_EEP("%u ", FBIN2FREQ(eep->calTarget_freqbin_2GHT20[i], 1));
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len,
+			"\ncalTarget_freqbin_2GHT40 :\n");
+	for (i = 0; i < AR9300_NUM_2G_40_TARGET_POWERS; i++)
+		PR_EEP("%u ", FBIN2FREQ(eep->calTarget_freqbin_2GHT40[i], 1));
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len, "\ncalTargetPowerCck :\n");
+	for (i = 0; i < AR9300_NUM_2G_CCK_TARGET_POWERS; i++) {
+		for (j = 0; j < 4; j++)
+			PR_EEP("%u ", (eep->calTargetPowerCck[i].tPow2x[j])/2);
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len, "\ncalTargetPower2G :\n");
+	for (i = 0; i < AR9300_NUM_2G_20_TARGET_POWERS; i++) {
+		for (j = 0; j < 4; j++)
+			PR_EEP("%u ", (eep->calTargetPower2G[i].tPow2x[j])/2);
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len, "\ncalTargetPower2GHT20 :\n");
+	for (i = 0; i < AR9300_NUM_2G_20_TARGET_POWERS; i++) {
+		for (j = 0; j < 14; j++)
+			PR_EEP("%u ",
+			       (eep->calTargetPower2GHT20[i].tPow2x[j])/2);
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len, "\ncalTargetPower2GHT40 :\n");
+	for (i = 0; i < AR9300_NUM_2G_40_TARGET_POWERS; i++) {
+		for (j = 0; j < 14; j++)
+			PR_EEP("%u ",
+			       (eep->calTargetPower2GHT40[i].tPow2x[j])/2);
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len, "\nctlIndex_2G :\n");
+	for (i = 0; i < AR9300_NUM_CTLS_2G; i++)
+		PR_EEP("0x%x ", eep->ctlIndex_2G[i]);
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len, "\nctl_freqbin_2G:\n");
+	for (i = 0; i < AR9300_NUM_CTLS_2G; i++) {
+		for (j = 0; j < AR9300_NUM_BAND_EDGES_2G; j++)
+			PR_EEP("%u ", FBIN2FREQ(eep->ctl_freqbin_2G[i][j], 1));
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len,
+			"\nctlPowerData_2G : { power, flag }\n");
+	for (i = 0; i < AR9300_NUM_CTLS_2G; i++) {
+		for (j = 0; j < AR9300_NUM_BAND_EDGES_2G; j++) {
+			len += snprintf(buf + len, size - len, "{ %d, %u } ",
+			   CTL_EDGE_TPOWER(eep->ctlPowerData_2G[i].ctlEdges[j]),
+			   CTL_EDGE_FLAGS(eep->ctlPowerData_2G[i].ctlEdges[j]));
+		}
+		len += snprintf(buf + len, size - len, "\n");
+	}
+	len += snprintf(buf + len, size - len, "\ncalPierData5G :\n");
+	len += snprintf(buf + len, size - len,
+			"Chain  refPower voltMeas tempMeas "
+			"rxNoisefloorCal rxNoisefloorPower rxTempMeas\n");
+	for (i = 0; i < AR9300_MAX_CHAINS; i++) {
+		if (!(ah->txchainmask & BIT(i)))
+			continue;
+
+		for (j = 0; j < AR9300_NUM_5G_CAL_PIERS; j++) {
+			len += snprintf(buf + len, size - len,
+				"%2d %8d %8d %10d %10d %20d %8d\n", i,
+				eep->calPierData5G[i][j].refPower,
+				eep->calPierData5G[i][j].voltMeas,
+				eep->calPierData5G[i][j].tempMeas,
+				eep->calPierData5G[i][j].rxNoisefloorCal,
+				eep->calPierData5G[i][j].rxNoisefloorPower,
+				eep->calPierData5G[i][j].rxTempMeas);
+		}
+	}
+	len += snprintf(buf + len, size - len, "\ncalTarget_freqbin_5G :\n");
+	for (i = 0; i < AR9300_NUM_5G_20_TARGET_POWERS; i++)
+		PR_EEP("%u ", FBIN2FREQ(eep->calTarget_freqbin_5G[i], 0));
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len,
+			"\ncalTarget_freqbin_5GHT20 :\n");
+	for (i = 0; i < AR9300_NUM_5G_20_TARGET_POWERS; i++)
+		PR_EEP("%u ", FBIN2FREQ(eep->calTarget_freqbin_5GHT20[i], 0));
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len,
+			"\ncalTarget_freqbin_5GHT40 :\n");
+	for (i = 0; i < AR9300_NUM_5G_40_TARGET_POWERS; i++)
+		PR_EEP("%u ", FBIN2FREQ(eep->calTarget_freqbin_5GHT40[i], 0));
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len, "\ncalTargetPower5G :\n");
+	for (i = 0; i < AR9300_NUM_5G_20_TARGET_POWERS; i++) {
+		for (j = 0; j < 4; j++)
+			PR_EEP("%u ", (eep->calTargetPower5G[i].tPow2x[j])/2);
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len, "\ncalTargetPower5GHT20 :\n");
+	for (i = 0; i < AR9300_NUM_5G_20_TARGET_POWERS; i++) {
+		for (j = 0; j < 14; j++)
+			PR_EEP("%u ",
+			       (eep->calTargetPower5GHT20[i].tPow2x[j])/2);
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len, "\ncalTargetPower5GHT40 :\n");
+	for (i = 0; i < AR9300_NUM_5G_40_TARGET_POWERS; i++) {
+		for (j = 0; j < 14; j++)
+			PR_EEP("%u ",
+			       (eep->calTargetPower5GHT40[i].tPow2x[j])/2);
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len, "\nctlIndex_5G :\n");
+	for (i = 0; i < AR9300_NUM_CTLS_5G; i++)
+		PR_EEP("0x%x ", eep->ctlIndex_5G[i]);
+	len += snprintf(buf + len, size - len, "\n");
+
+	len += snprintf(buf + len, size - len, "\nctl_freqbin_5G:\n");
+	for (i = 0; i < AR9300_NUM_CTLS_5G; i++) {
+		for (j = 0; j < AR9300_NUM_BAND_EDGES_5G; j++)
+			PR_EEP("%u ", FBIN2FREQ(eep->ctl_freqbin_5G[i][j], 0));
+		len += snprintf(buf + len, size - len, "\n");
+	}
+
+	len += snprintf(buf + len, size - len,
+			"\nctlPowerData_5G : { power, flag }\n");
+	for (i = 0; i < AR9300_NUM_CTLS_5G; i++) {
+		for (j = 0; j < AR9300_NUM_BAND_EDGES_5G; j++) {
+			len += snprintf(buf + len, size - len, "{ %d, %u } ",
+			   CTL_EDGE_TPOWER(eep->ctlPowerData_5G[i].ctlEdges[j]),
+			   CTL_EDGE_FLAGS(eep->ctlPowerData_5G[i].ctlEdges[j]));
+		}
+		len += snprintf(buf + len, size - len, "\n");
+	}
+	len += snprintf(buf + len, size - len, "\n");
+
+	if (ah->curchan)
+		PR_EEP("freq %d\n", ah->curchan->channel);
+
+	for (i = 0; i < 12; i++)
+		len += snprintf(buf + len, size - len,
+				"Tx Power Rate %2d : 0x%08x\n",
+				i, REG_READ(ah, AR_PHY_POWER_TX_RATE(i)));
+
+	if (len > size)
+		len = size;
+
+#undef PR_EEP
+	return len;
+}
+
 const struct eeprom_ops eep_ar9300_ops = {
 	.check_eeprom = ath9k_hw_ar9300_check_eeprom,
 	.get_eeprom = ath9k_hw_ar9300_get_eeprom,
+	.dump_eep_power = ath9k_hw_ar9003_dump_eep_power,
 	.fill_eeprom = ath9k_hw_ar9300_fill_eeprom,
 	.get_eeprom_ver = ath9k_hw_ar9300_get_eeprom_ver,
 	.get_eeprom_rev = ath9k_hw_ar9300_get_eeprom_rev,

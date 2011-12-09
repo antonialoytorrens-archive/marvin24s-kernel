@@ -210,6 +210,15 @@ static int cs_dig_playback_pcm_cleanup(struct hda_pcm_stream *hinfo,
 	return snd_hda_multi_out_dig_cleanup(codec, &spec->multiout);
 }
 
+static void cs_update_input_select(struct hda_codec *codec)
+{
+	struct cs_spec *spec = codec->spec;
+	if (spec->cur_adc)
+		snd_hda_codec_write(codec, spec->cur_adc, 0,
+				    AC_VERB_SET_CONNECT_SEL,
+				    spec->adc_idx[spec->cur_input]);
+}
+
 /*
  * Analog capture
  */
@@ -223,6 +232,7 @@ static int cs_capture_pcm_prepare(struct hda_pcm_stream *hinfo,
 	spec->cur_adc = spec->adc_nid[spec->cur_input];
 	spec->cur_adc_stream_tag = stream_tag;
 	spec->cur_adc_format = format;
+	cs_update_input_select(codec);
 	snd_hda_codec_setup_stream(codec, spec->cur_adc, stream_tag, 0, format);
 	return 0;
 }
@@ -669,10 +679,8 @@ static int change_cur_input(struct hda_codec *codec, unsigned int idx,
 					   spec->cur_adc_stream_tag, 0,
 					   spec->cur_adc_format);
 	}
-	snd_hda_codec_write(codec, spec->cur_adc, 0,
-			    AC_VERB_SET_CONNECT_SEL,
-			    spec->adc_idx[idx]);
 	spec->cur_input = idx;
+	cs_update_input_select(codec);
 	return 1;
 }
 
@@ -1310,14 +1318,14 @@ static int patch_cs420x(struct hda_codec *codec)
 /* CS4210 boards */
 enum {
 	CS421X_CDB4210,
-	STUMPY_CDB4210,
+	CS421X_STUMPY,
 	CS421X_MODELS
 };
 
 /* CS4210 board names */
 static const char *cs421x_models[CS421X_MODELS] = {
 	[CS421X_CDB4210] = "cdb4210",
-	[STUMPY_CDB4210] = "stumpy",
+	[CS421X_STUMPY] = "stumpy",
 };
 
 static struct snd_pci_quirk cs421x_cfg_tbl[] = {
@@ -1338,9 +1346,20 @@ static struct cs_pincfg cdb4210_pincfgs[] = {
 	{} /* terminator */
 };
 
+/* Stumpy */
+static struct cs_pincfg stumpy_pincfgs[] = {
+	{ 0x05, 0x022120f0 },
+	{ 0x06, 0x901700f0 },
+	{ 0x07, 0x02a120f0 },
+	{ 0x08, 0x77a70037 },
+	{ 0x09, 0x77a6003e },
+	{ 0x0a, 0x434510f0 },
+	{} /* terminator */
+};
+
 static struct cs_pincfg *cs421x_pincfgs[CS421X_MODELS] = {
 	[CS421X_CDB4210] = cdb4210_pincfgs,
-	[STUMPY_CDB4210] = cdb4210_pincfgs,
+	[CS421X_STUMPY] = stumpy_pincfgs,
 };
 
 static struct hda_verb cs421x_coef_init_verbs[] = {
@@ -1536,9 +1555,7 @@ static void cs421x_auto_input(struct hda_codec *codec)
 		spec->cur_input = spec->last_input;
 	}
 
-	snd_hda_codec_write_cache(codec, spec->cur_adc, 0,
-				AC_VERB_SET_CONNECT_SEL,
-				spec->adc_idx[spec->cur_input]);
+	cs_update_input_select(codec);
 }
 
 static void cs421x_pinmux_init(struct hda_codec *codec)
@@ -1661,9 +1678,7 @@ static void init_cs421x_input(struct hda_codec *codec)
 		cs421x_auto_input(codec);
 	else  {
 		spec->cur_adc = spec->adc_nid[spec->cur_input];
-		snd_hda_codec_write(codec, spec->cur_adc, 0,
-				AC_VERB_SET_CONNECT_SEL,
-				spec->adc_idx[spec->cur_input]);
+		cs_update_input_select(codec);
 	}
 
 }

@@ -565,6 +565,7 @@ static __initdata struct tegra_pingroup_config mxt_pinmux_config[] = {
 static struct i2c_board_info __initdata cyapa_device = {
 	I2C_BOARD_INFO(CYAPA_I2C_NAME, 0x67),
 	.irq		= TEGRA_GPIO_TO_IRQ(TEGRA_GPIO_CYTP_INT),
+	.flags		= I2C_CLIENT_WAKE,
 };
 
 static struct tegra_utmip_config usb1_phy_config = {
@@ -590,6 +591,10 @@ static struct tegra_utmip_config usb3_phy_config = {
 	.shared_pin_vbus_en_oc = true,
 };
 
+static struct tegra_ulpi_config ulpi_phy_config = {
+	.reset_gpio = TEGRA_GPIO_PV1,
+	.clk = "cdev2",
+};
 
 static int seaboard_ehci_init(void)
 {
@@ -613,11 +618,16 @@ static int seaboard_ehci_init(void)
 	pdata->keep_clock_in_bus_suspend = 1;
 	pdata->phy_config = &usb1_phy_config;
 
+	pdata = tegra_ehci2_device.dev.platform_data;
+	pdata->keep_clock_in_bus_suspend = 1;
+	pdata->phy_config = &ulpi_phy_config;
+
 	pdata = tegra_ehci3_device.dev.platform_data;
 	pdata->keep_clock_in_bus_suspend = 1;
 	pdata->phy_config = &usb3_phy_config;
 
 	platform_device_register(&tegra_ehci1_device);
+	platform_device_register(&tegra_ehci2_device);
 	platform_device_register(&tegra_ehci3_device);
 
 	return 0;
@@ -800,7 +810,11 @@ static void __init __seaboard_common_init(void)
 
 	/* Power up WLAN */
 	gpio_request(TEGRA_GPIO_PK6, "wlan_pwr_rst");
-	gpio_direction_output(TEGRA_GPIO_PK6, 1);
+
+	/* NB: needed by mwl8797 A0 silicon */
+	gpio_direction_output(TEGRA_GPIO_PK6, 0);
+	mdelay(10);
+	gpio_set_value(TEGRA_GPIO_PK6, 1);
 
 	tegra_sdhci_device1.dev.platform_data = &sdhci_pdata1;
 	tegra_sdhci_device3.dev.platform_data = &sdhci_pdata3;
@@ -929,6 +943,8 @@ static void __init tegra_seaboard_init(void)
  */
 static void gpio_machine_restart(char mode, const char *cmd)
 {
+	tegra_pm_flush_console();
+
 	/* Disable interrupts first */
 	local_irq_disable();
 	local_fiq_disable();
@@ -940,9 +956,13 @@ static void gpio_machine_restart(char mode, const char *cmd)
 	flush_cache_all();
 
 	/* Reboot by resetting CPU and TPM via GPIO */
-	printk(KERN_INFO "restart: issuing GPIO reset\n");
 	gpio_set_value(TEGRA_GPIO_RESET, 0);
 
+	/*
+	 * printk should still work with interrupts disabled, but since we've
+	 * already flushed this isn't guaranteed to actually make it out.  We'll
+	 * print it anyway just in case.
+	 */
 	printk(KERN_INFO "restart: trying legacy reboot\n");
 	legacy_arm_pm_restart(mode, cmd);
 }
@@ -985,6 +1005,7 @@ static void __init tegra_kaen_init(void)
 	kaen_i2c_register_devices();
 	seaboard_i2c_init();
 
+	kaen_sensors_init();
 	legacy_arm_pm_restart = arm_pm_restart;
 	arm_pm_restart = gpio_machine_restart;
 }
@@ -1015,8 +1036,6 @@ static void __init tegra_aebl_init(void)
 
 	aebl_i2c_register_devices();
 	seaboard_i2c_init();
-
-	kaen_sensors_init();
 
 	aebl_sensors_init();
 	legacy_arm_pm_restart = arm_pm_restart;
@@ -1137,6 +1156,33 @@ void __init tegra_ventana_init(void)
 	seaboard_i2c_init();
 }
 
+/*
+ * reserve memory for RAMOOPS if configured.
+ */
+#if defined(CONFIG_CHROMEOS_RAMOOPS_RAM_START) && \
+	defined(CONFIG_CHROMEOS_RAMOOPS_RAM_SIZE)
+void __init ramoops_reserve(void)
+{
+	unsigned long size = CONFIG_CHROMEOS_RAMOOPS_RAM_SIZE;
+	unsigned long start = CONFIG_CHROMEOS_RAMOOPS_RAM_START;
+
+	/* If necessary, lower start and raise size to align to 1M. */
+	start = round_down(start, SZ_1M);
+	size += CONFIG_CHROMEOS_RAMOOPS_RAM_START - start;
+	size = round_up(size, SZ_1M);
+
+	if (memblock_remove(start, size)) {
+		pr_err("Failed to remove ramoops %08lx@%08lx from memory\n",
+			size, start);
+	} else {
+		pr_info("Ramoops:                %08lx - %08lx\n",
+			start, start + size - 1);
+	}
+}
+#else
+#define ramoops_reserve()
+#endif
+
 void __init tegra_common_reserve(void)
 {
 	unsigned long fb_size;
@@ -1154,6 +1200,8 @@ void __init tegra_common_reserve(void)
 	 */
 	fb_size = round_up((1368 * 910 * 4 * 2), PAGE_SIZE);
 	tegra_reserve(256 * 1024 * 1024, fb_size, 0);
+
+	ramoops_reserve();
 }
 
 static const char *seaboard_dt_board_compat[] = {

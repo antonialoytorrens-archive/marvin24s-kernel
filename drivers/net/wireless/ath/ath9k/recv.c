@@ -599,7 +599,6 @@ static void ath_rx_ps_beacon(struct ath_softc *sc, struct sk_buff *skb)
 		ath_dbg(common, ATH_DBG_PS,
 			"Reconfigure Beacon timers based on timestamp from the AP\n");
 		ath_set_beacon(sc);
-		sc->ps_flags &= ~PS_TSFOOR_SYNC;
 	}
 
 	if (ath_beacon_dtim_pending_cab(skb)) {
@@ -1883,6 +1882,11 @@ requeue:
 	} while (1);
 
 	spin_unlock_bh(&sc->rx.rxbuflock);
+
+	if (!(ah->imask & ATH9K_INT_RXEOL)) {
+		ah->imask |= (ATH9K_INT_RXEOL | ATH9K_INT_RXORN);
+		ath9k_hw_set_interrupts(ah, ah->imask);
+	}
 
 	return 0;
 }

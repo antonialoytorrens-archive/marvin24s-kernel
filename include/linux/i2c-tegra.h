@@ -78,6 +78,7 @@ struct tegra_i2c_dev {
 	u8 *msg_buf;
 	size_t msg_buf_remaining;
 	int msg_read;
+	struct i2c_msg *msg;
 	int msg_transfer_complete;
 	bool is_suspended;
 	int bus_count;

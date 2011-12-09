@@ -412,7 +412,25 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 	}
 
 	if (status & I2C_INT_PACKET_XFER_COMPLETE) {
-		BUG_ON(i2c_dev->msg_buf_remaining);
+		if (i2c_dev->msg_buf_remaining) {
+			int i;
+			dev_warn(i2c_dev->dev,
+				 "interrupt status says complete but %d "\
+				 "bytes remains in msg\n",
+				 i2c_dev->msg_buf_remaining);
+			dev_warn(i2c_dev->dev, "operation: %s len: %d\n",
+				 i2c_dev->msg_read ? "read" : "write",
+				 i2c_dev->msg->len);
+			pr_warn("msg:");
+			for (i = 0; i < i2c_dev->msg->len; i++) {
+				pr_cont(" %02x", i2c_dev->msg->buf[i]);
+				if (!((i+1) % 20)) {
+					pr_cont("\n");
+					pr_warn("");
+				}
+			}
+			WARN_ON(1);
+		}
 		complete(&i2c_dev->msg_complete);
 	}
 
@@ -421,13 +439,10 @@ static irqreturn_t tegra_i2c_isr(int irq, void *dev_id)
 		dvc_writel(i2c_dev, DVC_STATUS_I2C_DONE_INTR, DVC_STATUS);
 	return IRQ_HANDLED;
 err:
-	/* An error occurred, mask all interrupts */
-	tegra_i2c_mask_irq(i2c_dev, I2C_INT_NO_ACK | I2C_INT_ARBITRATION_LOST |
-		I2C_INT_PACKET_XFER_COMPLETE | I2C_INT_TX_FIFO_DATA_REQ |
-		I2C_INT_RX_FIFO_DATA_REQ);
-	i2c_writel(i2c_dev, status, I2C_INT_STATUS);
+	/* An error occurred, clear DVC status if needed and reset */
 	if (i2c_dev->is_dvc)
 		dvc_writel(i2c_dev, DVC_STATUS_I2C_DONE_INTR, DVC_STATUS);
+	tegra_periph_reset_assert(i2c_dev->clk);
 	return IRQ_HANDLED;
 }
 
@@ -447,6 +462,7 @@ static int tegra_i2c_xfer_msg(struct tegra_i2c_bus *i2c_bus,
 
 	i2c_dev->msg_buf = msg->buf;
 	i2c_dev->msg_buf_remaining = msg->len;
+	i2c_dev->msg = msg;
 	i2c_dev->msg_err = I2C_ERR_NONE;
 	i2c_dev->msg_read = (msg->flags & I2C_M_RD);
 	INIT_COMPLETION(i2c_dev->msg_complete);

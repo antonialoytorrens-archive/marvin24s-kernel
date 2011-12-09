@@ -875,7 +875,7 @@ static void ath9k_hw_set_def_power_per_rate_table(struct ath_hw *ah,
 
 	struct ath_regulatory *regulatory = ath9k_hw_regulatory(ah);
 	struct ar5416_eeprom_def *pEepData = &ah->eeprom.def;
-	u16 twiceMaxEdgePower = MAX_RATE_POWER;
+	u16 twiceMaxEdgePower;
 	static const u16 tpScaleReductionTable[5] =
 		{ 0, 3, 6, 9, MAX_RATE_POWER };
 
@@ -1020,9 +1020,7 @@ static void ath9k_hw_set_def_power_per_rate_table(struct ath_hw *ah,
 		else
 			freq = centers.ctl_center;
 
-		if (ah->eep_ops->get_eeprom_ver(ah) == 14 &&
-		    ah->eep_ops->get_eeprom_rev(ah) <= 2)
-			twiceMaxEdgePower = MAX_RATE_POWER;
+		twiceMaxEdgePower = MAX_RATE_POWER;
 
 		for (i = 0; (i < AR5416_NUM_CTLS) && pEepData->ctlIndex[i]; i++) {
 			if ((((cfgCtl & ~CTL_MODE_M) |
@@ -1171,17 +1169,6 @@ static void ath9k_hw_def_set_txpower(struct ath_hw *ah,
 			ratesArray[i] = MAX_RATE_POWER;
 		if (ratesArray[i] > regulatory->max_power_level)
 			regulatory->max_power_level = ratesArray[i];
-	}
-
-	if (!test) {
-		i = rate6mb;
-
-		if (IS_CHAN_HT40(chan))
-			i = rateHt40_0;
-		else if (IS_CHAN_HT20(chan))
-			i = rateHt20_0;
-
-		regulatory->max_power_level = ratesArray[i];
 	}
 
 	switch(ar5416_get_ntxchains(ah->txchainmask)) {

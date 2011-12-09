@@ -1071,6 +1071,9 @@ static void i915_setup_compression(struct drm_device *dev, int size)
 	unsigned long cfb_base;
 	unsigned long ll_base = 0;
 
+	/* Just in case the BIOS is doing something questionable. */
+	intel_disable_fbc(dev);
+
 	compressed_fb = drm_mm_search_free(&dev_priv->mm.stolen, size, 4096, 0);
 	if (compressed_fb)
 		compressed_fb = drm_mm_get_block(compressed_fb, size, 4096);
@@ -1097,7 +1100,6 @@ static void i915_setup_compression(struct drm_device *dev, int size)
 
 	dev_priv->cfb_size = size;
 
-	intel_disable_fbc(dev);
 	dev_priv->compressed_fb = compressed_fb;
 	if (HAS_PCH_SPLIT(dev))
 		I915_WRITE(ILK_DPFC_CB_BASE, compressed_fb->start);
@@ -2066,7 +2068,6 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	i915_mch_dev = dev_priv;
 	dev_priv->mchdev_lock = &mchdev_lock;
 	spin_unlock(&mchdev_lock);
-	i915_backlight_init(dev);
 
 	ips_ping_for_i915_load();
 
@@ -2106,7 +2107,6 @@ int i915_driver_unload(struct drm_device *dev)
 	spin_lock(&mchdev_lock);
 	i915_mch_dev = NULL;
 	spin_unlock(&mchdev_lock);
-	i915_backlight_exit(dev);
 
 	if (dev_priv->mm.inactive_shrinker.shrink)
 		unregister_shrinker(&dev_priv->mm.inactive_shrinker);
