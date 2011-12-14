@@ -282,7 +282,9 @@ void __init paz00_emc_init(void)
 	if(ram_id <= ARRAY_SIZE(paz00_emc))
 	{
 		pr_warning("EMC table: using %s\n", paz00_emc[ram_id].name);
+#if 0
 		tegra_init_emc(paz00_emc[ram_id].table, paz00_emc[ram_id].table_size);
+#endif
 	} else {
 		pr_warning("EMC table: unknown RAM ID - Please report !!!\n");
 		tegra_init_emc(NULL, 0);
