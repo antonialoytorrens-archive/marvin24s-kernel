@@ -29,7 +29,7 @@
 
 
 #ifdef CONFIG_IP_DCCP_CCID2_DEBUG
-static int ccid2_debug;
+static bool ccid2_debug;
 #define ccid2_pr_debug(format, a...)	DCCP_PR_DEBUG(ccid2_debug, format, ##a)
 #else
 #define ccid2_pr_debug(format, a...)
