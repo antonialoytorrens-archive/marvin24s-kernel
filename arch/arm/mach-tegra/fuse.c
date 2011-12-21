@@ -19,6 +19,7 @@
 
 #include <linux/kernel.h>
 #include <linux/io.h>
+#include <linux/module.h>
 
 #include <mach/iomap.h>
 
@@ -44,6 +45,7 @@ int tegra_sku_id;
 int tegra_cpu_process_id;
 int tegra_core_process_id;
 u64 tegra_chip_uid;
+EXPORT_SYMBOL(tegra_chip_uid);
 
 static const char *tegra_revision_name[TEGRA_REVISION_MAX] = {
 	[TEGRA_REVISION_UNKNOWN] = "unknown",
