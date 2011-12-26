@@ -17,6 +17,7 @@
 /* #define DEBUG */
 
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/atomic.h>
 #include <linux/clk.h>
 #include <linux/completion.h>
@@ -50,8 +51,8 @@
 #define I2C_SL_NEWSL		(1<<2)
 #define I2C_SL_NACK		(1<<1)
 #define I2C_SL_RESP		(1<<0)
-#define END_TRANS		(1<<4)
 #define I2C_SL_IRQ		(1<<3)
+#define END_TRANS		(1<<4)
 #define RCVD			(1<<2)
 #define RNW			(1<<1)
 
