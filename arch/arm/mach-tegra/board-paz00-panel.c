@@ -371,28 +371,24 @@ static int __init paz00_hdmi_late_init(void)
 	paz00_hdmi_reg = regulator_get(NULL, "avdd_hdmi");
 	if (IS_ERR_OR_NULL(paz00_hdmi_reg)) {
 		ret = PTR_ERR(paz00_hdmi_reg);
-		goto fail;
+		goto fail1;
 	}
 
 	paz00_hdmi_pll = regulator_get(NULL, "avdd_hdmi_pll");
 	if (IS_ERR_OR_NULL(paz00_hdmi_pll)) {
 		ret = PTR_ERR(paz00_hdmi_pll);
-		goto fail;
+		goto fail2;
 	}
 
 	return 0;
 
-fail:
+fail2:
 	if (paz00_hdmi_pll) {
 		regulator_disable(paz00_hdmi_pll);
 		paz00_hdmi_pll = NULL;
 	}
 
-	if (paz00_hdmi_reg) {
-		regulator_disable(paz00_hdmi_reg);
-		paz00_hdmi_reg = NULL;
-	}
-
+fail1:
 	return ret;
 }
 
