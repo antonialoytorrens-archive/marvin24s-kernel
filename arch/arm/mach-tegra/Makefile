@@ -33,6 +33,7 @@ obj-$(CONFIG_MACH_HARMONY)              += board-harmony-panel.o
 
 obj-$(CONFIG_MACH_PAZ00)		+= board-paz00.o
 obj-$(CONFIG_MACH_PAZ00)		+= board-paz00-pinmux.o
+obj-$(CONFIG_MACH_PAZ00)		+= board-paz00-panel.o
 
 obj-$(CONFIG_MACH_SEABOARD)             += board-seaboard.o
 obj-$(CONFIG_MACH_SEABOARD)             += board-seaboard-pinmux.o

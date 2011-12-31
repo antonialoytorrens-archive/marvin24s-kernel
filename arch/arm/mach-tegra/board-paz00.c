@@ -210,6 +210,7 @@ static void __init tegra_paz00_init(void)
 
 	paz00_i2c_init();
 	paz00_usb_init();
+	paz00_panel_init(0x1fd95000);
 }
 
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
