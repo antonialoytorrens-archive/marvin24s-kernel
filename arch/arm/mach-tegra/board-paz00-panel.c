@@ -39,6 +39,7 @@
 #include "devices.h"
 #include "gpio-names.h"
 #include "board-paz00.h"
+#include "fb.h"
 
 #define TEGRA_BACKLIGHT		TEGRA_GPIO_PU4
 #define TEGRA_BACKLIGHT_VDD	TEGRA_GPIO_PW0
@@ -343,9 +344,13 @@ static struct platform_device *paz00_gfx_devices[] __initdata = {
 	&paz00_backlight_device,
 };
 
-int __init paz00_panel_init(size_t fb_addr)
+int __init paz00_panel_init(void)
 {
 	int err;
+	size_t fb_addr = 0x1fd95000;
+
+	if (!of_machine_is_compatible("compal,paz00"))
+		return -ENODEV;
 
 	gpio_request_one(TEGRA_EN_VDD_PNL, GPIOF_OUT_INIT_HIGH, "en_vdd_pnl");
 	gpio_request_one(TEGRA_BACKLIGHT_VDD, GPIOF_OUT_INIT_HIGH, "bl_vdd");
@@ -362,19 +367,24 @@ int __init paz00_panel_init(size_t fb_addr)
 	if (!err)
 		err = nvhost_device_register(&paz00_disp1_device);
 	else
-		pr_warning("registered disp1 device\n");
+		pr_warning("registered disp1 device failed\n");
 
 	if (!err)
 		err = nvhost_device_register(&paz00_disp2_device);
 	else
-		pr_warning("registered disp2 device\n");
+		pr_warning("registered disp2 device failed\n");
 
 	return err;
 }
+device_initcall(paz00_panel_init);
 
-static int __init paz00_hdmi_late_init(void)
+static int __init paz00_fb_init(void)
 {
 	int ret;
+	unsigned long fb_size;
+
+	if (!of_machine_is_compatible("compal,paz00"))
+		return -ENODEV;
 
 	paz00_hdmi_reg = regulator_get(NULL, "avdd_hdmi");
 	if (IS_ERR_OR_NULL(paz00_hdmi_reg)) {
@@ -388,6 +398,13 @@ static int __init paz00_hdmi_late_init(void)
 		goto fail2;
 	}
 
+        /*
+	 * reserve 64MB for carveout, 1024*768*4*2 for fb_size,
+	 * and 0 for fb2_size.
+	 */
+        fb_size = round_up((1024 * 600 * 4 * 2), PAGE_SIZE);
+        tegra_reserve(64 * 1024 * 1024, fb_size, 0);
+
 	return 0;
 
 fail2:
@@ -399,5 +416,4 @@ fail2:
 fail1:
 	return ret;
 }
-
-late_initcall(paz00_hdmi_late_init);
+postcore_initcall(paz00_fb_init);
