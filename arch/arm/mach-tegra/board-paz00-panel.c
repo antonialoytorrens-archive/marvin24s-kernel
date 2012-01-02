@@ -347,6 +347,8 @@ int __init paz00_panel_init(size_t fb_addr)
 	gpio_export(TEGRA_LVDS_SHUTDOWN, 0);
 
 	paz00_disp1_resources[2].start = fb_addr;
+	/* 2.4 MB framebuffer should be enough */
+	paz00_disp1_resources[2].end =   fb_addr + 0x26B000 - 1;
 
 	err = platform_add_devices(paz00_gfx_devices,
 				   ARRAY_SIZE(paz00_gfx_devices));
