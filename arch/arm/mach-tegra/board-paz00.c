@@ -410,6 +410,7 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 
 	/* these are used for audio */
 	{ "cdev1",	NULL,		0,		true  },
+	{ "audio",	"pll_a_out0",	11289600,	false },
 	{ "audio_2x",	"audio",	22579200,	false },
 	{ "i2s1",	"pll_a_out0",	11289600,	false },
 
