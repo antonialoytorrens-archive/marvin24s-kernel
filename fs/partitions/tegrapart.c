@@ -335,7 +335,10 @@ tegrapart_partition(struct parsed_partitions *state)
 
 	state->next = 1;
 
-	return parse_tegrapart(state);
+	if (partition_list)
+		return parse_tegrapart(state);
+	else
+		return 0;
 }
 
 
