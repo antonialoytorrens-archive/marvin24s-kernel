@@ -408,6 +408,9 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	{ "usb2",	"clk_m",	12000000,	false },
 	{ "usb3",	"clk_m",	12000000,	false },
 
+	/* needed for bootloaders without display support */
+	{ "disp1",	"pll_p",	216000000,	true  },
+
 	/* these are used for audio */
 	{ "cdev1",	NULL,		0,		true  },
 	{ "audio",	"pll_a_out0",	11289600,	false },
