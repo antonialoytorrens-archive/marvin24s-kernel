@@ -38,9 +38,7 @@
 
 #define DRV_NAME "tegra-snd-alc5632"
 
-#define GPIO_SPKR_EN	BIT(0)
-#define GPIO_INT_MIC_EN	BIT(1)
-#define GPIO_EXT_MIC_EN	BIT(2)
+#define GPIO_HP_DET	BIT(0)
 
 struct tegra_alc5632 {
 	struct tegra_asoc_utils_data util_data;
@@ -122,12 +120,10 @@ static struct snd_soc_jack_pin tegra_alc5632_hp_jack_pins[] = {
 	},
 };
 
-static struct snd_soc_jack_gpio tegra_alc5632_hp_jack_gpios[] = {
-	{
-		.name = "headphone detect",
-		.report = SND_JACK_HEADPHONE,
-		.debounce_time = 150,
-	}
+static struct snd_soc_jack_gpio tegra_alc5632_hp_jack_gpio = {
+	.name = "headphone detect",
+	.report = SND_JACK_HEADPHONE,
+	.debounce_time = 150,
 };
 
 /* static struct snd_soc_jack tegra_alc5632_mic_jack;
@@ -226,16 +222,18 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(dapm, tegra_alc5632_audio_map,
 				ARRAY_SIZE(tegra_alc5632_audio_map));
 
-	tegra_alc5632_hp_jack_gpios[0].gpio = pdata->gpio_hp_det;
+	if (gpio_is_valid(pdata->gpio_hp_det)) {
+		tegra_alc5632_hp_jack_gpio.gpio = pdata->gpio_hp_det;
 
-	snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
-			 &tegra_alc5632_hp_jack);
-	snd_soc_jack_add_pins(&tegra_alc5632_hp_jack,
-			      ARRAY_SIZE(tegra_alc5632_hp_jack_pins),
-			      tegra_alc5632_hp_jack_pins);
-	snd_soc_jack_add_gpios(&tegra_alc5632_hp_jack,
-			       ARRAY_SIZE(tegra_alc5632_hp_jack_gpios),
-			       tegra_alc5632_hp_jack_gpios);
+		snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
+				 &tegra_alc5632_hp_jack);
+		snd_soc_jack_add_pins(&tegra_alc5632_hp_jack,
+					ARRAY_SIZE(tegra_alc5632_hp_jack_pins),
+					tegra_alc5632_hp_jack_pins);
+		snd_soc_jack_add_gpios(&tegra_alc5632_hp_jack, 1,
+					&tegra_alc5632_hp_jack_gpio);
+		alc5632->gpio_requested |= GPIO_HP_DET;
+	}
 
 /*	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias1"); */
 
@@ -325,6 +323,10 @@ static int __devexit tegra_snd_tegra_alc5632_remove(struct platform_device *pdev
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
+
+	if (alc5632->gpio_requested & GPIO_HP_DET)
+		snd_soc_jack_free_gpios(&tegra_alc5632_hp_jack, 1,
+			&tegra_alc5632_hp_jack_gpio);
 
 	snd_soc_unregister_card(card);
 
