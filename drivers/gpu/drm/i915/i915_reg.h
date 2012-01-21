@@ -2554,9 +2554,17 @@
 #define _CURBBASE		0x700c4
 #define _CURBPOS			0x700c8
 
+#define _CURBCNTR_IVB		0x71080
+#define _CURBBASE_IVB		0x71084
+#define _CURBPOS_IVB		0x71088
+
 #define CURCNTR(pipe) _PIPE(pipe, _CURACNTR, _CURBCNTR)
 #define CURBASE(pipe) _PIPE(pipe, _CURABASE, _CURBBASE)
 #define CURPOS(pipe) _PIPE(pipe, _CURAPOS, _CURBPOS)
+
+#define CURCNTR_IVB(pipe) _PIPE(pipe, _CURACNTR, _CURBCNTR_IVB)
+#define CURBASE_IVB(pipe) _PIPE(pipe, _CURABASE, _CURBBASE_IVB)
+#define CURPOS_IVB(pipe) _PIPE(pipe, _CURAPOS, _CURBPOS_IVB)
 
 /* Display A control */
 #define _DSPACNTR                0x70180
@@ -3167,6 +3175,7 @@
 #define  FDI_LINK_TRAIN_NONE_IVB            (3<<8)
 
 /* both Tx and Rx */
+#define  FDI_COMPOSITE_SYNC		(1<<11)
 #define  FDI_LINK_TRAIN_AUTO		(1<<10)
 #define  FDI_SCRAMBLING_ENABLE          (0<<7)
 #define  FDI_SCRAMBLING_DISABLE         (1<<7)
@@ -3308,15 +3317,35 @@
 #define PCH_PP_STATUS		0xc7200
 #define PCH_PP_CONTROL		0xc7204
 #define  PANEL_UNLOCK_REGS	(0xabcd << 16)
+#define  PANEL_UNLOCK_MASK	(0xffff << 16)
 #define  EDP_FORCE_VDD		(1 << 3)
 #define  EDP_BLC_ENABLE		(1 << 2)
 #define  PANEL_POWER_RESET	(1 << 1)
 #define  PANEL_POWER_OFF	(0 << 0)
 #define  PANEL_POWER_ON		(1 << 0)
 #define PCH_PP_ON_DELAYS	0xc7208
+#define  PANEL_PORT_SELECT_MASK	(3 << 30)
+#define  PANEL_PORT_SELECT_LVDS	(0 << 30)
+#define  PANEL_PORT_SELECT_DPA	(1 << 30)
 #define  EDP_PANEL		(1 << 30)
+#define  PANEL_PORT_SELECT_DPC	(2 << 30)
+#define  PANEL_PORT_SELECT_DPD	(3 << 30)
+#define  PANEL_POWER_UP_DELAY_MASK	(0x1fff0000)
+#define  PANEL_POWER_UP_DELAY_SHIFT	16
+#define  PANEL_LIGHT_ON_DELAY_MASK	(0x1fff)
+#define  PANEL_LIGHT_ON_DELAY_SHIFT	0
+
 #define PCH_PP_OFF_DELAYS	0xc720c
+#define  PANEL_POWER_DOWN_DELAY_MASK	(0x1fff0000)
+#define  PANEL_POWER_DOWN_DELAY_SHIFT	16
+#define  PANEL_LIGHT_OFF_DELAY_MASK	(0x1fff)
+#define  PANEL_LIGHT_OFF_DELAY_SHIFT	0
+
 #define PCH_PP_DIVISOR		0xc7210
+#define  PP_REFERENCE_DIVIDER_MASK	(0xffffff00)
+#define  PP_REFERENCE_DIVIDER_SHIFT	8
+#define  PANEL_POWER_CYCLE_DELAY_MASK	(0x1f)
+#define  PANEL_POWER_CYCLE_DELAY_SHIFT	0
 
 #define PCH_DP_B		0xe4100
 #define PCH_DPB_AUX_CH_CTL	0xe4110
@@ -3386,6 +3415,24 @@
 #define  EDP_LINK_TRAIN_800_1200MV_0DB_SNB_B	(0x38<<22)
 #define  EDP_LINK_TRAIN_VOL_EMP_MASK_SNB	(0x3f<<22)
 
+/* IVB */
+#define EDP_LINK_TRAIN_400MV_0DB_IVB		(0x24 <<22)
+#define EDP_LINK_TRAIN_400MV_3_5DB_IVB		(0x2a <<22)
+#define EDP_LINK_TRAIN_400MV_6DB_IVB		(0x2f <<22)
+#define EDP_LINK_TRAIN_600MV_0DB_IVB		(0x30 <<22)
+#define EDP_LINK_TRAIN_600MV_3_5DB_IVB		(0x36 <<22)
+#define EDP_LINK_TRAIN_800MV_0DB_IVB		(0x38 <<22)
+#define EDP_LINK_TRAIN_800MV_3_5DB_IVB		(0x33 <<22)
+
+/* legacy values */
+#define EDP_LINK_TRAIN_500MV_0DB_IVB		(0x00 <<22)
+#define EDP_LINK_TRAIN_1000MV_0DB_IVB		(0x20 <<22)
+#define EDP_LINK_TRAIN_500MV_3_5DB_IVB		(0x02 <<22)
+#define EDP_LINK_TRAIN_1000MV_3_5DB_IVB		(0x22 <<22)
+#define EDP_LINK_TRAIN_1000MV_6DB_IVB		(0x23 <<22)
+
+#define  EDP_LINK_TRAIN_VOL_EMP_MASK_IVB	(0x3f<<22)
+
 #define  FORCEWAKE				0xA18C
 #define  FORCEWAKE_ACK				0x130090
 
@@ -3394,6 +3441,10 @@
 
 #define GEN6_UCGCTL2				0x9404
 # define GEN6_RCPBUNIT_CLOCK_GATE_DISABLE		(1 << 12)
+
+#define GEN6_UCGCTL2				0x9404
+# define GEN6_RCPBUNIT_CLOCK_GATE_DISABLE		(1 << 12)
+# define GEN6_RCCUNIT_CLOCK_GATE_DISABLE		(1 << 11)
 
 #define GEN6_RPNSWREQ				0xA008
 #define   GEN6_TURBO_DISABLE			(1<<31)

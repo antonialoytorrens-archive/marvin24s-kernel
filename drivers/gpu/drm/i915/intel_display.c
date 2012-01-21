@@ -2085,6 +2085,7 @@ static int ironlake_update_plane(struct drm_crtc *crtc,
 	switch (plane) {
 	case 0:
 	case 1:
+	case 2:
 		break;
 	default:
 		DRM_ERROR("Can't update plane %d in SAREA\n", plane);
@@ -2184,6 +2185,10 @@ intel_pipe_set_base(struct drm_crtc *crtc, int x, int y,
 	case 0:
 	case 1:
 		break;
+	case 2:
+		if (IS_IVYBRIDGE(dev))
+			break;
+		/* fall through otherwise */
 	default:
 		DRM_ERROR("no plane for crtc\n");
 		return -EINVAL;
@@ -2600,6 +2605,7 @@ static void ivb_manual_fdi_link_train(struct drm_crtc *crtc)
 	temp |= FDI_LINK_TRAIN_PATTERN_1_IVB;
 	temp &= ~FDI_LINK_TRAIN_VOL_EMP_MASK;
 	temp |= FDI_LINK_TRAIN_400MV_0DB_SNB_B;
+	temp |= FDI_COMPOSITE_SYNC;
 	I915_WRITE(reg, temp | FDI_TX_ENABLE);
 
 	reg = FDI_RX_CTL(pipe);
@@ -2607,6 +2613,7 @@ static void ivb_manual_fdi_link_train(struct drm_crtc *crtc)
 	temp &= ~FDI_LINK_TRAIN_AUTO;
 	temp &= ~FDI_LINK_TRAIN_PATTERN_MASK_CPT;
 	temp |= FDI_LINK_TRAIN_PATTERN_1_CPT;
+	temp |= FDI_COMPOSITE_SYNC;
 	I915_WRITE(reg, temp | FDI_RX_ENABLE);
 
 	POSTING_READ(reg);
@@ -2880,6 +2887,8 @@ static void ironlake_pch_enable(struct drm_crtc *crtc)
 			temp |= (TRANSA_DPLL_ENABLE | TRANSA_DPLLA_SEL);
 		else if (pipe == 1 && (temp & TRANSB_DPLL_ENABLE) == 0)
 			temp |= (TRANSB_DPLL_ENABLE | TRANSB_DPLLB_SEL);
+		else if (pipe == 2 && (temp & TRANSC_DPLL_ENABLE) == 0)
+			temp |= (TRANSC_DPLL_ENABLE | TRANSC_DPLLB_SEL);
 		I915_WRITE(PCH_DPLL_SEL, temp);
 	}
 
@@ -2897,7 +2906,8 @@ static void ironlake_pch_enable(struct drm_crtc *crtc)
 
 	/* For PCH DP, enable TRANS_DP_CTL */
 	if (HAS_PCH_CPT(dev) &&
-	    intel_pipe_has_type(crtc, INTEL_OUTPUT_DISPLAYPORT)) {
+	    (intel_pipe_has_type(crtc, INTEL_OUTPUT_DISPLAYPORT) ||
+	     intel_pipe_has_type(crtc, INTEL_OUTPUT_EDP))) {
 		u32 bpc = (I915_READ(PIPECONF(pipe)) & PIPE_BPC_MASK) >> 5;
 		reg = TRANS_DP_CTL(pipe);
 		temp = I915_READ(reg);
@@ -2933,6 +2943,24 @@ static void ironlake_pch_enable(struct drm_crtc *crtc)
 	}
 
 	intel_enable_transcoder(dev_priv, pipe);
+}
+
+void intel_cpt_verify_modeset(struct drm_device *dev, int pipe)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	int dslreg = PIPEDSL(pipe), tc2reg = TRANS_CHICKEN2(pipe);
+	u32 temp;
+
+	temp = I915_READ(dslreg);
+	udelay(500);
+	if (wait_for(I915_READ(dslreg) != temp, 5)) {
+		/* Without this, mode sets may fail silently on FDI */
+		I915_WRITE(tc2reg, TRANS_AUTOTRAIN_GEN_STALL_DIS);
+		udelay(250);
+		I915_WRITE(tc2reg, 0);
+		if (wait_for(I915_READ(dslreg) != temp, 5))
+			DRM_ERROR("mode set failed: pipe %d stuck\n", pipe);
+	}
 }
 
 static void ironlake_crtc_enable(struct drm_crtc *crtc)
@@ -3303,8 +3331,15 @@ void intel_encoder_prepare (struct drm_encoder *encoder)
 void intel_encoder_commit (struct drm_encoder *encoder)
 {
 	struct drm_encoder_helper_funcs *encoder_funcs = encoder->helper_private;
+	struct drm_device *dev = encoder->dev;
+	struct intel_encoder *intel_encoder = to_intel_encoder(encoder);
+	struct intel_crtc *intel_crtc = to_intel_crtc(intel_encoder->base.crtc);
+
 	/* lvds has its own version of commit see intel_lvds_commit */
 	encoder_funcs->dpms(encoder, DRM_MODE_DPMS_ON);
+
+	if (HAS_PCH_CPT(dev))
+		intel_cpt_verify_modeset(dev, intel_crtc->pipe);
 }
 
 void intel_encoder_destroy(struct drm_encoder *encoder)
@@ -5758,6 +5793,31 @@ static void i9xx_update_cursor(struct drm_crtc *crtc, u32 base)
 	I915_WRITE(CURBASE(pipe), base);
 }
 
+static void ivb_update_cursor(struct drm_crtc *crtc, u32 base)
+{
+	struct drm_device *dev = crtc->dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	int pipe = intel_crtc->pipe;
+	bool visible = base != 0;
+
+	if (intel_crtc->cursor_visible != visible) {
+		uint32_t cntl = I915_READ(CURCNTR_IVB(pipe));
+		if (base) {
+			cntl &= ~CURSOR_MODE;
+			cntl |= CURSOR_MODE_64_ARGB_AX | MCURSOR_GAMMA_ENABLE;
+		} else {
+			cntl &= ~(CURSOR_MODE | MCURSOR_GAMMA_ENABLE);
+			cntl |= CURSOR_MODE_DISABLE;
+		}
+		I915_WRITE(CURCNTR_IVB(pipe), cntl);
+
+		intel_crtc->cursor_visible = visible;
+	}
+	/* and commit changes on next vblank */
+	I915_WRITE(CURBASE_IVB(pipe), base);
+}
+
 /* If no-part of the cursor is visible on the framebuffer, then the GPU may hang... */
 static void intel_crtc_update_cursor(struct drm_crtc *crtc,
 				     bool on)
@@ -5805,11 +5865,16 @@ static void intel_crtc_update_cursor(struct drm_crtc *crtc,
 	if (!visible && !intel_crtc->cursor_visible)
 		return;
 
-	I915_WRITE(CURPOS(pipe), pos);
-	if (IS_845G(dev) || IS_I865G(dev))
-		i845_update_cursor(crtc, base);
-	else
-		i9xx_update_cursor(crtc, base);
+	if (IS_IVYBRIDGE(dev)) {
+		I915_WRITE(CURPOS_IVB(pipe), pos);
+		ivb_update_cursor(crtc, base);
+	} else {
+		I915_WRITE(CURPOS(pipe), pos);
+		if (IS_845G(dev) || IS_I865G(dev))
+			i845_update_cursor(crtc, base);
+		else
+			i9xx_update_cursor(crtc, base);
+	}
 
 	if (visible)
 		intel_mark_busy(dev, to_intel_framebuffer(crtc->fb)->obj);
@@ -7854,8 +7919,13 @@ static void gen6_init_clock_gating(struct drm_device *dev)
 	 * some amount of runtime in the Mesa "fire" demo, and Unigine
 	 * Sanctuary and Tropics, and apparently anything else with
 	 * alpha test or pixel discard.
+	 *
+	 * According to the spec, bit 11 (RCCUNIT) must also be set,
+	 * but we didn't debug actual testcases to find it out.
 	 */
-	I915_WRITE(GEN6_UCGCTL2, GEN6_RCPBUNIT_CLOCK_GATE_DISABLE);
+	I915_WRITE(GEN6_UCGCTL2,
+		   GEN6_RCPBUNIT_CLOCK_GATE_DISABLE |
+		   GEN6_RCCUNIT_CLOCK_GATE_DISABLE);
 
 	/*
 	 * According to the spec the following bits should be
