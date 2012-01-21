@@ -31,6 +31,7 @@
 #include <linux/io.h>
 #include <linux/rfkill-gpio.h>
 #include <linux/mfd/core.h>
+#include <linux/platform_data/tegra_usb.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -384,6 +385,11 @@ static void __init paz00_i2c_init(void)
 
 static void paz00_usb_init(void)
 {
+	struct tegra_ehci_platform_data *pdata;
+
+	pdata = tegra_ehci3_device.dev.platform_data;
+	pdata->power_down_on_bus_suspend = 0;
+
 	platform_device_register(&tegra_ehci2_device);
 	platform_device_register(&tegra_ehci3_device);
 }
