@@ -17,7 +17,6 @@
 
 #include <linux/delay.h>
 #include <linux/firmware.h>
-#include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/i2c/cyapa.h>
 #include <linux/input.h>
@@ -27,11 +26,9 @@
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
-#include <linux/workqueue.h>
 
 
 /* commands for read/write registers of Cypress trackpad */
@@ -212,15 +209,11 @@ struct cyapa {
 
 	struct i2c_client	*client;
 	struct input_dev	*input;
-	struct work_struct detect_work;
-	struct workqueue_struct *detect_wq;
 	int irq;
-	u8 adapter_func;
 	bool smbus;
 
 	/* read from query data region. */
 	char product_id[16];
-	u8 capability[14];
 	u8 fw_maj_ver;  /* firmware major version. */
 	u8 fw_min_ver;  /* firmware minor version. */
 	u8 hw_maj_ver;  /* hardware major version. */
@@ -489,7 +482,7 @@ static s32 cyapa_read_byte(struct cyapa *cyapa, u8 cmd_idx)
 	}
 	ret = i2c_smbus_read_byte_data(cyapa->client, cmd);
 	dev_dbg(dev, "read byte [0x%02x] = 0x%02x  ret: %d\n",
-		cmd, ret, ret);
+		cmd, (u8)ret, ret);
 
 	return ret;
 }
@@ -749,21 +742,18 @@ static int cyapa_set_power_mode(struct cyapa *cyapa, u8 power_mode)
 {
 	int ret;
 	u8 power;
-	int tries = 3;
 
 	if (cyapa->state != CYAPA_STATE_OP)
 		return 0;
 
-	power = cyapa_read_byte(cyapa, CYAPA_CMD_POWER_MODE);
+	ret = cyapa_read_byte(cyapa, CYAPA_CMD_POWER_MODE);
+	if (ret < 0)
+		return ret;
+
+	power = ret;
 	power &= ~OP_POWER_MODE_MASK;
 	power |= ((power_mode << OP_POWER_MODE_SHIFT) & OP_POWER_MODE_MASK);
-	do {
-		ret = cyapa_write_byte(cyapa, CYAPA_CMD_POWER_MODE, power);
-		/* sleep at least 10 ms. */
-		usleep_range(SET_POWER_MODE_DELAY, 2 * SET_POWER_MODE_DELAY);
-	} while ((ret != 0) && (tries-- > 0));
-
-	return ret;
+	return cyapa_write_byte(cyapa, CYAPA_CMD_POWER_MODE, power);
 }
 
 static int cyapa_get_query_data(struct cyapa *cyapa)
@@ -1287,6 +1277,7 @@ static int cyapa_send_bl_cmd(struct cyapa *cyapa, enum cyapa_bl_cmd cmd)
 
 	case CYAPA_CMD_IDLE_TO_APP:
 		cyapa_detect(cyapa);
+		ret = 0;
 		break;
 
 	default:
@@ -1718,17 +1709,7 @@ static void cyapa_detect(struct cyapa *cyapa)
 		if (ret)
 			dev_err(dev, "create input_dev instance failed, %d\n",
 				ret);
-	} else {
-		ret = cyapa_set_power_mode(cyapa, PWR_MODE_FULL_ACTIVE);
-		if (ret)
-			dev_warn(dev, "resume active power failed, %d\n", ret);
 	}
-}
-
-static void cyapa_detect_work(struct work_struct *work)
-{
-	struct cyapa *cyapa = container_of(work, struct cyapa, detect_work);
-	cyapa_detect(cyapa);
 }
 
 static int __devinit cyapa_probe(struct i2c_client *client,
@@ -1755,9 +1736,8 @@ static int __devinit cyapa_probe(struct i2c_client *client,
 	cyapa->client = client;
 	i2c_set_clientdata(client, cyapa);
 
-	cyapa->adapter_func = adapter_func;
 	/* i2c isn't supported, set smbus */
-	if (cyapa->adapter_func == CYAPA_ADAPTER_FUNC_SMBUS)
+	if (adapter_func == CYAPA_ADAPTER_FUNC_SMBUS)
 		cyapa->smbus = true;
 	cyapa->state = CYAPA_STATE_NO_DEVICE;
 
@@ -1788,30 +1768,10 @@ static int __devinit cyapa_probe(struct i2c_client *client,
 	if (sysfs_create_group(&client->dev.kobj, &cyapa_sysfs_group))
 		dev_warn(dev, "error creating sysfs entries.\n");
 
-	/*
-	 * At boot it can take up to 2 seconds for firmware to complete sensor
-	 * calibration. Probe in a workqueue so as not to block system boot.
-	 */
-	cyapa->detect_wq = create_singlethread_workqueue("cyapa_detect_wq");
-	if (!cyapa->detect_wq) {
-		ret = -ENOMEM;
-		dev_err(dev, "create detect workqueue failed\n");
-		goto err_irq_free;
-	}
-
-	INIT_WORK(&cyapa->detect_work, cyapa_detect_work);
-	ret = queue_work(cyapa->detect_wq, &cyapa->detect_work);
-	if (ret < 0) {
-		dev_err(dev, "device detect failed, %d\n", ret);
-		goto err_wq_free;
-	}
+	cyapa_detect(cyapa);
 
 	return 0;
 
-err_wq_free:
-	destroy_workqueue(cyapa->detect_wq);
-err_irq_free:
-	free_irq(cyapa->irq, cyapa);
 err_mem_free:
 	kfree(cyapa);
 	global_cyapa = NULL;
@@ -1830,8 +1790,6 @@ static int __devexit cyapa_remove(struct i2c_client *client)
 	if (cyapa->input)
 		input_unregister_device(cyapa->input);
 
-	if (cyapa->detect_wq)
-		destroy_workqueue(cyapa->detect_wq);
 	kfree(cyapa);
 	global_cyapa = NULL;
 
@@ -1844,9 +1802,6 @@ static int cyapa_suspend(struct device *dev)
 	int ret;
 	struct cyapa *cyapa = dev_get_drvdata(dev);
 
-	/* Wait for detection to complete before allowing suspend. */
-	flush_workqueue(cyapa->detect_wq);
-
 	/* set trackpad device to light sleep mode. Just ignore any errors */
 	ret = cyapa_set_power_mode(cyapa, PWR_MODE_LIGHT_SLEEP);
 	if (ret < 0)
@@ -1854,6 +1809,7 @@ static int cyapa_suspend(struct device *dev)
 
 	if (device_may_wakeup(dev))
 		enable_irq_wake(cyapa->irq);
+	disable_irq(cyapa->irq);
 
 	return 0;
 }
@@ -1863,15 +1819,15 @@ static int cyapa_resume(struct device *dev)
 	int ret;
 	struct cyapa *cyapa = dev_get_drvdata(dev);
 
+	enable_irq(cyapa->irq);
 	if (device_may_wakeup(dev))
 		disable_irq_wake(cyapa->irq);
 
-	PREPARE_WORK(&cyapa->detect_work, cyapa_detect_work);
-	ret = queue_work(cyapa->detect_wq, &cyapa->detect_work);
-	if (ret < 0) {
-		dev_err(dev, "queue detect work failed, %d\n", ret);
-		return ret;
-	}
+	cyapa_detect(cyapa);
+
+	ret = cyapa_set_power_mode(cyapa, PWR_MODE_FULL_ACTIVE);
+	if (ret)
+		dev_warn(dev, "resume active power failed, %d\n", ret);
 
 	return 0;
 }
