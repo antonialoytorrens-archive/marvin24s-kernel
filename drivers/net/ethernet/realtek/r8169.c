@@ -740,6 +740,10 @@ struct rtl8169_private {
 #define RTL_FIRMWARE_UNKNOWN	ERR_PTR(-EAGAIN)
 };
 
+static int aspm_disable = 0;
+module_param(aspm_disable, bool, 0444);
+MODULE_PARM_DESC(aspm_disable, "Disable ASPM completely.");
+
 MODULE_AUTHOR("Realtek and the Linux r8169 crew <netdev@vger.kernel.org>");
 MODULE_DESCRIPTION("RealTek RTL-8169 Gigabit Ethernet driver");
 module_param(use_dac, int, 0);
@@ -3981,8 +3985,12 @@ rtl8169_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	/* disable ASPM completely as that cause random device stop working
 	 * problems as well as full system hangs for some PCIe devices users */
-	pci_disable_link_state(pdev, PCIE_LINK_STATE_L0S | PCIE_LINK_STATE_L1 |
-				     PCIE_LINK_STATE_CLKPM);
+	if (aspm_disable) {
+		pci_disable_link_state(pdev, PCIE_LINK_STATE_L0S |
+				       PCIE_LINK_STATE_L1 |
+				       PCIE_LINK_STATE_CLKPM);
+		dprintk("ASPM disabled");
+	}
 
 	/* enable device (incl. PCI PM wakeup and hotplug setup) */
 	rc = pci_enable_device(pdev);
@@ -6139,6 +6147,7 @@ static int rtl8169_runtime_idle(struct device *device)
 	struct net_device *dev = pci_get_drvdata(pdev);
 	struct rtl8169_private *tp = netdev_priv(dev);
 
+	__rtl8169_check_link_status(dev, tp, tp->mmio_addr, true);
 	return tp->TxDescArray ? -EBUSY : 0;
 }
 
