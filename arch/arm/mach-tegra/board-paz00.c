@@ -296,6 +296,7 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_pcm_device,
 	&audio_device,
 	&tegra_aes_device,
+	&tegra_wdt_device,
 };
 
 static void paz00_i2c_init(void)
