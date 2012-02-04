@@ -562,6 +562,7 @@ static void acm_tty_hangup(struct tty_struct *tty)
 		tty_port_hangup(&acm->port);
 		acm_port_down(acm);
 	}
+
 	mutex_unlock(&open_mutex);
 }
 
@@ -1187,6 +1188,8 @@ made_compressed_probe:
 		i = device_create_file(&intf->dev, &dev_attr_wCountryCodes);
 		if (i < 0) {
 			kfree(acm->country_codes);
+			acm->country_codes = NULL;
+			acm->country_code_size = 0;
 			goto skip_countries;
 		}
 
@@ -1195,6 +1198,8 @@ made_compressed_probe:
 		if (i < 0) {
 			device_remove_file(&intf->dev, &dev_attr_wCountryCodes);
 			kfree(acm->country_codes);
+			acm->country_codes = NULL;
+			acm->country_code_size = 0;
 			goto skip_countries;
 		}
 	}
