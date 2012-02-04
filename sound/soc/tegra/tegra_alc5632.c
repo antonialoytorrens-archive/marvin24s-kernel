@@ -1,18 +1,16 @@
 /*
- * tegra_alc5632.c - tegra machine ASoC driver for boards using an alc5632 codec.
- *
- * Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.lauchpad.net>
- *
- * Authors:  Leon Romanovsky <leon@leon.nu>
- *           Andrey Danin <danindrey@mail.ru>
- *           Marc Dietrich <marvin24@gmx.de>
- *
- * Based on tegra_wm8903.c by Stephen Warren
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- */
+* tegra_alc5632.c  --  Toshiba AC100(PAZ00) machine ASoC driver
+*
+* Copyright (C) 2011 The AC100 Kernel Team <ac100@lists.lauchpad.net>
+*
+* Authors:  Leon Romanovsky <leon@leon.nu>
+*           Andrey Danin <danindrey@mail.ru>
+*           Marc Dietrich <marvin24@gmx.de>
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License version 2 as
+* published by the Free Software Foundation.
+*/
 
 #include <asm/mach-types.h>
 
@@ -36,7 +34,7 @@
 #include "tegra_pcm.h"
 #include "tegra_asoc_utils.h"
 
-#define DRV_NAME "tegra-snd-alc5632"
+#define DRV_NAME "tegra-alc5632"
 
 #define GPIO_HP_DET	BIT(0)
 
@@ -59,19 +57,7 @@ static int tegra_alc5632_asoc_hw_params(struct snd_pcm_substream *substream,
 	int err;
 
 	srate = params_rate(params);
-	switch (srate) {
-	case 64000:
-	case 88200:
-	case 96000:
-		mclk = 128 * srate;
-		break;
-	default:
-		mclk = 512 * srate;
-		break;
-	}
-	/* FIXME: Codec only requires >= 3MHz if OSR==0 */
-	while (mclk < 6000000)
-		mclk *= 2;
+	mclk = 512 * srate;
 
 	err = tegra_asoc_utils_set_rate(&alc5632->util_data, srate, mclk);
 	if (err < 0) {
@@ -111,53 +97,34 @@ static struct snd_soc_ops tegra_alc5632_asoc_ops = {
 	.hw_params = tegra_alc5632_asoc_hw_params,
 };
 
-static struct snd_soc_jack tegra_alc5632_hp_jack;
+static struct snd_soc_jack tegra_alc5632_hs_jack;
 
-static struct snd_soc_jack_pin tegra_alc5632_hp_jack_pins[] = {
+static struct snd_soc_jack_pin tegra_alc5632_hs_jack_pins[] = {
 	{
-		.pin = "Headphone Jack",
+		.pin = "Headset Mic",
+		.mask = SND_JACK_MICROPHONE,
+	},
+	{
+		.pin = "Headset Stereophone",
 		.mask = SND_JACK_HEADPHONE,
 	},
 };
 
 static struct snd_soc_jack_gpio tegra_alc5632_hp_jack_gpio = {
-	.name = "headphone detect",
-	.report = SND_JACK_HEADPHONE,
+	.name = "Headset detection",
+	.report = SND_JACK_HEADSET,
 	.debounce_time = 150,
+	.invert = 1,
 };
-
-/* static struct snd_soc_jack tegra_alc5632_mic_jack;
-
-static struct snd_soc_jack_pin tegra_alc5632_mic_jack_pins[] = {
-	{
-		.pin = "Mic Jack",
-		.mask = SND_JACK_MICROPHONE,
-	},
-};
-*/
-
-static int tegra_alc5632_event_int_spk(struct snd_soc_dapm_widget *w,
-					struct snd_kcontrol *k, int event)
-{
-
-        printk("spk event: %d\n", event);
-/* 
-    ToDo: speaker enable via nvec
-	struct snd_soc_codec *codec = w->codec;
-	struct snd_soc_card *card = codec->card;
-	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
-	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
-
-	gpio_set_value_cansleep(pdata->gpio_spkr_en,
-				SND_SOC_DAPM_EVENT_ON(event));
-*/
-	return 0;
-}
 
 static const struct snd_soc_dapm_widget tegra_alc5632_dapm_widgets[] = {
-	SND_SOC_DAPM_SPK("Int Spk", tegra_alc5632_event_int_spk),
-	SND_SOC_DAPM_HP("Headphone Jack", NULL),
-	SND_SOC_DAPM_MIC("Mic Jack", NULL),
+	SND_SOC_DAPM_SPK("Int Spk", NULL),
+	SND_SOC_DAPM_HP("Headset Stereophone", NULL),
+	SND_SOC_DAPM_MIC("Headset Mic", NULL),
+};
+
+static const struct snd_kcontrol_new tegra_alc5632_controls[] = {
+	SOC_DAPM_PIN_SWITCH("Int Spk"),
 };
 
 static const struct snd_soc_dapm_route tegra_alc5632_audio_map[] = {
@@ -165,11 +132,9 @@ static const struct snd_soc_dapm_route tegra_alc5632_audio_map[] = {
 	{"Headphone Jack", NULL, "HPL"},
 	{"Int Spk", NULL, "SPKOUT"},
 	{"Int Spk", NULL, "SPKOUTN"},
-/*	{"Mic Bias1", NULL, "Mic Jack"}, */
-};
-
-static const struct snd_kcontrol_new tegra_alc5632_controls[] = {
-	SOC_DAPM_PIN_SWITCH("Int Spk"),
+	{"MICBIAS1", NULL, "Headset Mic"},
+	{"MIC1", NULL, "Mic Bias1"},
+	{"DMICDAT", NULL, "Digital Mic"},
 };
 
 static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
@@ -179,63 +144,21 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = codec->card;
 	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
 	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
-	int ret;
 
-/* Todo: speaker enable via nvec */
-/*	ret = gpio_request(pdata->gpio_spkr_en, "spkr_en");
-	if (ret) {
-		dev_err(card->dev, "cannot get spkr_en gpio\n");
-		return ret;
-	}
-	alc5632->gpio_requested |= GPIO_SPKR_EN;
-
-	gpio_direction_output(pdata->gpio_spkr_en, 0);
-
-	ret = gpio_request(pdata->gpio_int_mic_en, "int_mic_en");
-	if (ret) {
-		dev_err(card->dev, "cannot get int_mic_en gpio\n");
-		return ret;
-	}
-	alc5632->gpio_requested |= GPIO_INT_MIC_EN;
-*/
-	/* Disable int mic; enable signal is active-high */
-/*	gpio_direction_output(pdata->gpio_int_mic_en, 0);
-
-	ret = gpio_request(pdata->gpio_ext_mic_en, "ext_mic_en");
-	if (ret) {
-		dev_err(card->dev, "cannot get ext_mic_en gpio\n");
-		return ret;
-	}
-	alc5632->gpio_requested |= GPIO_EXT_MIC_EN;
-*/
-	/* Enable ext mic; enable signal is active-low */
-/*	gpio_direction_output(pdata->gpio_ext_mic_en, 0);
-*/
-	ret = snd_soc_add_controls(codec, tegra_alc5632_controls,
-				   ARRAY_SIZE(tegra_alc5632_controls));
-	if (ret < 0)
-		return ret;
-
-	snd_soc_dapm_new_controls(dapm, tegra_alc5632_dapm_widgets,
-					ARRAY_SIZE(tegra_alc5632_dapm_widgets));
-
-	snd_soc_dapm_add_routes(dapm, tegra_alc5632_audio_map,
-				ARRAY_SIZE(tegra_alc5632_audio_map));
+	snd_soc_jack_new(codec, "Headset Jack", SND_JACK_HEADSET,
+			 &tegra_alc5632_hs_jack);
+	snd_soc_jack_add_pins(&tegra_alc5632_hs_jack,
+			ARRAY_SIZE(tegra_alc5632_hs_jack_pins),
+			tegra_alc5632_hs_jack_pins);
 
 	if (gpio_is_valid(pdata->gpio_hp_det)) {
 		tegra_alc5632_hp_jack_gpio.gpio = pdata->gpio_hp_det;
-
-		snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE,
-				 &tegra_alc5632_hp_jack);
-		snd_soc_jack_add_pins(&tegra_alc5632_hp_jack,
-					ARRAY_SIZE(tegra_alc5632_hp_jack_pins),
-					tegra_alc5632_hp_jack_pins);
-		snd_soc_jack_add_gpios(&tegra_alc5632_hp_jack, 1,
+		snd_soc_jack_add_gpios(&tegra_alc5632_hs_jack, 1,
 					&tegra_alc5632_hp_jack_gpio);
 		alc5632->gpio_requested |= GPIO_HP_DET;
 	}
 
-/*	snd_soc_dapm_force_enable_pin(dapm, "Mic Bias1"); */
+	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
 
 	snd_soc_dapm_nc_pin(dapm, "AUXOUT");
 	snd_soc_dapm_nc_pin(dapm, "LINEINL");
@@ -249,7 +172,7 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static struct snd_soc_dai_link tegra_alc5632_alc5632_dai = {
+static struct snd_soc_dai_link tegra_alc5632_dai = {
 	.name = "ALC5632",
 	.stream_name = "ALC5632 PCM",
 	.codec_name = "alc5632.0-001e",
@@ -262,21 +185,23 @@ static struct snd_soc_dai_link tegra_alc5632_alc5632_dai = {
 
 static struct snd_soc_card snd_soc_tegra_alc5632 = {
 	.name = "tegra-alc5632",
-	.dai_link = &tegra_alc5632_alc5632_dai,
+	.owner = THIS_MODULE,
+	.dai_link = &tegra_alc5632_dai,
 	.num_links = 1,
+	.controls = tegra_alc5632_controls,
+	.num_controls = ARRAY_SIZE(tegra_alc5632_controls),
+	.dapm_widgets = tegra_alc5632_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(tegra_alc5632_dapm_widgets),
+	.dapm_routes = tegra_alc5632_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(tegra_alc5632_audio_map),
 };
 
-static __devinit int tegra_snd_tegra_alc5632_probe(struct platform_device *pdev)
+static __devinit int tegra_alc5632_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &snd_soc_tegra_alc5632;
 	struct tegra_alc5632 *alc5632;
 	struct tegra_alc5632_audio_platform_data *pdata;
 	int ret;
-
-	if (!machine_is_paz00()) {
-		dev_err(&pdev->dev, "Not running on Toshiba AC100!\n");
-		return -ENODEV;
-	}
 
 	pdata = pdev->dev.platform_data;
 	if (!pdata) {
@@ -284,7 +209,8 @@ static __devinit int tegra_snd_tegra_alc5632_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	alc5632 = kzalloc(sizeof(struct tegra_alc5632), GFP_KERNEL);
+	alc5632 = devm_kzalloc(&pdev->dev,
+			sizeof(struct tegra_alc5632), GFP_KERNEL);
 	if (!alc5632) {
 		dev_err(&pdev->dev, "Can't allocate tegra_alc5632\n");
 		return -ENOMEM;
@@ -292,13 +218,13 @@ static __devinit int tegra_snd_tegra_alc5632_probe(struct platform_device *pdev)
 
 	alc5632->pdata = pdata;
 
-	ret = tegra_asoc_utils_init(&alc5632->util_data, &pdev->dev);
-	if (ret)
-		goto err_free_tegra_alc5632;
-
 	card->dev = &pdev->dev;
 	platform_set_drvdata(pdev, card);
 	snd_soc_card_set_drvdata(card, alc5632);
+
+	ret = tegra_asoc_utils_init(&alc5632->util_data, &pdev->dev);
+	if (ret)
+		goto err;
 
 	ret = snd_soc_register_card(card);
 	if (ret) {
@@ -314,19 +240,21 @@ err_clear_drvdata:
 	platform_set_drvdata(pdev, NULL);
 	card->dev = NULL;
 	tegra_asoc_utils_fini(&alc5632->util_data);
-err_free_tegra_alc5632:
+err:
 	kfree(alc5632);
 	return ret;
 }
 
-static int __devexit tegra_snd_tegra_alc5632_remove(struct platform_device *pdev)
+static int __devexit tegra_alc5632_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
 
 	if (alc5632->gpio_requested & GPIO_HP_DET)
-		snd_soc_jack_free_gpios(&tegra_alc5632_hp_jack, 1,
+		snd_soc_jack_free_gpios(&tegra_alc5632_hs_jack, 1,
 			&tegra_alc5632_hp_jack_gpio);
+
+	alc5632->gpio_requested = 0;
 
 	snd_soc_unregister_card(card);
 
@@ -336,40 +264,21 @@ static int __devexit tegra_snd_tegra_alc5632_remove(struct platform_device *pdev
 
 	tegra_asoc_utils_fini(&alc5632->util_data);
 
-/*	if (alc5632->gpio_requested & GPIO_EXT_MIC_EN)
-		gpio_free(pdata->gpio_ext_mic_en);
-	if (alc5632->gpio_requested & GPIO_INT_MIC_EN)
-		gpio_free(pdata->gpio_int_mic_en);
-	if (alc5632->gpio_requested & GPIO_SPKR_EN)
-		gpio_free(pdata->gpio_spkr_en);
-*/
-	kfree(alc5632);
-
 	return 0;
 }
 
-static struct platform_driver tegra_snd_tegra_alc5632_driver = {
+static struct platform_driver tegra_alc5632_driver = {
 	.driver = {
 		.name = DRV_NAME,
 		.owner = THIS_MODULE,
 		.pm = &snd_soc_pm_ops,
 	},
-	.probe = tegra_snd_tegra_alc5632_probe,
-	.remove = __devexit_p(tegra_snd_tegra_alc5632_remove),
+	.probe = tegra_alc5632_probe,
+	.remove = __devexit_p(tegra_alc5632_remove),
 };
+module_platform_driver(tegra_alc5632_driver);
 
-static int __init snd_tegra_tegra_alc5632_init(void)
-{
-	return platform_driver_register(&tegra_snd_tegra_alc5632_driver);
-}
-module_init(snd_tegra_tegra_alc5632_init);
-
-static void __exit snd_tegra_tegra_alc5632_exit(void)
-{
-	platform_driver_unregister(&tegra_snd_tegra_alc5632_driver);
-}
-module_exit(snd_tegra_tegra_alc5632_exit);
-
+MODULE_AUTHOR("Leon Romanovsky <leon@leon.nu>");
 MODULE_DESCRIPTION("Tegra+ALC5632 machine ASoC driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:" DRV_NAME);
