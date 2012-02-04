@@ -133,6 +133,8 @@ static const struct snd_soc_dapm_route tegra_alc5632_audio_map[] = {
 	{"Int Spk", NULL, "SPKOUT"},
 	{"Int Spk", NULL, "SPKOUTN"},
 	{"MICBIAS1", NULL, "Headset Mic"},
+	{"MIC1", NULL, "Mic Bias1"},
+	{"DMICDAT", NULL, "Digital Mic"},
 };
 
 static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
