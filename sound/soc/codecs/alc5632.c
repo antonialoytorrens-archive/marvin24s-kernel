@@ -82,6 +82,8 @@ static int alc5632_volatile_register(struct snd_soc_codec *codec,
 	case ALC5632_OVER_CURR_STATUS:
 	case ALC5632_HID_CTRL_DATA:
 	case ALC5632_EQ_CTRL:
+	case ALC5632_VENDOR_ID1:
+	case ALC5632_VENDOR_ID2:
 		return 1;
 
 	default:
@@ -93,8 +95,7 @@ static int alc5632_volatile_register(struct snd_soc_codec *codec,
 
 static inline int alc5632_reset(struct snd_soc_codec *codec)
 {
-	snd_soc_write(codec, ALC5632_RESET, 0);
-	return snd_soc_read(codec, ALC5632_RESET);
+	return snd_soc_write(codec, ALC5632_RESET, 0);
 }
 
 static int amp_mixer_event(struct snd_soc_dapm_widget *w,
@@ -363,8 +364,8 @@ SND_SOC_DAPM_PGA("MIC1 PGA", ALC5632_PWR_MANAG_ADD3, 3, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC2 PGA", ALC5632_PWR_MANAG_ADD3, 2, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC1 Pre Amp", ALC5632_PWR_MANAG_ADD3, 1, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC2 Pre Amp", ALC5632_PWR_MANAG_ADD3, 0, 0, NULL, 0),
-SND_SOC_DAPM_SUPPLY("Mic Bias1", ALC5632_PWR_MANAG_ADD1, 3, 0, NULL, 0),
-SND_SOC_DAPM_SUPPLY("Mic Bias2", ALC5632_PWR_MANAG_ADD1, 2, 0, NULL, 0),
+SND_SOC_DAPM_SUPPLY("MICBIAS1", ALC5632_PWR_MANAG_ADD1, 3, 0, NULL, 0),
+SND_SOC_DAPM_SUPPLY("MICBIAS2", ALC5632_PWR_MANAG_ADD1, 2, 0, NULL, 0),
 
 SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
 	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
@@ -413,9 +414,6 @@ static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 
 	{"HPR Mix", "DACR2HP Playback Switch",	"DAC Right Channel"},
 	{"HPL Mix", "DACL2HP Playback Switch",	"DAC Left Channel"},
-	{"HPOut Mix", NULL, "HP Mix"},
-	{"HPOut Mix", NULL, "HPR Mix"},
-	{"HPOut Mix", NULL, "HPL Mix"},
 
 	/* speaker mixer */
 	{"Speaker Mix", "LI2SPK Playback Switch",	"Line Mix"},
@@ -942,6 +940,7 @@ static struct snd_soc_dai_driver alc5632_dai = {
 	.symmetric_rates = 1,
 };
 
+#ifdef CONFIG_PM
 static int alc5632_suspend(struct snd_soc_codec *codec, pm_message_t mesg)
 {
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_OFF);
@@ -964,6 +963,11 @@ static int alc5632_resume(struct snd_soc_codec *codec)
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	return 0;
 }
+#else
+#define	alc5632_suspend	NULL
+#define	alc5632_resume	NULL
+#endif
+
 
 static int alc5632_probe(struct snd_soc_codec *codec)
 {
@@ -976,7 +980,11 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 		return ret;
 	}
 
-	alc5632_reset(codec);
+	ret = alc5632_reset(codec);
+	if (ret < 0) {
+		dev_err(codec->dev, "Failed to issue reset\n");
+		return ret;
+	}
 
 	/* power on device  */
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
@@ -1031,36 +1039,27 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 	struct alc5632_priv *alc5632;
 	int ret, vid1, vid2;
 
-	vid1 = i2c_smbus_read_word_data(client, ALC5632_VENDOR_ID1);
-	if (vid1 < 0) {
-		dev_err(&client->dev, "failed to read I2C\n");
-		return -EIO;
-	} else {
-		dev_info(&client->dev, "got vid1: %x\n", vid1);
-	}
-	vid1 = ((vid1 & 0xff) << 8) | (vid1 >> 8);
-
-	vid2 = i2c_smbus_read_word_data(client, ALC5632_VENDOR_ID2);
-	if (vid2 < 0) {
-		dev_err(&client->dev, "failed to read I2C\n");
-		return -EIO;
-	} else {
-		dev_info(&client->dev, "got vid2: %x\n", vid2);
-	}
-	vid2 = (vid2 & 0xff);
-
-	if ((vid1 != 0x10ec) || (vid2 != id->driver_data)) {
-		dev_err(&client->dev, "unknown or wrong codec\n");
-		dev_err(&client->dev, "Expected %x:%lx, got %x:%x\n",
-				0x10ec, id->driver_data,
-				vid1, vid2);
-		return -ENODEV;
-	}
-
 	alc5632 = devm_kzalloc(&client->dev,
 			 sizeof(struct alc5632_priv), GFP_KERNEL);
 	if (alc5632 == NULL)
 		return -ENOMEM;
+
+	vid1 = i2c_smbus_read_word_data(client, ALC5632_VENDOR_ID1);
+	vid2 = i2c_smbus_read_word_data(client, ALC5632_VENDOR_ID2);
+	if (vid1 < 0 || vid2 < 0) {
+		dev_err(&client->dev,
+		"Failed to read chip ID: vid1=%d, vid2=%d\n", vid1, vid2);
+		return -EIO;
+	}
+
+	vid1 = ((vid1 & 0xff) << 8) | (vid1 >> 8);
+	vid2 = (vid2 & 0xff);
+
+	if ((vid1 != 0x10EC) || (vid2 != id->driver_data)) {
+		dev_err(&client->dev,
+		"Device is not a ALC5632: VID1=0x%x, VID2=0x%x\n", vid1, vid2);
+		return -EINVAL;
+	}
 
 	alc5632->id = vid2;
 	switch (alc5632->id) {
@@ -1076,7 +1075,8 @@ static int alc5632_i2c_probe(struct i2c_client *client,
 
 	ret =  snd_soc_register_codec(&client->dev,
 		&soc_codec_device_alc5632, &alc5632_dai, 1);
-	if (ret != 0)
+
+	if (ret < 0)
 		dev_err(&client->dev, "Failed to register codec: %d\n", ret);
 
 	return ret;

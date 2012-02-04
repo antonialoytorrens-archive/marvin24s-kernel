@@ -295,7 +295,7 @@ static struct tegra_alc5632_audio_platform_data audio_pdata = {
 };
 
 static struct platform_device audio_device = {
-	.name	= "tegra-snd-alc5632",
+	.name	= "tegra-alc5632",
 	.id	= 0,
 	.dev	= {
 		.platform_data = &audio_pdata,
