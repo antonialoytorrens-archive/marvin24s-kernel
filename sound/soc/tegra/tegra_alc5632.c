@@ -158,8 +158,6 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 		alc5632->gpio_requested |= GPIO_HP_DET;
 	}
 
-	snd_soc_dapm_force_enable_pin(dapm, "MICBIAS1");
-
 	snd_soc_dapm_nc_pin(dapm, "AUXOUT");
 	snd_soc_dapm_nc_pin(dapm, "LINEINL");
 	snd_soc_dapm_nc_pin(dapm, "LINEINR");
