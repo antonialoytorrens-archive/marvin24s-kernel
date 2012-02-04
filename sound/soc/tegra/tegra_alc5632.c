@@ -144,7 +144,6 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = codec->card;
 	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
 	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
-	int ret;
 
 	snd_soc_jack_new(codec, "Headset Jack", SND_JACK_HEADSET,
 			 &tegra_alc5632_hs_jack);
