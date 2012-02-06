@@ -1784,8 +1784,7 @@ static void rt2800_config_channel_rf3052(struct rt2x00_dev *rt2x00dev,
 	if (rf->channel <= 14) {
 		rt2x00_set_field8(&rfcsr, RFCSR12_DR0, 3);
 		rt2x00_set_field8(&rfcsr, RFCSR12_TX_POWER,
-				(info->default_power1 & 0x3) |
-				((info->default_power1 & 0xC) << 1));
+				  info->default_power1);
 	} else {
 		rt2x00_set_field8(&rfcsr, RFCSR12_DR0, 7);
 		rt2x00_set_field8(&rfcsr, RFCSR12_TX_POWER,
@@ -1798,8 +1797,7 @@ static void rt2800_config_channel_rf3052(struct rt2x00_dev *rt2x00dev,
 	if (rf->channel <= 14) {
 		rt2x00_set_field8(&rfcsr, RFCSR13_DR0, 3);
 		rt2x00_set_field8(&rfcsr, RFCSR13_TX_POWER,
-				(info->default_power2 & 0x3) |
-				((info->default_power2 & 0xC) << 1));
+				  info->default_power2);
 	} else {
 		rt2x00_set_field8(&rfcsr, RFCSR13_DR0, 7);
 		rt2x00_set_field8(&rfcsr, RFCSR13_TX_POWER,
