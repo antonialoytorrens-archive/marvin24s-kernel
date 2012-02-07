@@ -86,7 +86,6 @@ enum {
 /* CS421x boards */
 enum {
 	CS421X_CDB4210,
-	CS421X_STUMPY,
 	CS421X_MODELS
 };
 
@@ -921,16 +920,14 @@ static void cs_automute(struct hda_codec *codec)
 
 	/* mute speakers if spdif or hp jack is plugged in */
 	for (i = 0; i < cfg->speaker_outs; i++) {
+		int pin_ctl = hp_present ? 0 : PIN_OUT;
+		/* detect on spdif is specific to CS421x */
+		if (spdif_present && (spec->vendor_nid == CS421X_VENDOR_NID))
+			pin_ctl = 0;
+
 		nid = cfg->speaker_pins[i];
 		snd_hda_codec_write(codec, nid, 0,
-				    AC_VERB_SET_PIN_WIDGET_CONTROL,
-				    hp_present ? 0 : PIN_OUT);
-		/* detect on spdif is specific to CS421x */
-		if (spec->vendor_nid == CS421X_VENDOR_NID) {
-			snd_hda_codec_write(codec, nid, 0,
-					AC_VERB_SET_PIN_WIDGET_CONTROL,
-					spdif_present ? 0 : PIN_OUT);
-		}
+				    AC_VERB_SET_PIN_WIDGET_CONTROL, pin_ctl);
 	}
 	if (spec->gpio_eapd_hp) {
 		unsigned int gpio = hp_present ?
@@ -979,8 +976,10 @@ static void cs_automic(struct hda_codec *codec)
 	/* specific to CS421x, single ADC */
 	if (spec->vendor_nid == CS421X_VENDOR_NID) {
 		if (present) {
-			spec->last_input = spec->cur_input;
-			spec->cur_input = spec->automic_idx;
+			if (spec->cur_input != spec->automic_idx) {
+				spec->last_input = spec->cur_input;
+				spec->cur_input = spec->automic_idx;
+			}
 		} else  {
 			spec->cur_input = spec->last_input;
 		}
@@ -1417,23 +1416,10 @@ static int patch_cs420x(struct hda_codec *codec)
  * 1 ADC <= LineIn(sense) / MicIn / DMicIn,
  * 1 SPDIF OUT => SPDIF Trasmitter(sense)
 */
-#define CS4210_DAC_NID		0x02
-#define CS4210_ADC_NID		0x03
-#define CS421X_VENDOR_NID	0x0B
-#define CS421X_DMIC_PIN_NID	0x09 /* Port E */
-#define CS421X_SPDIF_PIN_NID	0x0A /* Port H */
-
-#define CS421X_IDX_DEV_CFG	0x01
-#define CS421X_IDX_ADC_CFG	0x02
-#define CS421X_IDX_DAC_CFG	0x03
-#define CS421X_IDX_SPK_CTL	0x04
-
-#define SPDIF_EVENT		0x04
 
 /* CS4210 board names */
 static const char *cs421x_models[CS421X_MODELS] = {
 	[CS421X_CDB4210] = "cdb4210",
-	[CS421X_STUMPY] = "stumpy",
 };
 
 static const struct snd_pci_quirk cs421x_cfg_tbl[] = {
@@ -1454,20 +1440,8 @@ static const struct cs_pincfg cdb4210_pincfgs[] = {
 	{} /* terminator */
 };
 
-/* Stumpy */
-static struct cs_pincfg stumpy_pincfgs[] = {
-	{ 0x05, 0x022120f0 },
-	{ 0x06, 0x901700f0 },
-	{ 0x07, 0x02a120f0 },
-	{ 0x08, 0x77a70037 },
-	{ 0x09, 0x77a6003e },
-	{ 0x0a, 0x434510f0 },
-	{} /* terminator */
-};
-
 static const struct cs_pincfg *cs421x_pincfgs[CS421X_MODELS] = {
 	[CS421X_CDB4210] = cdb4210_pincfgs,
-	[CS421X_STUMPY] = stumpy_pincfgs,
 };
 
 static const struct hda_verb cs421x_coef_init_verbs[] = {
@@ -1797,28 +1771,17 @@ static int build_cs421x_output(struct hda_codec *codec)
 	struct auto_pin_cfg *cfg = &spec->autocfg;
 	struct snd_kcontrol *kctl;
 	int err;
-	char *name = "HP/Speakers";
+	char *name = "Master";
 
 	fix_volume_caps(codec, dac);
-	if (!spec->vmaster_sw) {
-		err = add_vmaster(codec, dac);
-		if (err < 0)
-			return err;
-	}
 
 	err = add_mute(codec, name, 0,
 			HDA_COMPOSE_AMP_VAL(dac, 3, 0, HDA_OUTPUT), 0, &kctl);
 	if (err < 0)
 		return err;
-	err = snd_ctl_add_slave(spec->vmaster_sw, kctl);
-	if (err < 0)
-		return err;
 
 	err = add_volume(codec, name, 0,
 			HDA_COMPOSE_AMP_VAL(dac, 3, 0, HDA_OUTPUT), 0, &kctl);
-	if (err < 0)
-		return err;
-	err = snd_ctl_add_slave(spec->vmaster_vol, kctl);
 	if (err < 0)
 		return err;
 
