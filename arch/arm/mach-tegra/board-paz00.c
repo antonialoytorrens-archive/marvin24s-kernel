@@ -201,6 +201,7 @@ static void __init tegra_paz00_init(void)
 	tegra_clk_init_from_table(paz00_clk_init_table);
 
 	paz00_pinmux_init();
+	paz00_power_init();
 
 	tegra_sdhci_device1.dev.platform_data = &sdhci_pdata1;
 	tegra_sdhci_device4.dev.platform_data = &sdhci_pdata4;

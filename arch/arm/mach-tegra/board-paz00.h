@@ -36,5 +36,6 @@
 #define TEGRA_GPIO_POWERKEY	TEGRA_GPIO_PJ7
 
 void paz00_pinmux_init(void);
+int paz00_power_init(void);
 
 #endif
