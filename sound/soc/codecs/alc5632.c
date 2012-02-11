@@ -277,19 +277,19 @@ static const struct snd_kcontrol_new alc5632_dmicr_mixer_controls[] = {
 SOC_DAPM_SINGLE("DMICR2ADC Capture Switch", ALC5632_DIGI_BOOST_CTRL, 6, 1, 1),
 };
 
-static const char *alc5632_spk_n_sour_sel[] = {
+static const char * const alc5632_spk_n_sour_sel[] = {
 		"RN/-R", "RP/+R", "LN/-R", "Mute"};
-static const char *alc5632_hpl_out_input_sel[] = {
+static const char * const alc5632_hpl_out_input_sel[] = {
 		"Vmid", "HP Left Mix"};
-static const char *alc5632_hpr_out_input_sel[] = {
+static const char * const alc5632_hpr_out_input_sel[] = {
 		"Vmid", "HP Right Mix"};
-static const char *alc5632_spkout_input_sel[] = {
+static const char * const alc5632_spkout_input_sel[] = {
 		"Vmid", "HPOut Mix", "Speaker Mix", "Mono Mix"};
-static const char *alc5632_aux_out_input_sel[] = {
+static const char * const alc5632_aux_out_input_sel[] = {
 		"Vmid", "HPOut Mix", "Speaker Mix", "Mono Mix"};
-static const char *alc5632_adcr_func_sel[] = {
+static const char * const alc5632_adcr_func_sel[] = {
 		"Stereo ADC", "Voice ADC"};
-static const char *alc5632_i2s_out_sel[] = {
+static const char * const alc5632_i2s_out_sel[] = {
 		"ADC LR", "Voice Stereo Digital"};
 
 /* auxout output mux */
@@ -552,7 +552,7 @@ static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 	/* input pga */
 	{"Left LineIn", NULL,				"LINEINL"},
 	{"Right LineIn", NULL,				"LINEINR"},
-	{"Phone", NULL,				"PHONEP"},
+	{"Phone", NULL,					"PHONEP"},
 	{"MIC1 Pre Amp", NULL,				"MIC1"},
 	{"MIC2 Pre Amp", NULL,				"MIC2"},
 	{"MIC1 PGA", NULL,				"MIC1 Pre Amp"},
@@ -560,18 +560,18 @@ static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 
 	/* left ADC */
 	{"Left ADC", NULL,				"Left Capture Mix"},
-	{"DMICL Mix", "DMICL2ADC Capture Switch", "DMICDAT"},
+	{"DMICL Mix", "DMICL2ADC Capture Switch",	"DMICDAT"},
 	{"Left ADC", NULL,				"DMICL Mix"},
 	{"ADCLR", NULL,					"Left ADC"},
 
 	/* right ADC */
-	{"Right ADC", NULL, "Right Capture Mix"},
-	{"DMICR Mix", "DMICR2ADC Capture Switch", "DMICDAT"},
-	{"Right ADC", NULL, "DMICR Mix"},
-	{"ADCR Mux", "Stereo ADC", "Right ADC"},
-	{"ADCR Mux", "Voice ADC", "Right ADC"},
-	{"ADCLR", NULL, "ADCR Mux"},
-	{"VAIFTX", NULL, "ADCR Mux"},
+	{"Right ADC", NULL,				"Right Capture Mix"},
+	{"DMICR Mix", "DMICR2ADC Capture Switch",	"DMICDAT"},
+	{"Right ADC", NULL,				"DMICR Mix"},
+	{"ADCR Mux", "Stereo ADC",			"Right ADC"},
+	{"ADCR Mux", "Voice ADC",			"Right ADC"},
+	{"ADCLR", NULL,					"ADCR Mux"},
+	{"VAIFTX", NULL,				"ADCR Mux"},
 
 	/* Digital I2S out */
 	{"I2SOut Mux", NULL, "I2S Pwr"},
