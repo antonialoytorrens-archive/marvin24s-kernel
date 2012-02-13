@@ -212,6 +212,12 @@ static void __init tegra_paz00_init(void)
 	paz00_usb_init();
 }
 
+#ifdef CONFIG_TEGRA_GRHOST
+extern void paz00_fb_init(void);
+#else
+#define paz00_fb_init NULL
+#endif
+
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 	.atag_offset	= 0x100,
 	.fixup		= tegra_paz00_fixup,
@@ -220,4 +226,5 @@ MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
 	.init_machine   = tegra_paz00_init,
+	.reserve	= paz00_fb_init,
 MACHINE_END
