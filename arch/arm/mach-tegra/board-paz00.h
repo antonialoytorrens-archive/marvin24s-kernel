@@ -42,6 +42,8 @@
 #define TEGRA_EN_VDD_PNL	TEGRA_GPIO_PA4
 #define TEGRA_HDMI_HPD		TEGRA_GPIO_PN7
 
+/* EC */
+#define TEGRA_NVEC_REQ		TEGRA_GPIO_PV2
 
 void paz00_pinmux_init(void);
 int paz00_power_init(void);

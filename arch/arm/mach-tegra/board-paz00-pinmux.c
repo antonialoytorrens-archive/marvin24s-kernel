@@ -161,6 +161,7 @@ static struct tegra_gpio_table gpio_table[] = {
 	{ .gpio = TEGRA_LVDS_SHUTDOWN,	.enable = true },
 	{ .gpio = TEGRA_EN_VDD_PNL,	.enable = true },
 	{ .gpio = TEGRA_HDMI_HPD,	.enable = true },
+	{ .gpio = TEGRA_NVEC_REQ,	.enable = true },
 };
 
 void paz00_pinmux_init(void)
