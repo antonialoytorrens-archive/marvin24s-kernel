@@ -30,6 +30,7 @@
 #include <linux/input.h>
 #include <linux/i2c.h>
 #include <linux/i2c-tegra.h>
+#include <linux/mfd/core.h>
 #include <linux/rfkill-gpio.h>
 
 #include <asm/mach-types.h>
@@ -49,6 +50,7 @@
 #include "devices.h"
 #include "gpio-names.h"
 #include "pm.h"
+#include "../../../drivers/staging/nvec/nvec.h"
 
 static struct plat_serial8250_port debug_uart_platform_data[] = {
 	{
@@ -168,7 +170,35 @@ static struct platform_device leds_gpio = {
 	.id	= -1,
 	.dev	= {
 		.platform_data = &gpio_led_info,
-        },
+	},
+};
+
+static struct nvec_platform_data nvec_pdata = {
+	.i2c_addr	= 0x8a,
+	.gpio		= TEGRA_NVEC_REQ,
+};
+
+static struct resource i2c_resource3[] = {
+	[0] = {
+		.start	= INT_I2C3,
+		.end	= INT_I2C3,
+		.flags	= IORESOURCE_IRQ,
+	},
+	[1] = {
+		.start	= TEGRA_I2C3_BASE,
+		.end	= TEGRA_I2C3_BASE + TEGRA_I2C3_SIZE-1,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+static struct platform_device nvec_device = {
+	.name		= "nvec",
+	.id		= 2,
+	.resource	= i2c_resource3,
+	.num_resources	= ARRAY_SIZE(i2c_resource3),
+	.dev		= {
+		.platform_data = &nvec_pdata,
+	}
 };
 
 static struct gpio_keys_button paz00_gpio_keys_buttons[] = {
@@ -226,13 +256,13 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 	.is_dvc		= true,
 };
 
-
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
 	&wifi_rfkill_device,
 	&leds_gpio,
+	&nvec_device,
 	&gpio_keys_device,
 	&tegra_gart_device,
 };
