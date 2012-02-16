@@ -18,6 +18,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
+#include <linux/platform_data/tegra_alc5632.h>
 
 #include <sound/core.h>
 #include <sound/jack.h>
