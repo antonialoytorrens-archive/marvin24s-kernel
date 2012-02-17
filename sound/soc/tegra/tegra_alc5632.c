@@ -110,13 +110,22 @@ static const struct snd_kcontrol_new tegra_alc5632_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Int Spk"),
 };
 
+static const struct snd_soc_dapm_route paz00_audio_map[] = {
+	{"Headset Stereophone", NULL, "HPR"},
+	{"Headset Stereophone", NULL, "HPL"},
+	{"Int Spk", NULL, "SPKOUT"},
+	{"Int Spk", NULL, "SPKOUTN"},
+	{"MICBIAS1", NULL, "Headset Mic"},
+	{"MIC1", NULL, "MICBIAS1"},
+	{"DMICDAT", NULL, "Digital Mic"},
+};
+
 static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 	struct device_node *np = codec->card->dev->of_node;
 	struct tegra_alc5632 *machine = snd_soc_card_get_drvdata(codec->card);
-	int ret;
 
 	snd_soc_jack_new(codec, "Headset Jack", SND_JACK_HEADSET,
 			 &tegra_alc5632_hs_jack);
@@ -124,7 +133,8 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 			ARRAY_SIZE(tegra_alc5632_hs_jack_pins),
 			tegra_alc5632_hs_jack_pins);
 
-	machine->gpio_hp_det = of_get_named_gpio(np, "nvidia,hp-det-gpios", 0);
+	if (np)
+		machine->gpio_hp_det = of_get_named_gpio(np, "nvidia,hp-det-gpios", 0);
 
 	if (gpio_is_valid(machine->gpio_hp_det)) {
 		tegra_alc5632_hp_jack_gpio.gpio = machine->gpio_hp_det;
@@ -142,7 +152,9 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 static struct snd_soc_dai_link tegra_alc5632_dai = {
 	.name = "ALC5632",
 	.stream_name = "ALC5632 PCM",
+	.codec_name = "alc5632.0-001e",
 	.platform_name = "tegra-pcm-audio",
+	.cpu_dai_name = "tegra-i2s.0",
 	.codec_dai_name = "alc5632-hifi",
 	.init = tegra_alc5632_asoc_init,
 	.ops = &tegra_alc5632_asoc_ops,
@@ -160,6 +172,8 @@ static struct snd_soc_card snd_soc_tegra_alc5632 = {
 	.num_controls = ARRAY_SIZE(tegra_alc5632_controls),
 	.dapm_widgets = tegra_alc5632_dapm_widgets,
 	.num_dapm_widgets = ARRAY_SIZE(tegra_alc5632_dapm_widgets),
+	.dapm_routes = paz00_audio_map,
+	.num_dapm_routes = ARRAY_SIZE(paz00_audio_map),
 	.fully_routed = true,
 };
 
@@ -167,6 +181,7 @@ static __devinit int tegra_alc5632_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &snd_soc_tegra_alc5632;
 	struct tegra_alc5632 *alc5632;
+	struct tegra_alc5632_audio_platform_data *pdata = pdev->dev.platform_data;
 	int ret;
 
 	alc5632 = devm_kzalloc(&pdev->dev,
@@ -183,45 +198,48 @@ static __devinit int tegra_alc5632_probe(struct platform_device *pdev)
 
 	alc5632->pcm_dev = ERR_PTR(-EINVAL);
 
-	if (!(pdev->dev.of_node)) {
-		dev_err(&pdev->dev, "Must be instantiated using device tree\n");
-		ret = -EINVAL;
-		goto err;
+	if (pdev->dev.of_node) {
+		ret = snd_soc_of_parse_card_name(card, "nvidia,model");
+		if (ret)
+			goto err;
+
+		ret = snd_soc_of_parse_audio_routing(card, "nvidia,audio-routing");
+		if (ret)
+			goto err;
+
+		tegra_alc5632_dai.codec_of_node = of_parse_phandle(
+				pdev->dev.of_node, "nvidia,audio-codec", 0);
+
+		if (!tegra_alc5632_dai.codec_of_node) {
+			dev_err(&pdev->dev,
+				"Property 'nvidia,audio-codec' missing or invalid\n");
+			ret = -EINVAL;
+			goto err;
+		}
+
+		tegra_alc5632_dai.cpu_dai_of_node = of_parse_phandle(
+				pdev->dev.of_node, "nvidia,i2s-controller", 0);
+		if (!tegra_alc5632_dai.cpu_dai_of_node) {
+			dev_err(&pdev->dev,
+			"Property 'nvidia,i2s-controller' missing or invalid\n");
+			ret = -EINVAL;
+			goto err;
+		}
+
+		alc5632->pcm_dev = platform_device_register_simple(
+			"tegra-pcm-audio", -1, NULL, 0);
+		if (IS_ERR(alc5632->pcm_dev)) {
+			dev_err(&pdev->dev,
+				"Can't instantiate tegra-pcm-audio\n");
+			ret = PTR_ERR(alc5632->pcm_dev);
+			goto err;
 	}
 
-	ret = snd_soc_of_parse_card_name(card, "nvidia,model");
-	if (ret)
-		goto err;
-
-	ret = snd_soc_of_parse_audio_routing(card, "nvidia,audio-routing");
-	if (ret)
-		goto err;
-
-	tegra_alc5632_dai.codec_of_node = of_parse_phandle(
-			pdev->dev.of_node, "nvidia,audio-codec", 0);
-
-	if (!tegra_alc5632_dai.codec_of_node) {
-		dev_err(&pdev->dev,
-			"Property 'nvidia,audio-codec' missing or invalid\n");
+	} else if (pdata) {
+		alc5632->gpio_hp_det = pdata->gpio_hp_det;
+	} else {
+		dev_err(&pdev->dev, "Must be instantiated using device tree or platform data\n");
 		ret = -EINVAL;
-		goto err;
-	}
-
-	tegra_alc5632_dai.cpu_dai_of_node = of_parse_phandle(
-			pdev->dev.of_node, "nvidia,i2s-controller", 0);
-	if (!tegra_alc5632_dai.cpu_dai_of_node) {
-		dev_err(&pdev->dev,
-		"Property 'nvidia,i2s-controller' missing or invalid\n");
-		ret = -EINVAL;
-		goto err;
-	}
-
-	alc5632->pcm_dev = platform_device_register_simple(
-		"tegra-pcm-audio", -1, NULL, 0);
-	if (IS_ERR(alc5632->pcm_dev)) {
-		dev_err(&pdev->dev,
-			"Can't instantiate tegra-pcm-audio\n");
-		ret = PTR_ERR(alc5632->pcm_dev);
 		goto err;
 	}
 
