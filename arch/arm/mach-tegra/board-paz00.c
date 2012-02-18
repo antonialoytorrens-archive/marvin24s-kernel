@@ -279,6 +279,7 @@ static struct platform_device gpio_keys_device = {
 
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
+	&tegra_pmu_device,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
 	&wifi_rfkill_device,
