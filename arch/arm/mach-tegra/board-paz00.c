@@ -123,13 +123,20 @@ static void __init tegra_paz00_init(void)
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
 	paz00_i2c_init();
+	paz00_panel_init();
 	paz00_usb_init();
+}
+
+void __init tegra_paz00_reserve(void)
+{
+	tegra_reserve(SZ_64M, SZ_4M, SZ_4M);
 }
 
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
 	.boot_params	= 0x00000100,
 	.fixup		= tegra_paz00_fixup,
 	.map_io         = tegra_map_common_io,
+	.reserve	= tegra_paz00_reserve,
 	.init_early	= tegra_init_early,
 	.init_irq       = tegra_init_irq,
 	.timer          = &tegra_timer,
