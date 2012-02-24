@@ -23,5 +23,6 @@
 #define TEGRA_ULPI_RST			TEGRA_GPIO_PV0
 
 void paz00_pinmux_init(void);
+void paz00_panel_init(void);
 
 #endif
