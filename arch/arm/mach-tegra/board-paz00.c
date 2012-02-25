@@ -25,6 +25,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/gpio_keys.h>
 #include <linux/pda_power.h>
+#include <linux/memblock.h>
 #include <linux/io.h>
 #include <linux/input.h>
 #include <linux/i2c.h>
@@ -58,9 +59,9 @@ static struct plat_serial8250_port debug_uart_platform_data[] = {
 		.uartclk	= 216000000,
 	}, {
 		/* serial port on mini-pcie */
-		.membase	= IO_ADDRESS(TEGRA_UARTD_BASE),
-		.mapbase	= TEGRA_UARTD_BASE,
-		.irq		= INT_UARTD,
+		.membase	= IO_ADDRESS(TEGRA_UARTC_BASE),
+		.mapbase	= TEGRA_UARTC_BASE,
+		.irq		= INT_UARTC,
 		.flags		= UPF_BOOT_AUTOCONF,
 		.iotype		= UPIO_MEM,
 		.regshift	= 2,
@@ -171,7 +172,7 @@ static void __init tegra_paz00_fixup(struct machine_desc *desc,
 static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "uarta",	"pll_p",	216000000,	true },
-	{ "uartd",	"pll_p",	216000000,	true },
+	{ "uartc",	"pll_p",	216000000,	true },
 
 	{ "pll_p_out4",	"pll_p",	24000000,	true },
 	{ "usbd",	"clk_m",	12000000,	false },
@@ -212,7 +213,10 @@ static void __init tegra_paz00_init(void)
 
 void __init tegra_paz00_reserve(void)
 {
-	tegra_reserve(SZ_64M, SZ_4M, SZ_4M);
+	if (memblock_reserve(0x0, 4096) < 0)
+		pr_warn("Cannot reserve first 4K of memory for safety\n");
+
+	tegra_reserve(SZ_128M, SZ_8M, SZ_16M);
 }
 
 MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
