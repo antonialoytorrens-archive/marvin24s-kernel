@@ -194,6 +194,7 @@ static struct tegra_fb_data paz00_fb_data = {
 	.xres		= 1024,
 	.yres		= 600,
 	.bits_per_pixel	= 16,
+	.flags		= TEGRA_FB_FLIP_ON_PROBE
 };
 
 static struct tegra_fb_data paz00_hdmi_fb_data = {

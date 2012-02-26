@@ -80,7 +80,6 @@ enum {
 static int num_memhdl = 0;
 
 static struct memhdl nv_memhdl[MAX_MEMHDL];
-static size_t fb_addr;
 
 static const char atag_ids[][16] = {
 	"RM             ",
@@ -102,8 +101,10 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 	case FRAMEBUFFER:
 		id = nvtag->bootarg[1];
 		for (i=0; i<num_memhdl; i++)
-			if (nv_memhdl[i].id == id)
-				fb_addr = nv_memhdl[i].start;
+			if (nv_memhdl[i].id == id) {
+				tegra_bootloader_fb_start = nv_memhdl[i].start;
+				tegra_bootloader_fb_size =  nv_memhdl[i].size;
+			}
 		break;
 	case WARMBOOT:
 		id = nvtag->bootarg[1];
