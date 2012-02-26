@@ -312,6 +312,28 @@ static struct platform_device gpio_keys_device = {
 	},
 };
 
+static struct resource tegra_gart_resources[] = {
+	{
+		.name =  "mc",
+		.flags = IORESOURCE_MEM,
+		.start = TEGRA_MC_BASE,
+		.end =   TEGRA_MC_BASE + TEGRA_MC_SIZE - 1,
+	},
+	{
+		.name =  "gart",
+		.flags = IORESOURCE_MEM,
+		.start = TEGRA_GART_BASE,
+		.end =   TEGRA_GART_BASE + TEGRA_GART_SIZE - 1,
+	}
+};
+
+static struct platform_device tegra_gart_device = {
+	.name = "tegra_gart",
+	.id = -1,
+	.num_resources = ARRAY_SIZE(tegra_gart_resources),
+	.resource = tegra_gart_resources
+};
+
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
 	&tegra_pmu_device,
@@ -327,6 +349,7 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&audio_device,
 	&tegra_aes_device,
 	&tegra_wdt_device,
+	&tegra_gart_device,
 };
 
 static void paz00_i2c_init(void)
