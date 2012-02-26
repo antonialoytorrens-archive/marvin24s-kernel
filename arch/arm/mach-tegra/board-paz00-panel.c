@@ -38,7 +38,7 @@
 #define paz00_lvds_shutdown	TEGRA_GPIO_PM6
 #define paz00_en_vdd_pnl	TEGRA_GPIO_PA4
 #define paz00_bl_vdd		TEGRA_GPIO_PW0
-/*#define paz00_bl_pwm		TEGRA_GPIO_PB4*/
+#define paz00_bl_pwm		TEGRA_GPIO_PU3
 #define paz00_hdmi_hpd		TEGRA_GPIO_PN7
 
 /* panel power on sequence timing */
