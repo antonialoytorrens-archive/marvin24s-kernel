@@ -35,5 +35,7 @@
 
 void paz00_pinmux_init(void);
 void paz00_panel_init(void);
+int paz00_regulator_init(void);
+int paz00_suspend_init(void);
 
 #endif

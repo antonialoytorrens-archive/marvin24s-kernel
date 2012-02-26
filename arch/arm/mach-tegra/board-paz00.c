@@ -195,34 +195,6 @@ static struct platform_device gpio_keys_device = {
 	},
 };
 
-static void paz00_board_suspend(int lp_state, enum suspend_stage stg)
-{
-	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_SUSPEND_BEFORE_CPU))
-		tegra_console_uart_suspend();
-}
-
-static void paz00_board_resume(int lp_state, enum resume_stage stg)
-{
-	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_RESUME_AFTER_CPU))
-		tegra_console_uart_resume();
-}
-
-static struct tegra_suspend_platform_data paz00_suspend_data = {
-	/*
-	 * Check power on time and crystal oscillator start time
-	 * for appropriate settings.
-	 */
-	.cpu_timer	= 5000,
-	.cpu_off_timer	= 5000,
-	.suspend_mode	= TEGRA_SUSPEND_LP0,
-	.core_timer	= 0x7e7e,
-	.core_off_timer = 0x7f,
-	.corereq_high	= false,
-	.sysclkreq_high	= true,
-	.board_suspend = paz00_board_suspend,
-	.board_resume = paz00_board_resume,
-};
-
 static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
@@ -324,7 +296,6 @@ static void __init tegra_paz00_init(void)
 	tegra_clk_init_from_table(paz00_clk_init_table);
 
 	paz00_pinmux_init();
-	tegra_init_suspend(&paz00_suspend_data);
 
 	tegra_sdhci_device1.dev.platform_data = &sdhci_pdata1;
 	tegra_sdhci_device4.dev.platform_data = &sdhci_pdata4;
@@ -332,6 +303,8 @@ static void __init tegra_paz00_init(void)
 	platform_add_devices(paz00_devices, ARRAY_SIZE(paz00_devices));
 
 	paz00_i2c_init();
+	paz00_regulator_init();
+	paz00_suspend_init();
 	paz00_panel_init();
 	paz00_usb_init();
 }
