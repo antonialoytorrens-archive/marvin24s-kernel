@@ -41,6 +41,7 @@
 #include <mach/irqs.h>
 #include <mach/sdhci.h>
 #include <mach/gpio.h>
+#include <mach/usb_phy.h>
 
 #include "board.h"
 #include "board-paz00.h"
@@ -78,6 +79,59 @@ static struct platform_device debug_uart = {
 	.id = PLAT8250_DEV_PLATFORM,
 	.dev = {
 		.platform_data = debug_uart_platform_data,
+	},
+};
+
+static struct tegra_utmip_config utmi_phy_config[] = {
+	[0] = {
+			.hssync_start_delay = 9,
+			.idle_wait_delay = 17,
+			.elastic_limit = 16,
+			.term_range_adj = 6,
+			.xcvr_setup = 15,
+			.xcvr_setup_offset = 0,
+			.xcvr_use_fuses = 1,
+			.xcvr_lsfslew = 2,
+			.xcvr_lsrslew = 2,
+	},
+	[1] = {
+			.hssync_start_delay = 9,
+			.idle_wait_delay = 17,
+			.elastic_limit = 16,
+			.term_range_adj = 6,
+			.xcvr_setup = 8,
+			.xcvr_setup_offset = 0,
+			.xcvr_use_fuses = 1,
+			.xcvr_lsfslew = 2,
+			.xcvr_lsrslew = 2,
+	},
+};
+
+static struct tegra_ulpi_config ulpi_phy_config = {
+	.reset_gpio = TEGRA_ULPI_RST,
+	.clk = "cdev2",
+};
+
+static struct tegra_ehci_platform_data tegra_ehci_pdata[] = {
+	[0] = {
+			.phy_config = &utmi_phy_config[0],
+			.operating_mode = TEGRA_USB_HOST,
+			.power_down_on_bus_suspend = 1,
+			.default_enable = true,
+	},
+	[1] = {
+			.phy_config = &ulpi_phy_config,
+			.operating_mode = TEGRA_USB_HOST,
+			.power_down_on_bus_suspend = 1,
+			.phy_type = TEGRA_USB_PHY_TYPE_LINK_ULPI,
+			.default_enable = true,
+	},
+	[2] = {
+			.phy_config = &utmi_phy_config[1],
+			.operating_mode = TEGRA_USB_HOST,
+			.power_down_on_bus_suspend = 1,
+			.hotplug = 1,
+			.default_enable = true,
 	},
 };
 
@@ -224,6 +278,9 @@ static void paz00_i2c_init(void)
 
 static void paz00_usb_init(void)
 {
+	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
+	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
+
 	platform_device_register(&tegra_ehci2_device);
 	platform_device_register(&tegra_ehci3_device);
 }
