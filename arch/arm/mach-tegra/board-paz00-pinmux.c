@@ -148,6 +148,11 @@ static struct tegra_gpio_table gpio_table[] = {
 	{ .gpio = TEGRA_WIFI_PWRN,	.enable = true },
 	{ .gpio = TEGRA_WIFI_RST,	.enable = true },
 	{ .gpio = TEGRA_WIFI_LED,	.enable = true },
+	{ .gpio = TEGRA_BACKLIGHT,	.enable = true },
+	{ .gpio = TEGRA_BACKLIGHT_VDD,	.enable = true },
+	{ .gpio = TEGRA_LVDS_SHUTDOWN,	.enable = true },
+	{ .gpio = TEGRA_EN_VDD_PNL,	.enable = true },
+	{ .gpio = TEGRA_HDMI_HPD,	.enable = true },
 };
 
 void paz00_pinmux_init(void)

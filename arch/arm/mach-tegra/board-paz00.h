@@ -33,6 +33,14 @@
 /* WakeUp */
 #define TEGRA_GPIO_POWERKEY	TEGRA_GPIO_PJ7
 
+/* Panel */
+#define	TEGRA_BACKLIGHT		TEGRA_GPIO_PU4
+#define	TEGRA_BACKLIGHT_VDD	TEGRA_GPIO_PW0
+#define	TEGRA_LVDS_SHUTDOWN	TEGRA_GPIO_PM6
+#define	TEGRA_EN_VDD_PNL	TEGRA_GPIO_PA4
+#define	TEGRA_HDMI_HPD		TEGRA_GPIO_PN7
+#define TEGRA_BACKLIGHT_PWM	TEGRA_GPIO_PU3
+
 void paz00_pinmux_init(void);
 void paz00_panel_init(void);
 int paz00_regulator_init(void);
