@@ -42,8 +42,6 @@ fw-shipped-$(CONFIG_BNX2) += bnx2/bnx2-mips-09-6.2.1a.fw \
 			     bnx2/bnx2-rv2p-06-6.0.15.fw
 fw-shipped-$(CONFIG_BRCM80211_PCI) += brcm/bcm43xx-0.fw \
 				  brcm/bcm43xx_hdr-0.fw
-fw-shipped-$(CONFIG_BRCMFMAC) += brcm/bcm4329-fullmac-4.bin \
-				brcm/bcm4329-fullmac-4.txt
 fw-shipped-$(CONFIG_BT_ATH3K) += ath3k-1.fw
 fw-shipped-$(CONFIG_CASSINI) += sun/cassini.bin
 fw-shipped-$(CONFIG_COMPUTONE) += intelliport2.bin

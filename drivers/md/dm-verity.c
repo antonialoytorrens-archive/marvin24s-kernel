@@ -14,6 +14,7 @@
 #include <linux/async.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>
+#include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
@@ -22,6 +23,7 @@
 #include <linux/kernel.h>
 #include <linux/mempool.h>
 #include <linux/module.h>
+#include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <asm/atomic.h>
@@ -33,6 +35,7 @@
 #include <linux/dm-bht.h>
 
 #include "dm-verity.h"
+#include "md.h"
 
 #define DM_MSG_PREFIX "verity"
 
@@ -110,11 +113,24 @@ MODULE_PARM_DESC(dev_wait, "Wait forever for a backing device");
  * STATUSTYPE_INFO.
  */
 struct verity_stats {
-	unsigned int io_queue;
-	unsigned int verify_queue;
-	unsigned int average_requeues;
-	unsigned int total_requeues;
-	unsigned long long total_requests;
+	unsigned int io_queue;		/* # pending I/O operations */
+	unsigned int verify_queue;	/* # pending verify operations */
+	unsigned int average_requeues;	/* not implemented */
+
+	/*
+	 * Number of times a data block was ready but we didn't have the hash
+	 * blocks for it yet */
+	unsigned long long total_requeues;
+	unsigned long long total_requests;	/* number of reads */
+
+	unsigned long long total_blocks;	/* total blocks read */
+	unsigned long long total_size;	/* total blocks read */
+
+	unsigned long bht_requests;	/* number of hash blocks read */
+
+	/* number of reads for each block size (log2) */
+	unsigned long io_by_block_size[sizeof(uint64_t) * 8];
+	unsigned long long io_size_by_block_size[sizeof(uint64_t) * 8];
 };
 
 /* per-requested-bio private data */
@@ -158,10 +174,13 @@ struct verity_config {
 	int error_behavior;
 
 	struct verity_stats stats;
+	const char *name;		/* name for this config */
+	struct dentry *debugfs_dir;	/* debugfs dir for this config */
 };
 
 static struct kmem_cache *_verity_io_pool;
 static struct workqueue_struct *kveritydq, *kverityd_ioq;
+static struct dentry *debugfs_root; /* top-level debugfs dir for verity */
 
 static void kverityd_verify(struct work_struct *work);
 static void kverityd_io(struct work_struct *work);
@@ -196,10 +215,6 @@ void verity_stats_verify_queue_dec(struct verity_config *vc)
 
 void verity_stats_total_requeues_inc(struct verity_config *vc)
 {
-	if (vc->stats.total_requeues >= INT_MAX - 1) {
-		DMINFO("stats.total_requeues is wrapping");
-		vc->stats.total_requeues = 0;
-	}
 	vc->stats.total_requeues++;
 }
 
@@ -770,6 +785,7 @@ static int kverityd_bht_read_callback(void *ctx, sector_t start, u8 *dst,
 	 * being removed prior since this is called synchronously.
 	 */
 	DMDEBUG("Submitting bht io %p (entry:%p)", io, entry);
+	vc->stats.bht_requests++;
 	generic_make_request(bio);
 	return 0;
 }
@@ -944,11 +960,89 @@ static int verity_map(struct dm_target *ti, struct bio *bio,
 			return DM_MAPIO_REQUEUE;
 		}
 		verity_stats_io_queue_inc(vc);
+		vc->stats.total_blocks += io->count;
+		vc->stats.io_by_block_size[ilog2(io->count)]++;
+
+		vc->stats.total_size += bio->bi_size;
+		vc->stats.io_size_by_block_size[ilog2(io->count)] +=
+			bio->bi_size;
 		INIT_DELAYED_WORK(&io->work, kverityd_io);
 		queue_delayed_work(kverityd_ioq, &io->work, 0);
 	}
 
 	return DM_MAPIO_SUBMITTED;
+}
+
+static int verity_stats_seq_show(struct seq_file *seq, void *offset)
+{
+	struct verity_config *vc = seq->private;
+	struct verity_stats *stats = &vc->stats;
+	unsigned long long running_total;
+	int i;
+
+	seq_printf(seq, "%d\tI/O queue pending\n", (int)stats->io_queue);
+	seq_printf(seq, "%u\tVerify queue pending\n", stats->verify_queue);
+	seq_printf(seq, "%lu\tHash block requests\n", stats->bht_requests);
+	seq_printf(seq, "%llu\tTotal re-queues\n", stats->total_requeues);
+	seq_printf(seq, "%llu\tTotal requests\n", stats->total_requests);
+	seq_printf(seq, "%lluMB\tTotal size\n", stats->total_size >> 20);
+	seq_printf(seq, "%llu\tTotal blocks\n", stats->total_blocks);
+	for (running_total = i = 0; i < 30; i++) {
+		if (stats->io_by_block_size[i]) {
+			running_total += stats->io_size_by_block_size[i];
+			seq_printf(seq, "%lu\tRequests of size %u-%u"
+				" (%uKB to %uKB), %lluKB, "
+				"run.tot. = %lluMB\n",
+				stats->io_by_block_size[i],
+				1U << i, (2U << i) - 1,
+				1U << i << VERITY_BLOCK_SHIFT >> 10,
+				((2U << i) - 1) << VERITY_BLOCK_SHIFT >> 10,
+				stats->io_size_by_block_size[i] >> 10,
+				running_total >> 20);
+		}
+	}
+
+	return 0;
+}
+
+static int verity_stats_open_fs(struct inode *inode, struct file *file)
+{
+	return single_open(file, verity_stats_seq_show, inode->i_private);
+}
+
+static const struct file_operations verity_stats_fops = {
+	.owner = THIS_MODULE,
+	.open = verity_stats_open_fs,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int verity_init_debugfs(struct verity_config *vc)
+{
+	struct dentry *dir, *stats;
+
+	dir = debugfs_create_dir(vc->name, debugfs_root);
+	if (!dir)
+		goto cant_create_dir;
+	stats = debugfs_create_file("stats",
+			S_IFREG | S_IRUSR | S_IRGRP | S_IROTH,
+			dir, vc, &verity_stats_fops);
+	if (!stats)
+		goto cant_create_file;
+
+	vc->debugfs_dir = dir;
+	return 0;
+
+cant_create_file:
+	debugfs_remove_recursive(dir);
+cant_create_dir:
+	return -ENODEV;
+}
+
+static void verity_cleanup_debugfs(struct verity_config *vc)
+{
+	debugfs_remove_recursive(vc->debugfs_dir);
 }
 
 static void splitarg(char *arg, char **key, char **val) {
@@ -980,7 +1074,6 @@ static void splitarg(char *arg, char **key, char **val) {
  * root_hexdigest=f08aa4a3695290c569eb1b0ac032ae1040150afb527abbeb0a3da33d82fb2c6e
  *
  * TODO(wad):
- * - Add stats: num_requeues, num_ios, etc with proc ibnterface
  * - Boot time addition
  * - Track block verification to free block_hashes if memory use is a concern
  * Testing needed:
@@ -1093,6 +1186,12 @@ static int verity_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 		return -EINVAL;
 	}
 
+	/* For the name, use the payload default with / changed to _ */
+	vc->name = dm_disk(dm_table_get_md(ti->table))->disk_name;
+
+	if (verity_init_debugfs(vc))
+		goto bad_debugfs;
+
 	/* Calculate the blocks from the given device size */
 	vc->size = ti->len;
 	blocks = to_bytes(vc->size) >> VERITY_BLOCK_SHIFT;
@@ -1203,6 +1302,8 @@ bad_hash_start:
 bad_bht:
 bad_root_hexdigest:
 bad_verity_dev:
+	verity_cleanup_debugfs(vc);
+bad_debugfs:
 	kfree(vc);   /* hash is not secret so no need to zero */
 	return -EINVAL;
 }
@@ -1224,6 +1325,10 @@ static void verity_dtr(struct dm_target *ti)
 
 	DMDEBUG("Putting dev");
 	dm_put_device(ti, vc->dev);
+
+	DMDEBUG("Removing debugfs dir");
+	verity_cleanup_debugfs(vc);
+
 	DMDEBUG("Destroying config");
 	kfree(vc);
 }
@@ -1239,7 +1344,7 @@ static int verity_status(struct dm_target *ti, status_type_t type,
 
 	switch (type) {
 	case STATUSTYPE_INFO:
-		DMEMIT("%u %u %u %u %llu",
+		DMEMIT("%u %u %u %llu %llu",
 		       vc->stats.io_queue,
 		       vc->stats.verify_queue,
 		       vc->stats.average_requeues,
@@ -1313,6 +1418,13 @@ static int __init dm_verity_init(void)
 {
 	int r = -ENOMEM;
 
+	debugfs_root = debugfs_create_dir("dm-verity", NULL);
+	if (!debugfs_root) {
+		DMERR("failed to create debugfs directory");
+		r = -ENODEV;
+		goto bad_debugfs_dir;
+	}
+
 	_verity_io_pool = KMEM_CACHE(dm_verity_io, 0);
 	if (!_verity_io_pool) {
 		DMERR("failed to allocate pool dm_verity_io");
@@ -1349,6 +1461,8 @@ bad_verify_queue:
 bad_io_queue:
 	kmem_cache_destroy(_verity_io_pool);
 bad_io_pool:
+	debugfs_remove_recursive(debugfs_root);
+bad_debugfs_dir:
 	return r;
 }
 
@@ -1359,6 +1473,7 @@ static void __exit dm_verity_exit(void)
 
 	dm_unregister_target(&verity_target);
 	kmem_cache_destroy(_verity_io_pool);
+	debugfs_remove_recursive(debugfs_root);
 }
 
 module_init(dm_verity_init);
