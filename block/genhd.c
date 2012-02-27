@@ -1116,6 +1116,7 @@ static void disk_release(struct device *dev)
 struct class block_class = {
 	.name		= "block",
 };
+EXPORT_SYMBOL(block_class);
 
 static char *block_devnode(struct device *dev, mode_t *mode)
 {
