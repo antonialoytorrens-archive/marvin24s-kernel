@@ -44,7 +44,6 @@
 /* EC */
 #define TEGRA_NVEC_REQ		TEGRA_GPIO_PV2
 
->>>>>>> android-ac100-3.1-exp
 void paz00_pinmux_init(void);
 void paz00_panel_init(void);
 int paz00_regulator_init(void);
