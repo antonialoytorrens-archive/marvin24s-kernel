@@ -62,11 +62,6 @@ static struct regulator_consumer_supply tps658621_ldo3_supply[] = {
 	REGULATOR_SUPPLY("avdd_usb", NULL),
 	REGULATOR_SUPPLY("avdd_usb_pll", NULL),
 	REGULATOR_SUPPLY("avdd_lvds", NULL),
-	REGULATOR_SUPPLY("vddio_sdmmc", "sdhci-tegra.0"),
-	REGULATOR_SUPPLY("vddio_sdmmc", "sdhci-tegra.3"),
-	REGULATOR_SUPPLY("vddio_sd_slot", "sdhci-tegra.3"),
-	REGULATOR_SUPPLY("vmmc", "sdhci-tegra.0"),
-	REGULATOR_SUPPLY("vmmc", "sdhci-tegra.3"),
 };
 
 static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
@@ -75,6 +70,8 @@ static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
 
 static struct regulator_consumer_supply tps658621_ldo5_supply[] = {
 	REGULATOR_SUPPLY("vddio_nand", NULL),
+	REGULATOR_SUPPLY("vcore_mmc", "sdhci-tegra.0"),
+	REGULATOR_SUPPLY("vcore_mmc", "sdhci-tegra.3"),
 };
 
 static struct regulator_consumer_supply tps658621_ldo6_supply[] = {
