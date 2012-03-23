@@ -26,6 +26,7 @@
 #include <linux/gpio_keys.h>
 #include <linux/pda_power.h>
 #include <linux/memblock.h>
+#include <linux/mfd/core.h>
 #include <linux/io.h>
 #include <linux/input.h>
 #include <linux/i2c.h>
@@ -173,9 +174,18 @@ static struct platform_device leds_gpio = {
 	},
 };
 
+static struct mfd_cell paz00_custom_devices[] = {
+	{
+		.name   = "nvec-event",
+		.id     = 1,
+	},
+};
+
 static struct nvec_platform_data nvec_pdata = {
 	.i2c_addr	= 0x8a,
 	.gpio		= TEGRA_NVEC_REQ,
+	.custom_devices = paz00_custom_devices,
+	.nr_custom_devs = ARRAY_SIZE(paz00_custom_devices),
 };
 
 static struct resource i2c_resource3[] = {
