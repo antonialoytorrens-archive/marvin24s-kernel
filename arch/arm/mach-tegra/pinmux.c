@@ -320,6 +320,7 @@ int tegra_pinmux_set_tristate(enum tegra_pingroup pg,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(tegra_pinmux_set_tristate);
 
 int tegra_pinmux_set_io(enum tegra_pingroup pg,
 	enum tegra_pin_io input)
