@@ -96,6 +96,7 @@ config MACH_KAEN
 config MACH_PAZ00
        bool "Paz00 board"
        depends on ARCH_TEGRA_2x_SOC
+       select MACH_HAS_SND_SOC_TEGRA_ALC5632 if SND_SOC
        help
          Support for the Toshiba AC100/Dynabook AZ netbook
 
