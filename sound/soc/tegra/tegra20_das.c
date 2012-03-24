@@ -65,6 +65,7 @@ int tegra20_das_resume(void)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(tegra20_das_resume);
 #endif
 
 void tegra20_das_set_tristate(int dap_id, int is_tristate)
