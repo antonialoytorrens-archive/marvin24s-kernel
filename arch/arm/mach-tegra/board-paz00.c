@@ -44,6 +44,7 @@
 #include <mach/sdhci.h>
 #include <mach/gpio.h>
 #include <mach/usb_phy.h>
+#include <mach/tegra_alc5632_pdata.h>
 
 #include "board.h"
 #include "board-paz00.h"
@@ -345,6 +346,23 @@ static struct platform_device gpio_keys_device = {
 	},
 };
 
+static struct tegra_alc5632_audio_platform_data audio_pdata = {
+	/* speaker enable goes via nvec */
+	.gpio_hp_det	= TEGRA_HP_DET,
+};
+
+static struct platform_device audio_device = {
+	.name	= "tegra-alc5632",
+	.id	= 0,
+	.dev	= {
+		.platform_data = &audio_pdata,
+	},
+};
+
+static struct i2c_board_info __initdata alc5632_board_info = {
+	I2C_BOARD_INFO("alc5632", 0x1e),
+};
+
 static struct tegra_i2c_platform_data paz00_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
@@ -385,6 +403,11 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&nvec_device,
 	&gpio_keys_device,
 	&tegra_gart_device,
+	&tegra_i2s_device1,
+	&tegra_das_device,
+	&tegra_pcm_device,
+	&audio_device,
+	&tegra_avp_device,
 };
 
 static void paz00_i2c_init(void)
@@ -396,6 +419,8 @@ static void paz00_i2c_init(void)
 	platform_device_register(&tegra_i2c_device1);
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device4);
+
+	i2c_register_board_info(0, &alc5632_board_info, 1);
 }
 
 static void paz00_usb_init(void)
@@ -429,8 +454,16 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 
 	{ "pwm",	"clk_32k",	32768,		false },
 
-	{ "sdmmc1",	"clk_m",	48000000,	true },
-	{ "sdmmc4",	"clk_m",	48000000,	true },
+	{ "sdmmc1",	"clk_m",	48000000,	true  },
+	{ "sdmmc4",	"clk_m",	48000000,	true  },
+
+	{ "pll_a",	"pll_p_out1",	56448000,	true  },
+	{ "pll_a_out0",	"pll_a",	11289600,	true  },
+	{ "pll_p_out4",	"pll_p",	24000000,	true  },
+	{ "cdev1",	NULL,		0,		true  },
+	{ "audio",	"pll_a_out0",	11289600,	false },
+	{ "audio_2x",	"audio",	22579200,	false },
+	{ "i2s1",	"pll_a_out0",	11289600,	false },
 
 	{ NULL,		NULL,		0,		0     },
 };
