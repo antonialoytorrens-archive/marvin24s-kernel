@@ -405,10 +405,10 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&nvec_device,
 	&gpio_keys_device,
 	&tegra_gart_device,
+	&audio_device,
 	&tegra_i2s_device1,
 	&tegra_das_device,
 	&tegra_pcm_device,
-	&audio_device,
 	&tegra_avp_device,
 };
 
@@ -463,9 +463,9 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	{ "pll_a_out0",	"pll_a",	11289600,	true  },
 	{ "pll_p_out4",	"pll_p",	24000000,	true  },
 	{ "cdev1",	NULL,		0,		true  },
-	{ "audio",	"pll_a_out0",	11289600,	false },
+	{ "audio",	"pll_a_out0",	11289600,	true  },
 	{ "audio_2x",	"audio",	22579200,	false },
-	{ "i2s1",	"pll_a_out0",	11289600,	false },
+	{ "i2s1",	"pll_a_out0",	0	,	false },
 
 	{ NULL,		NULL,		0,		0     },
 };
