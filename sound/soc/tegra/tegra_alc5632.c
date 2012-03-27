@@ -61,9 +61,15 @@ static int tegra_alc5632_asoc_hw_params(struct snd_pcm_substream *substream,
 
 	err = tegra_asoc_utils_set_rate(&alc5632->util_data, srate, mclk);
 	if (err < 0) {
-		dev_err(card->dev, "Can't configure clocks\n");
-		return err;
+		if (!(alc5632->util_data.set_mclk % mclk))
+			mclk = alc5632->util_data.set_mclk;
+		else {
+			dev_err(card->dev, "Can't configure clocks\n");
+			return err;
+		}
 	}
+
+	tegra_asoc_utils_lock_clk_rate(&alc5632->util_data, 1);
 
 	err = snd_soc_dai_set_fmt(codec_dai,
 					SND_SOC_DAIFMT_I2S |
@@ -93,8 +99,19 @@ static int tegra_alc5632_asoc_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int tegra_alc5632_hw_free(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(rtd->card);
+
+	tegra_asoc_utils_lock_clk_rate(&alc5632->util_data, 0);
+
+	return 0;
+}
+
 static struct snd_soc_ops tegra_alc5632_asoc_ops = {
 	.hw_params = tegra_alc5632_asoc_hw_params,
+	.hw_free = tegra_alc5632_hw_free,
 };
 
 static struct snd_soc_jack tegra_alc5632_hs_jack;
