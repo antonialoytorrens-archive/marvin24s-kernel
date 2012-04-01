@@ -7982,12 +7982,16 @@ static void ivybridge_init_clock_gating(struct drm_device *dev)
 
 	I915_WRITE(ILK_DSPCLK_GATE, IVB_VRHUNIT_CLK_GATE);
 
-	for_each_pipe(pipe) {
+	/* WaApplyL3ControlAndL3ChickenMode requires those two on Ivy Bridge */
+	I915_WRITE(GEN7_L3CNTLREG1,
+			GEN7_WA_FOR_GEN7_L3_CONTROL);
+	I915_WRITE(GEN7_L3_CHICKEN_MODE_REGISTER,
+			GEN7_WA_L3_CHICKEN_MODE);
+
+	for_each_pipe(pipe)
 		I915_WRITE(DSPCNTR(pipe),
 			   I915_READ(DSPCNTR(pipe)) |
 			   DISPPLANE_TRICKLE_FEED_DISABLE);
-		intel_flush_display_plane(dev_priv, pipe);
-	}
 }
 
 static void g4x_init_clock_gating(struct drm_device *dev)
