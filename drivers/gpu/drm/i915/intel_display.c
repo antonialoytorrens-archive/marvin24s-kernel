@@ -2473,7 +2473,7 @@ static void gen6_fdi_link_train(struct drm_crtc *crtc)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	int pipe = intel_crtc->pipe;
-	u32 reg, temp, i;
+	u32 reg, temp, i, retry;
 
 	/* Train 1: umask FDI RX Interrupt symbol_lock and bit_lock bit
 	   for train result */
@@ -2525,15 +2525,19 @@ static void gen6_fdi_link_train(struct drm_crtc *crtc)
 		POSTING_READ(reg);
 		udelay(500);
 
-		reg = FDI_RX_IIR(pipe);
-		temp = I915_READ(reg);
-		DRM_DEBUG_KMS("FDI_RX_IIR 0x%x\n", temp);
-
-		if (temp & FDI_RX_BIT_LOCK) {
-			I915_WRITE(reg, temp | FDI_RX_BIT_LOCK);
-			DRM_DEBUG_KMS("FDI train 1 done.\n");
-			break;
+		for (retry = 0; retry < 5; retry++) {
+			reg = FDI_RX_IIR(pipe);
+			temp = I915_READ(reg);
+			DRM_DEBUG_KMS("FDI_RX_IIR 0x%x\n", temp);
+			if (temp & FDI_RX_BIT_LOCK) {
+				I915_WRITE(reg, temp | FDI_RX_BIT_LOCK);
+				DRM_DEBUG_KMS("FDI train 1 done.\n");
+				break;
+			}
+			udelay(50);
 		}
+		if (retry < 5)
+			break;
 	}
 	if (i == 4)
 		DRM_ERROR("FDI train 1 fail!\n");
@@ -2574,15 +2578,19 @@ static void gen6_fdi_link_train(struct drm_crtc *crtc)
 		POSTING_READ(reg);
 		udelay(500);
 
-		reg = FDI_RX_IIR(pipe);
-		temp = I915_READ(reg);
-		DRM_DEBUG_KMS("FDI_RX_IIR 0x%x\n", temp);
-
-		if (temp & FDI_RX_SYMBOL_LOCK) {
-			I915_WRITE(reg, temp | FDI_RX_SYMBOL_LOCK);
-			DRM_DEBUG_KMS("FDI train 2 done.\n");
-			break;
+		for (retry = 0; retry < 5; retry++) {
+			reg = FDI_RX_IIR(pipe);
+			temp = I915_READ(reg);
+			DRM_DEBUG_KMS("FDI_RX_IIR 0x%x\n", temp);
+			if (temp & FDI_RX_SYMBOL_LOCK) {
+				I915_WRITE(reg, temp | FDI_RX_SYMBOL_LOCK);
+				DRM_DEBUG_KMS("FDI train 2 done.\n");
+				break;
+			}
+			udelay(50);
 		}
+		if (retry < 5)
+			break;
 	}
 	if (i == 4)
 		DRM_ERROR("FDI train 2 fail!\n");
@@ -6473,10 +6481,6 @@ static void intel_increase_pllclock(struct drm_crtc *crtc)
 	if (!HAS_PIPE_CXSR(dev) && (dpll & DISPLAY_RATE_SELECT_FPA1)) {
 		DRM_DEBUG_DRIVER("upclocking LVDS\n");
 
-		/* Unlock panel regs */
-		I915_WRITE(PP_CONTROL,
-			   I915_READ(PP_CONTROL) | PANEL_UNLOCK_REGS);
-
 		dpll &= ~DISPLAY_RATE_SELECT_FPA1;
 		I915_WRITE(dpll_reg, dpll);
 		intel_wait_for_vblank(dev, pipe);
@@ -6484,9 +6488,6 @@ static void intel_increase_pllclock(struct drm_crtc *crtc)
 		dpll = I915_READ(dpll_reg);
 		if (dpll & DISPLAY_RATE_SELECT_FPA1)
 			DRM_DEBUG_DRIVER("failed to upclock LVDS!\n");
-
-		/* ...and lock them again */
-		I915_WRITE(PP_CONTROL, I915_READ(PP_CONTROL) & 0x3);
 	}
 
 	/* Schedule downclock */
@@ -6516,19 +6517,12 @@ static void intel_decrease_pllclock(struct drm_crtc *crtc)
 	if (!HAS_PIPE_CXSR(dev) && intel_crtc->lowfreq_avail) {
 		DRM_DEBUG_DRIVER("downclocking LVDS\n");
 
-		/* Unlock panel regs */
-		I915_WRITE(PP_CONTROL, I915_READ(PP_CONTROL) |
-			   PANEL_UNLOCK_REGS);
-
 		dpll |= DISPLAY_RATE_SELECT_FPA1;
 		I915_WRITE(dpll_reg, dpll);
 		intel_wait_for_vblank(dev, pipe);
 		dpll = I915_READ(dpll_reg);
 		if (!(dpll & DISPLAY_RATE_SELECT_FPA1))
 			DRM_DEBUG_DRIVER("failed to downclock LVDS!\n");
-
-		/* ...and lock them again */
-		I915_WRITE(PP_CONTROL, I915_READ(PP_CONTROL) & 0x3);
 	}
 
 }
@@ -7697,7 +7691,8 @@ void gen6_enable_rps(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN6_RC6p_THRESHOLD, 100000);
 	I915_WRITE(GEN6_RC6pp_THRESHOLD, 64000); /* unused */
 
-	if (i915_enable_rc6)
+	/* disable rc6 on ivy-bridge as our current hardware is broken */
+	if (i915_enable_rc6 && !IS_GEN7(dev_priv->dev))
 		rc6_mask = GEN6_RC_CTL_RC6p_ENABLE |
 			GEN6_RC_CTL_RC6_ENABLE;
 
@@ -8161,8 +8156,9 @@ void ironlake_enable_rc6(struct drm_device *dev)
 
 	/* rc6 disabled by default due to repeated reports of hanging during
 	 * boot and resume.
+	 * also disable it on ivy-bridge as our current hardware is broken.
 	 */
-	if (!i915_enable_rc6)
+	if (!i915_enable_rc6 || IS_GEN7(dev))
 		return;
 
 	mutex_lock(&dev->struct_mutex);
@@ -8281,6 +8277,34 @@ static void intel_init_display(struct drm_device *dev)
 
 	/* For FIFO watermark updates */
 	if (HAS_PCH_SPLIT(dev)) {
+		dev_priv->display.force_wake_get = __gen6_gt_force_wake_get;
+		dev_priv->display.force_wake_put = __gen6_gt_force_wake_put;
+
+		/* IVB configs may use multi-threaded forcewake */
+		if (IS_IVYBRIDGE(dev)) {
+			u32	ecobus;
+
+			/* A small trick here - if the bios hasn't configured MT forcewake,
+			 * and if the device is in RC6, then force_wake_mt_get will not wake
+			 * the device and the ECOBUS read will return zero. Which will be
+			 * (correctly) interpreted by the test below as MT forcewake being
+			 * disabled.
+			 */
+			mutex_lock(&dev->struct_mutex);
+			__gen6_gt_force_wake_mt_get(dev_priv);
+			ecobus = I915_READ_NOTRACE(ECOBUS);
+			__gen6_gt_force_wake_mt_put(dev_priv);
+			mutex_unlock(&dev->struct_mutex);
+
+			if (ecobus & FORCEWAKE_MT_ENABLE) {
+				DRM_DEBUG_KMS("Using MT version of forcewake\n");
+				dev_priv->display.force_wake_get =
+					__gen6_gt_force_wake_mt_get;
+				dev_priv->display.force_wake_put =
+					__gen6_gt_force_wake_mt_put;
+			}
+		}
+
 		if (HAS_PCH_IBX(dev))
 			dev_priv->display.init_pch_clock_gating = ibx_init_clock_gating;
 		else if (HAS_PCH_CPT(dev))

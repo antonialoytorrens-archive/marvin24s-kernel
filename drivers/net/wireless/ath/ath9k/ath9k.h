@@ -425,8 +425,11 @@ void ath9k_set_beaconing_status(struct ath_softc *sc, bool status);
 
 #define ATH_PAPRD_TIMEOUT	100 /* msecs */
 
+void ath_reset_work(struct work_struct *work);
 void ath_hw_check(struct work_struct *work);
 void ath_hw_pll_work(struct work_struct *work);
+void ath_rx_poll_work(unsigned long data);
+void ath_start_rx_poll(struct ath_softc *sc, u32 nmsec);
 void ath_paprd_calibrate(struct work_struct *work);
 void ath_ani_calibrate(unsigned long data);
 
@@ -604,6 +607,7 @@ struct ath_softc {
 	struct mutex mutex;
 	struct work_struct paprd_work;
 	struct work_struct hw_check_work;
+	struct work_struct hw_reset_work;
 	struct completion paprd_complete;
 
 	unsigned int hw_busy_count;
@@ -642,6 +646,7 @@ struct ath_softc {
 	struct ath_beacon_config cur_beacon_conf;
 	struct delayed_work tx_complete_work;
 	struct delayed_work hw_pll_work;
+	struct timer_list rx_poll_timer;
 	struct ath_btcoex btcoex;
 
 	struct ath_descdma txsdma;

@@ -73,7 +73,7 @@ MODULE_PARM_DESC(i915_enable_fbc,
 		"Enable frame buffer compression for power savings "
 		"(default: true)");
 
-unsigned int i915_lvds_downclock __read_mostly = 0;
+unsigned int i915_lvds_downclock __read_mostly = 1;
 module_param_named(lvds_downclock, i915_lvds_downclock, int, 0400);
 MODULE_PARM_DESC(lvds_downclock,
 		"Use panel (LVDS/eDP) downclocking for power savings "
@@ -327,7 +327,7 @@ void intel_detect_pch (struct drm_device *dev)
 	}
 }
 
-static void __gen6_gt_force_wake_get(struct drm_i915_private *dev_priv)
+void __gen6_gt_force_wake_get(struct drm_i915_private *dev_priv)
 {
 	int count;
 
@@ -343,6 +343,22 @@ static void __gen6_gt_force_wake_get(struct drm_i915_private *dev_priv)
 		udelay(10);
 }
 
+void __gen6_gt_force_wake_mt_get(struct drm_i915_private *dev_priv)
+{
+	int count;
+
+	count = 0;
+	while (count++ < 50 && (I915_READ_NOTRACE(FORCEWAKE_MT_ACK) & 1))
+		udelay(10);
+
+	I915_WRITE_NOTRACE(FORCEWAKE_MT, (1<<16) | 1);
+	POSTING_READ(FORCEWAKE_MT);
+
+	count = 0;
+	while (count++ < 50 && (I915_READ_NOTRACE(FORCEWAKE_MT_ACK) & 1) == 0)
+		udelay(10);
+}
+
 /*
  * Generally this is called implicitly by the register read function. However,
  * if some sequence requires the GT to not power down then this function should
@@ -351,17 +367,24 @@ static void __gen6_gt_force_wake_get(struct drm_i915_private *dev_priv)
  */
 void gen6_gt_force_wake_get(struct drm_i915_private *dev_priv)
 {
-	WARN_ON(!mutex_is_locked(&dev_priv->dev->struct_mutex));
+	unsigned long irqflags;
 
-	/* Forcewake is atomic in case we get in here without the lock */
-	if (atomic_add_return(1, &dev_priv->forcewake_count) == 1)
-		__gen6_gt_force_wake_get(dev_priv);
+	spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
+	if (dev_priv->forcewake_count++ == 0)
+		dev_priv->display.force_wake_get(dev_priv);
+	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
 }
 
-static void __gen6_gt_force_wake_put(struct drm_i915_private *dev_priv)
+void __gen6_gt_force_wake_put(struct drm_i915_private *dev_priv)
 {
 	I915_WRITE_NOTRACE(FORCEWAKE, 0);
 	POSTING_READ(FORCEWAKE);
+}
+
+void __gen6_gt_force_wake_mt_put(struct drm_i915_private *dev_priv)
+{
+	I915_WRITE_NOTRACE(FORCEWAKE_MT, (1<<16) | 0);
+	POSTING_READ(FORCEWAKE_MT);
 }
 
 /*
@@ -369,10 +392,12 @@ static void __gen6_gt_force_wake_put(struct drm_i915_private *dev_priv)
  */
 void gen6_gt_force_wake_put(struct drm_i915_private *dev_priv)
 {
-	WARN_ON(!mutex_is_locked(&dev_priv->dev->struct_mutex));
+	unsigned long irqflags;
 
-	if (atomic_dec_and_test(&dev_priv->forcewake_count))
-		__gen6_gt_force_wake_put(dev_priv);
+	spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
+	if (--dev_priv->forcewake_count == 0)
+		dev_priv->display.force_wake_put(dev_priv);
+	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
 }
 
 void __gen6_gt_wait_for_fifo(struct drm_i915_private *dev_priv)
@@ -600,6 +625,7 @@ int i915_reset(struct drm_device *dev, u8 flags)
 	 * need to
 	 */
 	bool need_display = true;
+	unsigned long irqflags;
 	int ret;
 
 	if (!i915_try_reset)
@@ -618,8 +644,10 @@ int i915_reset(struct drm_device *dev, u8 flags)
 	case 6:
 		ret = gen6_do_reset(dev, flags);
 		/* If reset with a user forcewake, try to restore */
-		if (atomic_read(&dev_priv->forcewake_count))
-			__gen6_gt_force_wake_get(dev_priv);
+		spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
+		if (dev_priv->forcewake_count)
+			dev_priv->display.force_wake_get(dev_priv);
+		spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
 		break;
 	case 5:
 		ret = ironlake_do_reset(dev, flags);
@@ -895,3 +923,37 @@ module_exit(i915_exit);
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL and additional rights");
+
+#define __i915_read(x, y) \
+u##x i915_read##x(struct drm_i915_private *dev_priv, u32 reg) { \
+	u##x val = 0; \
+	if (NEEDS_FORCE_WAKE((dev_priv), (reg))) { \
+		gen6_gt_force_wake_get(dev_priv); \
+		val = read##y(dev_priv->regs + reg); \
+		gen6_gt_force_wake_put(dev_priv); \
+	} else { \
+		val = read##y(dev_priv->regs + reg); \
+	} \
+	trace_i915_reg_rw(false, reg, val, sizeof(val)); \
+	return val; \
+}
+
+__i915_read(8, b)
+__i915_read(16, w)
+__i915_read(32, l)
+__i915_read(64, q)
+#undef __i915_read
+
+#define __i915_write(x, y) \
+void i915_write##x(struct drm_i915_private *dev_priv, u32 reg, u##x val) { \
+	trace_i915_reg_rw(true, reg, val, sizeof(val)); \
+	if (NEEDS_FORCE_WAKE((dev_priv), (reg))) { \
+		__gen6_gt_wait_for_fifo(dev_priv); \
+	} \
+	write##y(val, dev_priv->regs + reg); \
+}
+__i915_write(8, b)
+__i915_write(16, w)
+__i915_write(32, l)
+__i915_write(64, q)
+#undef __i915_write

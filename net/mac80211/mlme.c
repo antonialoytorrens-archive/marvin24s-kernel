@@ -28,7 +28,7 @@
 #include "rate.h"
 #include "led.h"
 
-static int max_nullfunc_tries = 2;
+static int max_nullfunc_tries = 10;
 module_param(max_nullfunc_tries, int, 0644);
 MODULE_PARM_DESC(max_nullfunc_tries,
 		 "Maximum nullfunc tx tries before disconnecting (reason 4).");
@@ -46,7 +46,7 @@ MODULE_PARM_DESC(max_probe_tries,
  * probe on beacon miss before declaring the connection lost
  * default to what we want.
  */
-#define IEEE80211_BEACON_LOSS_COUNT	7
+#define IEEE80211_BEACON_LOSS_COUNT	14
 
 /*
  * Time the connection can be idle before we probe
@@ -171,6 +171,7 @@ static u32 ieee80211_enable_ht(struct ieee80211_sub_if_data *sdata,
 	bool enable_ht = true;
 	enum nl80211_channel_type prev_chantype;
 	enum nl80211_channel_type channel_type = NL80211_CHAN_NO_HT;
+	enum nl80211_channel_type xmit_channel_type;
 
 	sband = local->hw.wiphy->bands[local->hw.conf.channel->band];
 
@@ -210,18 +211,17 @@ static u32 ieee80211_enable_ht(struct ieee80211_sub_if_data *sdata,
 		    (hti->ht_param & IEEE80211_HT_PARAM_CHAN_WIDTH_ANY)) {
 			switch(hti->ht_param & IEEE80211_HT_PARAM_CHA_SEC_OFFSET) {
 			case IEEE80211_HT_PARAM_CHA_SEC_ABOVE:
-				if (!(local->hw.conf.channel->flags &
-				    IEEE80211_CHAN_NO_HT40PLUS))
-					channel_type = NL80211_CHAN_HT40PLUS;
+				channel_type = NL80211_CHAN_HT40PLUS;
 				break;
 			case IEEE80211_HT_PARAM_CHA_SEC_BELOW:
-				if (!(local->hw.conf.channel->flags &
-				    IEEE80211_CHAN_NO_HT40MINUS))
-					channel_type = NL80211_CHAN_HT40MINUS;
+				channel_type = NL80211_CHAN_HT40MINUS;
 				break;
 			}
 		}
 	}
+
+	xmit_channel_type =
+		ieee80211_get_xmit_channel_type(local, channel_type);
 
 	if (local->tmp_channel)
 		local->tmp_channel_type = channel_type;
@@ -235,13 +235,13 @@ static u32 ieee80211_enable_ht(struct ieee80211_sub_if_data *sdata,
 	/* channel_type change automatically detected */
 	ieee80211_hw_config(local, 0);
 
-	if (prev_chantype != channel_type) {
+	if (prev_chantype != xmit_channel_type) {
 		rcu_read_lock();
 		sta = sta_info_get(sdata, bssid);
 		if (sta)
 			rate_control_rate_update(local, sband, sta,
 						 IEEE80211_RC_HT_CHANGED,
-						 channel_type);
+						 xmit_channel_type);
 		rcu_read_unlock();
 	}
 
@@ -330,7 +330,6 @@ void ieee80211_send_nullfunc(struct ieee80211_local *local,
 {
 	struct sk_buff *skb;
 	struct ieee80211_hdr_3addr *nullfunc;
-	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
 
 	skb = ieee80211_nullfunc_get(&local->hw, &sdata->vif);
 	if (!skb)
@@ -341,9 +340,7 @@ void ieee80211_send_nullfunc(struct ieee80211_local *local,
 		nullfunc->frame_control |= cpu_to_le16(IEEE80211_FCTL_PM);
 
 	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
-	if (ifmgd->flags & (IEEE80211_STA_BEACON_POLL |
-			    IEEE80211_STA_CONNECTION_POLL))
-		IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_CTL_USE_MINRATE;
+	IEEE80211_SKB_CB(skb)->flags |= IEEE80211_TX_CTL_USE_MINRATE;
 
 	ieee80211_tx_skb(sdata, skb);
 }
@@ -1219,6 +1216,8 @@ static void ieee80211_mgd_probe_ap_send(struct ieee80211_sub_if_data *sdata)
 	ifmgd->probe_send_count++;
 	ifmgd->probe_timeout = jiffies + msecs_to_jiffies(probe_wait_ms);
 	run_again(ifmgd, ifmgd->probe_timeout);
+	if (sdata->local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS)
+		drv_flush(sdata->local, false);
 }
 
 static void ieee80211_mgd_probe_ap(struct ieee80211_sub_if_data *sdata,
@@ -1854,7 +1853,8 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 							    IEEE80211_CONF_CHANGE_PS);
 				}
 				ieee80211_send_nullfunc(local, sdata, 0);
-			} else {
+			} else if (!local->pspolling &&
+				   sdata->u.mgd.powersave) {
 				local->pspolling = true;
 
 				/*
@@ -2559,6 +2559,20 @@ int ieee80211_mgd_assoc(struct ieee80211_sub_if_data *sdata,
 
 	sdata->control_port_protocol = req->crypto.control_port_ethertype;
 	sdata->control_port_no_encrypt = req->crypto.control_port_no_encrypt;
+
+	if (bss->corrupt_data) {
+		char *corrupt_type = "data";
+		if (bss->corrupt_data & IEEE80211_BSS_CORRUPT_BEACON) {
+			if (bss->corrupt_data &
+					IEEE80211_BSS_CORRUPT_PROBE_RESP)
+				corrupt_type = "beacon and probe response";
+			else
+				corrupt_type = "beacon";
+		} else if (bss->corrupt_data & IEEE80211_BSS_CORRUPT_PROBE_RESP)
+			corrupt_type = "probe response";
+		printk(KERN_DEBUG "%s: associating with AP with corrupt %s\n",
+		       sdata->name, corrupt_type);
+	}
 
 	ieee80211_add_work(wk);
 	return 0;
