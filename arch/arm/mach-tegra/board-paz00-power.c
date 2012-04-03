@@ -42,7 +42,6 @@ static struct regulator_consumer_supply tps658621_sm2_supply[] = {
 	REGULATOR_SUPPLY("vdd_sm2", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo0_supply[] = { /* VDDIO_PEX_CLK */
-	REGULATOR_SUPPLY("pex_clk", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo1_supply[] = { /* 1V2 */
 	REGULATOR_SUPPLY("pll_a", NULL),
@@ -61,29 +60,12 @@ static struct regulator_consumer_supply tps658621_ldo2_supply[] = { /* VDD_RTC *
 static struct regulator_consumer_supply tps658621_ldo3_supply[] = { /* 3V3 */
 	REGULATOR_SUPPLY("avdd_usb", NULL),
 	REGULATOR_SUPPLY("avdd_usb_pll", NULL),
-	REGULATOR_SUPPLY("vddio_nand_3v3", NULL), /* AON? */
-	REGULATOR_SUPPLY("sdio", NULL),
-	REGULATOR_SUPPLY("vmmc", "sdhci-tegra.0"),
-	REGULATOR_SUPPLY("vmmc", "sdhci-tegra.3"),
-	REGULATOR_SUPPLY("vddio_vi", NULL),
-	REGULATOR_SUPPLY("avdd_lvds", NULL),
-	REGULATOR_SUPPLY("tmon0", NULL),
-	REGULATOR_SUPPLY("vddio_wlan", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo4_supply[] = {
 	REGULATOR_SUPPLY("avdd_osc", NULL),       /* AVDD_OSC */
-	REGULATOR_SUPPLY("vddio_sys", NULL),
-	REGULATOR_SUPPLY("vddio_lcd", NULL),      /* AON? */
-	REGULATOR_SUPPLY("vddio_audio", NULL),    /* AON? */
-	REGULATOR_SUPPLY("vddio_ddr", NULL),      /* AON? */
-	REGULATOR_SUPPLY("vddio_uart", NULL),     /* AON? */
-	REGULATOR_SUPPLY("vddio_bb", NULL),       /* AON? */
-	REGULATOR_SUPPLY("tmon1.8vs", NULL),
-	REGULATOR_SUPPLY("vddhostif_bt", NULL),
-	REGULATOR_SUPPLY("wifi3vs", NULL),
 };
 static struct regulator_consumer_supply tps658621_ldo5_supply[] = {
-	REGULATOR_SUPPLY("vddio_nand", NULL),
+	REGULATOR_SUPPLY("vmmc", "sdhci-tegra.3"),
 };
 static struct regulator_consumer_supply tps658621_ldo6_supply[] = {
 	REGULATOR_SUPPLY("avdd_vdac", NULL),

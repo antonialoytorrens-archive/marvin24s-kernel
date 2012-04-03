@@ -42,47 +42,7 @@
 
 static int paz00_backlight_init(struct device *dev)
 {
-	static struct regulator *reg = NULL;
-	int ret;
-
-	pr_warning(">>> backlight_enable\n");
-
-	reg = regulator_get(NULL, "vddio_lcd");
-	if (IS_ERR(reg)) {
-		pr_warning("Couldn't get regulator vddio_lcd\n");
-		return -1;
-	}
-
-	if (regulator_is_enabled(reg)) {
-		pr_warning("regulator avdd_lvds already enabled\n");
-	} else {
-		ret = regulator_set_voltage(reg, 1800000, 1800000);
-		if (ret) {
-			pr_warning("Couldn't set regulator voltage vddio_lcd\n");
-			return ret;
-		}
-
-		ret = regulator_enable(reg);
-		if (ret)
-			pr_warning("Couldn't enable regualtor vddio_lcd\n");
-	}
-
-	ret = gpio_request(TEGRA_BACKLIGHT, "blacklight_enable");
-	if (ret) {
-		pr_warning("could not request TEGRA_BACKLIGHT gpio\n");
-		return ret;
-	}
-
-	ret = gpio_direction_output(TEGRA_BACKLIGHT, 1);
-	if (ret) {
-		pr_warning("could not set output direction of lvds_shutdown\n");
-		return ret;
-	}
-
-	gpio_set_value(TEGRA_BACKLIGHT, 1);
-
-	return 0;
-
+	return gpio_request_one(TEGRA_BACKLIGHT, GPIOF_OUT_INIT_HIGH, "backlight_enable");
 };
 
 static void paz00_backlight_exit(struct device *dev)
