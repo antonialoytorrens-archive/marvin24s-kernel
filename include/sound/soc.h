@@ -24,8 +24,6 @@
 #include <sound/control.h>
 #include <sound/ac97_codec.h>
 
-#define DEBUG 1
-
 /*
  * Convenience kcontrol builders
  */

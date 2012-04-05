@@ -127,56 +127,17 @@ static int muting_func(struct snd_soc_dapm_widget *w, struct snd_kcontrol *k, in
 	if (!(alc5632->gpio_requested & GPIO_SPKR_EN))
 		return 0;
 
-	dev_err(card->dev, "spk event: %d, EVENT_ON: %d, EVENT_OFF: %d\n", event, SND_SOC_DAPM_EVENT_ON(event), SND_SOC_DAPM_EVENT_OFF(event));
+	dev_err(card->dev, "event: %d, EVENT_ON: %d, EVENT_OFF: %d\n", event, SND_SOC_DAPM_EVENT_ON(event), SND_SOC_DAPM_EVENT_OFF(event));
 	gpio_set_value_cansleep(pdata->gpio_spkr_en, SND_SOC_DAPM_EVENT_ON(event));
-
-	return 0;
-}
-
-static int hs_mic_func(struct snd_soc_dapm_widget *w, struct snd_kcontrol *k, int event)
-{
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
-	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
-	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
-
-	dev_err(card->dev, "hs mic event: %d, EVENT_ON: %d, EVENT_OFF: %d\n", event, SND_SOC_DAPM_EVENT_ON(event), SND_SOC_DAPM_EVENT_OFF(event));
-//	gpio_set_value_cansleep(pdata->gpio_spkr_en, SND_SOC_DAPM_EVENT_ON(event));
-
-	return 0;
-}
-
-static int hs_phone_func(struct snd_soc_dapm_widget *w, struct snd_kcontrol *k, int event)
-{
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
-	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
-	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
-
-	dev_err(card->dev, "hs phone event: %d, EVENT_ON: %d, EVENT_OFF: %d\n", event, SND_SOC_DAPM_EVENT_ON(event), SND_SOC_DAPM_EVENT_OFF(event));
-//	gpio_set_value_cansleep(pdata->gpio_spkr_en, SND_SOC_DAPM_EVENT_ON(event));
-
-	return 0;
-}
-
-static int dig_mic_func(struct snd_soc_dapm_widget *w, struct snd_kcontrol *k, int event)
-{
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
-	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
-	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
-
-	dev_err(card->dev, "dig mic event: %d, EVENT_ON: %d, EVENT_OFF: %d\n", event, SND_SOC_DAPM_EVENT_ON(event), SND_SOC_DAPM_EVENT_OFF(event));
-//	gpio_set_value_cansleep(pdata->gpio_spkr_en, SND_SOC_DAPM_EVENT_ON(event));
 
 	return 0;
 }
 
 static const struct snd_soc_dapm_widget tegra_alc5632_dapm_widgets[] = {
 	SND_SOC_DAPM_SPK("Int Spk", muting_func),
-	SND_SOC_DAPM_HP("Headset Stereophone", hs_phone_func),
-	SND_SOC_DAPM_MIC("Headset Mic", hs_mic_func),
-	SND_SOC_DAPM_MIC("Digital Mic", dig_mic_func),
+	SND_SOC_DAPM_HP("Headset Stereophone", NULL),
+	SND_SOC_DAPM_MIC("Headset Mic", NULL),
+	SND_SOC_DAPM_MIC("Digital Mic", NULL),
 };
 
 static const struct snd_kcontrol_new tegra_alc5632_controls[] = {
@@ -201,13 +162,14 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
 	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
 
+	snd_soc_jack_new(codec, "Headset Jack", SND_JACK_HEADSET,
+			 &tegra_alc5632_hs_jack);
+	snd_soc_jack_add_pins(&tegra_alc5632_hs_jack,
+			ARRAY_SIZE(tegra_alc5632_hs_jack_pins),
+			tegra_alc5632_hs_jack_pins);
+
 	if (gpio_is_valid(pdata->gpio_hp_det)) {
 		tegra_alc5632_hp_jack_gpio.gpio = pdata->gpio_hp_det;
-		snd_soc_jack_new(codec, "Headset Jack", SND_JACK_HEADSET,
-				 &tegra_alc5632_hs_jack);
-		snd_soc_jack_add_pins(&tegra_alc5632_hs_jack,
-				ARRAY_SIZE(tegra_alc5632_hs_jack_pins),
-				tegra_alc5632_hs_jack_pins);
 		snd_soc_jack_add_gpios(&tegra_alc5632_hs_jack, 1,
 					&tegra_alc5632_hp_jack_gpio);
 		alc5632->gpio_requested |= GPIO_HP_DET;

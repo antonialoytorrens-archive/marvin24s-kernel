@@ -908,7 +908,6 @@ static int alc5632_mute(struct snd_soc_dai *dai, int mute)
 		| ALC5632_PWR_ADD1_SOFTGEN_EN \
 		| ALC5632_PWR_ADD1_HP_OUT_AMP \
 		| ALC5632_PWR_ADD1_HP_OUT_ENH_AMP \
-		| ALC5632_PWR_ADD1_ZERO_CROSS \
 		| ALC5632_PWR_ADD1_MAIN_BIAS)
 
 static void enable_power_depop(struct snd_soc_codec *codec)
@@ -966,13 +965,11 @@ static int alc5632_set_bias_level(struct snd_soc_codec *codec,
 {
 	switch (level) {
 	case SND_SOC_BIAS_ON:
-		snd_soc_update_bits(codec, 0x0002, 0x8080, 0); // spk un-mute
-		break;
-	case SND_SOC_BIAS_PREPARE:
 		enable_power_depop(codec);
 		break;
+	case SND_SOC_BIAS_PREPARE:
+		break;
 	case SND_SOC_BIAS_STANDBY:
-		snd_soc_update_bits(codec, 0x0002, 0x8080, 0x8080); // spk mute
 		/* everything off except vref/vmid, */
 		snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
 				ALC5632_PWR_MANAG_ADD1_MASK,
@@ -987,7 +984,6 @@ static int alc5632_set_bias_level(struct snd_soc_codec *codec,
 				| ALC5632_PWR_VREF_PR2));
 		break;
 	case SND_SOC_BIAS_OFF:
-		snd_soc_update_bits(codec, 0x0002, 0x8080, 0x8080); // spk mute
 		/* everything off, dac mute, inactive */
 		snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD2,
 				ALC5632_PWR_MANAG_ADD2_MASK, 0);
@@ -1083,8 +1079,6 @@ static int alc5632_probe(struct snd_soc_codec *codec)
 
 	/* power on device  */
 	alc5632_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
-
-	codec->dapm.bias_level = SND_SOC_BIAS_STANDBY;
 
 	switch (alc5632->id) {
 	case 0x5c:
