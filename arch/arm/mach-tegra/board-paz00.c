@@ -246,23 +246,6 @@ static struct tegra_suspend_platform_data paz00_suspend = {
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
 
-static struct nvec_gpio nvec_gpios[] = {
-	{
-		.name = "spk amp enable",
-		.high = "\x0d\x10\x59\x95",
-		.low = "\x0d\x10\x59\x94",
-	},
-	{
-		.name = "random gpio",
-	},
-};
-
-static struct nvec_gpio_platform_data nvec_gpio_pdata = {
-	.base		= NVEC_SPKR_EN,
-	.gpios		= nvec_gpios,
-	.nrgpios	= ARRAY_SIZE(nvec_gpios),
-};
-
 static struct mfd_cell paz00_nvec_devices[] = {
 	{
 		.name = "nvec-kbd",
@@ -288,11 +271,6 @@ static struct mfd_cell paz00_nvec_devices[] = {
 		.name	= "nvec-event",
 		.id	= 1,
 	},
-	{
-		.name	= "nvec-gpio",
-		.id	= 1,
-		.platform_data = &nvec_gpio_pdata,
-	},
 };
 
 static struct nvec_platform_data nvec_pdata = {
@@ -314,7 +292,6 @@ static struct platform_device nvec_device = {
 static struct tegra_alc5632_audio_platform_data audio_pdata = {
 /* speaker enable goes via nvec */
 	.gpio_hp_det	= TEGRA_HP_DET,
-	.gpio_spkr_en	= NVEC_SPKR_EN,
 };
 
 static struct platform_device audio_device = {

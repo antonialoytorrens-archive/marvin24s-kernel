@@ -46,7 +46,6 @@
 
 /* Audio */
 #define TEGRA_HP_DET		TEGRA_GPIO_PW2
-#define NVEC_SPKR_EN		230
 
 void paz00_pinmux_init(void);
 int  paz00_panel_init(size_t fb_addr);

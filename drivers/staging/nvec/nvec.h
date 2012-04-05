@@ -130,18 +130,6 @@ struct nvec_platform_data {
 	bool has_poweroff;
 };
 
-struct nvec_gpio {
-	const char *name;
-	const char *high;
-	const char *low;
-};
-
-struct nvec_gpio_platform_data {
-	int base;
-	struct nvec_gpio *gpios;
-	int nrgpios;
-};
-
 /**
  * struct nvec_chip - A single connection to an NVIDIA Embedded controller
  * @dev: The device

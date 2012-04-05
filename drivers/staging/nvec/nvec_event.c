@@ -148,6 +148,9 @@ static int __devinit nvec_event_probe(struct platform_device *pdev)
 	/* enable power button event */
 	nvec_write_async(nvec, "\x01\x01\x01\x00\x00\x80\x00", 7);
 
+	/* unmute the audio amplifier */
+	paz00_unmute(nvec);
+
 	return 0;
 
 fail:

@@ -4,4 +4,3 @@ obj-$(CONFIG_NVEC_POWER) 	+= nvec_power.o
 obj-$(CONFIG_KEYBOARD_NVEC) 	+= nvec_kbd.o
 obj-$(CONFIG_NVEC_LEDS) 	+= nvec_leds.o
 obj-$(CONFIG_NVEC_EVENT)	+= nvec_event.o
-obj-$(CONFIG_NVEC_GPIO)		+= nvec_gpio.o

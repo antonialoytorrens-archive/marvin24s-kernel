@@ -38,9 +38,3 @@ config NVEC_EVENT
 	help
 	  Say Y to enable the power button and lid switch on the AC100. It
 	  is unknown whether that driver is compatible with other devices.
-
-config NVEC_GPIO
-	bool "NVEC gpio interface"
-	depends on MFD_NVEC
-	help
-	  Say Y to enable gpios controlled by the embedded controller.
