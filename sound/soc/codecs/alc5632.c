@@ -904,7 +904,6 @@ static int alc5632_mute(struct snd_soc_dai *dai, int mute)
 
 #define ALC5632_ADD1_POWER_EN \
 		(ALC5632_PWR_ADD1_DAC_REF \
-		| ALC5632_PWR_ADD1_ZERO_CROSS \
 		| ALC5632_PWR_ADD1_SOFTGEN_EN \
 		| ALC5632_PWR_ADD1_HP_OUT_AMP \
 		| ALC5632_PWR_ADD1_HP_OUT_ENH_AMP \
@@ -912,19 +911,6 @@ static int alc5632_mute(struct snd_soc_dai *dai, int mute)
 
 static void enable_power_depop(struct snd_soc_codec *codec)
 {
-	/* enable zero cross detection */
-	snd_soc_update_bits(codec, ALC5632_SPK_OUT_VOL,
-				ALC5632_SPK_ZERO_CROSS_DET,
-				ALC5632_SPK_ZERO_CROSS_DET);
-	snd_soc_update_bits(codec, ALC5632_HP_OUT_VOL,
-				ALC5632_HP_ZERO_CROSS_DET,
-				ALC5632_HP_ZERO_CROSS_DET);
-
-	/* enable mute-unmute de-pop */
-	snd_soc_update_bits(codec, ALC5632_MISC_CTRL,
-				ALC5632_MISC_HP_DEPOP_MUTE,
-				ALC5632_MISC_HP_DEPOP_MUTE);
-
 	snd_soc_update_bits(codec, ALC5632_PWR_MANAG_ADD1,
 				ALC5632_PWR_ADD1_SOFTGEN_EN,
 				ALC5632_PWR_ADD1_SOFTGEN_EN);

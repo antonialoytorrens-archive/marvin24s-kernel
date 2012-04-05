@@ -24,9 +24,7 @@
 /* HP output vol		   4    0    4      */
 #define ALC5632_SPK_OUT_VOL			0x02 /* spe out vol */
 #define ALC5632_SPK_OUT_VOL_STEP		1.5
-#define ALC5632_SPK_ZERO_CROSS_DET		(1 << 14)
 #define ALC5632_HP_OUT_VOL			0x04 /* hp out vol */
-#define ALC5632_HP_ZERO_CROSS_DET		(1 << 14)
 #define ALC5632_AUX_OUT_VOL			0x06 /* aux out vol */
 #define ALC5632_PHONE_IN_VOL			0x08 /* phone in vol */
 #define ALC5632_LINE_IN_VOL			0x0A /* line in vol */

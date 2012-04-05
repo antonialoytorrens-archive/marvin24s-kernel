@@ -37,7 +37,6 @@
 #define DRV_NAME "tegra-alc5632"
 
 #define GPIO_HP_DET	BIT(0)
-#define GPIO_SPKR_EN	BIT(1)
 
 struct tegra_alc5632 {
 	struct tegra_asoc_utils_data util_data;
@@ -117,24 +116,8 @@ static struct snd_soc_jack_gpio tegra_alc5632_hp_jack_gpio = {
 	.debounce_time = 150,
 };
 
-static int muting_func(struct snd_soc_dapm_widget *w, struct snd_kcontrol *k, int event)
-{
-	struct snd_soc_dapm_context *dapm = w->dapm;
-	struct snd_soc_card *card = dapm->card;
-	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
-	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
-
-	if (!(alc5632->gpio_requested & GPIO_SPKR_EN))
-		return 0;
-
-	dev_err(card->dev, "event: %d, EVENT_ON: %d, EVENT_OFF: %d\n", event, SND_SOC_DAPM_EVENT_ON(event), SND_SOC_DAPM_EVENT_OFF(event));
-	gpio_set_value_cansleep(pdata->gpio_spkr_en, SND_SOC_DAPM_EVENT_ON(event));
-
-	return 0;
-}
-
 static const struct snd_soc_dapm_widget tegra_alc5632_dapm_widgets[] = {
-	SND_SOC_DAPM_SPK("Int Spk", muting_func),
+	SND_SOC_DAPM_SPK("Int Spk", NULL),
 	SND_SOC_DAPM_HP("Headset Stereophone", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic", NULL),
@@ -173,14 +156,6 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 		snd_soc_jack_add_gpios(&tegra_alc5632_hs_jack, 1,
 					&tegra_alc5632_hp_jack_gpio);
 		alc5632->gpio_requested |= GPIO_HP_DET;
-	}
-
-	if (gpio_is_valid(pdata->gpio_spkr_en)) {
-		int ret = gpio_request(pdata->gpio_spkr_en, "spkr_en");
-		if (ret)
-			dev_err(card->dev, "cannot get speaker enable gpio\n");
-		else
-			alc5632->gpio_requested |= GPIO_SPKR_EN;
 	}
 
 	snd_soc_dapm_nc_pin(dapm, "AUXOUT");
@@ -272,14 +247,10 @@ static int __devexit tegra_alc5632_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
-	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
 
 	if (alc5632->gpio_requested & GPIO_HP_DET)
 		snd_soc_jack_free_gpios(&tegra_alc5632_hs_jack, 1,
 			&tegra_alc5632_hp_jack_gpio);
-
-	if (alc5632->gpio_requested & GPIO_SPKR_EN)
-		gpio_free(pdata->gpio_spkr_en);
 
 	alc5632->gpio_requested = 0;
 
