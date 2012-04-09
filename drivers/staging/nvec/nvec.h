@@ -78,6 +78,44 @@ enum nvec_msg_type {
 	NVEC_PS2_EVT,
 };
 
+/* construct a nvec command string */
+#define NVEC_CMD_STR(type, subtype, payload...)		\
+    { NVEC_##type, NVEC_##type##_##subtype, payload }
+
+/*
+ * NVEC_CALL: submit an async nvec command string
+ * @nvec: holds the pointer to the nvec handle
+ * @type: contains the message type (see nvec_msg_type)
+ * @subtype: contains the message sub-type
+ * @payload: contains pointer to an array of char for the payload
+ * returns -ENOMEM if the send buffer is full or 0.
+ */
+#ifdef DEBUG
+#define NVEC_CALL(nvec, type, subtype, payload...) (		\
+    {								\
+	char buf[] = NVEC_CMD_STR(type, subtype, payload);	\
+	print_hex_dump(KERN_WARNING, "payload: ", DUMP_PREFIX_NONE, 16, 1, \
+		buf, sizeof(buf), false);			\
+	nvec_write_async((nvec), buf, sizeof(buf));		\
+    })
+#else
+#define NVEC_CALL(nvec, type, subtype, payload...) (		\
+    {								\
+	char buf[] = NVEC_CMD_STR(type, subtype, payload);	\
+	nvec_write_async((nvec), buf, sizeof(buf));		\
+    })
+#endif
+
+/**
+  * NVEC_SYNC_CALL: submit a nvec command string synchronously
+  * same paramters as for async call, but return the received message
+  */
+#define NVEC_SYNC_CALL(nvec, type, subtype, payload...) (	\
+    {								\
+	char buf[] = NVEC_CMD_STR(type, subtype, payload);	\
+	nvec_write_sync((nvec), buf, sizeof(buf));		\
+    })
+
 /**
  * struct nvec_msg - A buffer for a single message
  * @node: Messages are part of various lists in a &struct nvec_chip
