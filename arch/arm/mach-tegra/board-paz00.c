@@ -246,11 +246,33 @@ static struct tegra_suspend_platform_data paz00_suspend = {
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
 };
 
+static struct nvec_event nvec_events[] = {
+	{
+		.name		= "NVEC power button",
+		.type		= EV_KEY,
+		.key		= KEY_POWER,
+		.mask		= BIT(7),
+		.enabled	= 1,
+	},
+	{
+		.name		= "NVEC lid switch",
+		.type		= EV_SW,
+		.key		= SW_LID,
+		.mask		= BIT(1),
+		.enabled	= 1,
+	},
+};
+
+static struct nvec_event_platform_data nvec_event_pdata = {
+	.event		= nvec_events,
+	.nrevents	= ARRAY_SIZE(nvec_events),
+};
+
 static struct nvec_gpio nvec_gpios[] = {
 	{
 		.name = "spk amp enable",
 		.high = "\x0d\x10\x59\x95",
-		.low = "\x0d\x10\x59\x94",
+		.low  = "\x0d\x10\x59\x94",
 	},
 	{
 		.name = "random gpio",
@@ -287,6 +309,7 @@ static struct mfd_cell paz00_nvec_devices[] = {
 	{
 		.name	= "nvec-event",
 		.id	= 1,
+		.platform_data = &nvec_event_pdata,
 	},
 	{
 		.name	= "nvec-gpio",
