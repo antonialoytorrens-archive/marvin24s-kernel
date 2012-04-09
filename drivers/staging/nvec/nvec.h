@@ -88,6 +88,10 @@ enum nvec_bool {
 	NVEC_ENABLE,
 };
 
+enum nvec_sys_subcmd {
+	NVEC_SYS_CNF_EVENT_REPORTING = 1,
+};
+
 enum nvec_sleep_subcmd {
 	NVEC_SLEEP_GLOBAL_EVENTS,
 	NVEC_SLEEP_AP_PWR_DOWN,
@@ -214,6 +218,32 @@ struct nvec_gpio_platform_data {
 	int base;
 	struct nvec_gpio *gpios;
 	int nrgpios;
+};
+
+ /**
+ * struct nvec_event - defines an event used for the platform data below
+ * @name: unique name of the event
+ * @type: event type as defined in input.h, e.g. "EV_KEY, EV_SW"
+ * @key: KEY which gets reported on event receive
+ * @mask: bit inside the nvec event bitmask
+ * @enabled: if the event must be enabled during boot
+ */
+struct nvec_event {
+	const char *name;
+	const int type, key;
+	const long mask;
+	const bool enabled;
+};
+
+/**
+ * struct nvec_event_platform_data - platform data for the NVEC event driver
+ * @event: points to an arry of nvec_event containing all events handled by
+ *	this driver
+ * @ nvevents: number of events defined
+ */
+struct nvec_event_platform_data {
+	struct nvec_event *event;
+	int nrevents;
 };
 
 /**
