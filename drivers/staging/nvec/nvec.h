@@ -59,6 +59,8 @@ enum nvec_event_size {
  * enum nvec_msg_type - The type of a message
  * @NVEC_SYS: A system request/response
  * @NVEC_BAT: A battery request/response
+ * @NVEC_GPIO: A gpio request/response
+ * @NVEC_SLEEP: A sleep request/response
  * @NVEC_KBD: A keyboard request/response
  * @NVEC_PS2: A mouse request/response
  * @NVEC_CNTL: A EC control request/response
@@ -71,11 +73,45 @@ enum nvec_event_size {
 enum nvec_msg_type {
 	NVEC_SYS = 1,
 	NVEC_BAT,
-	NVEC_KBD = 5,
+	NVEC_GPIO,
+	NVEC_SLEEP,
+	NVEC_KBD,
 	NVEC_PS2,
 	NVEC_CNTL,
+	NVEC_OEM0 = 0x0d,
 	NVEC_KB_EVT = 0x80,
 	NVEC_PS2_EVT,
+};
+
+enum nvec_bool {
+	NVEC_DISABLE,
+	NVEC_ENABLE,
+};
+
+enum nvec_sleep_subcmd {
+	NVEC_SLEEP_GLOBAL_EVENTS,
+	NVEC_SLEEP_AP_PWR_DOWN,
+	NVEC_SLEEP_AP_SUSPEND,
+};
+
+enum nvec_cntl_subcmd {
+	NVEC_CNTL_READ_FW_VER = 0x15,
+};
+
+enum nvec_kbd_subcmd {
+	NVEC_KBD_CNF_WAKE = 3,
+	NVEC_KBD_CNF_WAKE_KEY_REPORTING,
+	NVEC_KBD_SET_LEDS = 0xed,
+	NVEC_KBD_KBD_ENABLE = 0xf4,
+};
+
+enum nvec_ps2_subcmd {
+	NVEC_PS2_SEND_CMD = 1,
+	NVEC_PS2_RECEIVE,
+	NVEC_PS2_AUTO_RECEIVE,
+	NVEC_PS2_CANCEL_AUTO_RECEIVE = 4,
+	NVEC_PS2_PS2_ENABLE = 0xf4,
+	NVEC_PS2_PS2_DISABLE,
 };
 
 /* construct a nvec command string */

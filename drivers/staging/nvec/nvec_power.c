@@ -111,7 +111,7 @@ static const int bat_init[] = {
 static void get_bat_mfg_data(struct nvec_power *power)
 {
 	int i;
-	char buf[] = { '\x02', '\x00' };
+	char buf[] = { NVEC_BAT, 0 };
 
 	for (i = 0; i < ARRAY_SIZE(bat_init); i++) {
 		buf[1] = bat_init[i];
@@ -348,20 +348,20 @@ static int const bat_iter[] = {
 
 static void nvec_power_poll(struct work_struct *work)
 {
-	char buf[] = { '\x01', '\x00' };
+	char buf[] = { NVEC_SYS, 0 };
 	struct nvec_power *power = container_of(work, struct nvec_power,
 						poller.work);
 
 	if (counter >= ARRAY_SIZE(bat_iter))
 		counter = 0;
 
-/* AC status via sys req */
+	/* AC status via sys req */
 	nvec_write_async(power->nvec, buf, 2);
 	msleep(100);
 
-/* select a battery request function via round robin
-   doing it all at once seems to overload the power supply */
-	buf[0] = '\x02';	/* battery */
+	/* select a battery request function via round robin
+	   doing it all at once seems to overload the power supply */
+	buf[0] = NVEC_BAT;
 	buf[1] = bat_iter[counter++];
 	nvec_write_async(power->nvec, buf, 2);
 

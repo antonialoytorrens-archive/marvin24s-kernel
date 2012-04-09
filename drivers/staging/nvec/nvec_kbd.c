@@ -21,10 +21,6 @@
 #include "nvec-keytable.h"
 #include "nvec.h"
 
-#define ACK_KBD_EVENT {'\x05', '\xed', '\x01'}
-
-static const char led_on[3] = "\x05\xed\x07";
-static const char led_off[3] = "\x05\xed\x00";
 static unsigned char keycodes[ARRAY_SIZE(code_tab_102us)
 			      + ARRAY_SIZE(extcode_tab_us102)];
 
@@ -42,9 +38,10 @@ static void nvec_kbd_toggle_led(void)
 	keys_dev.caps_lock = !keys_dev.caps_lock;
 
 	if (keys_dev.caps_lock)
-		nvec_write_async(keys_dev.nvec, led_on, sizeof(led_on));
+		/* FIXME: should be BIT(0) only */
+		NVEC_CALL(keys_dev.nvec, KBD, SET_LEDS, (BIT(0) | BIT(1) | BIT(2)) );
 	else
-		nvec_write_async(keys_dev.nvec, led_off, sizeof(led_off));
+		NVEC_CALL(keys_dev.nvec, KBD, SET_LEDS, 0);
 }
 
 static int nvec_keys_notifier(struct notifier_block *nb,
@@ -82,7 +79,7 @@ static int nvec_keys_notifier(struct notifier_block *nb,
 static int nvec_kbd_event(struct input_dev *dev, unsigned int type,
 			  unsigned int code, int value)
 {
-	unsigned char buf[] = ACK_KBD_EVENT;
+	unsigned char buf[] = NVEC_CMD_STR(KBD, SET_LEDS, 0);
 	struct nvec_chip *nvec = keys_dev.nvec;
 
 	if (type == EV_REP)
@@ -137,20 +134,21 @@ static int __devinit nvec_kbd_probe(struct platform_device *pdev)
 	keys_dev.nvec = nvec;
 	nvec_register_notifier(nvec, &keys_dev.notifier, 0);
 
-	/* Enable keyboard */
-	nvec_write_async(nvec, "\x05\xf4", 2);
-
-	/* keyboard reset? */
-	nvec_write_async(nvec, "\x05\x03\x01\x01", 4);
-	nvec_write_async(nvec, "\x05\x04\x01", 3);
-	nvec_write_async(nvec, "\x06\x01\xff\x03", 4);
+	/* enable keyboard */
+	NVEC_CALL(nvec, KBD, KBD_ENABLE);
+	/* enable keyboard wake on special keys */
+	NVEC_CALL(nvec, KBD, CNF_WAKE, NVEC_ENABLE, BIT(1));
+	/* enable keyboard wake key reporting */
+	NVEC_CALL(nvec, KBD, CNF_WAKE_KEY_REPORTING, NVEC_ENABLE);
+	/* ps/2 mouse reset */
+	NVEC_CALL(nvec, PS2, SEND_CMD, 0xff, 0x03);
 /*	FIXME
 	wait until keyboard reset is finished
 	or until we have a sync write */
 	mdelay(1000);
 
-	/* Disable caps lock LED */
-	nvec_write_async(nvec, led_off, sizeof(led_off));
+	/* switch off all LEDs */
+	NVEC_CALL(nvec, KBD, SET_LEDS, 0);
 
 	return 0;
 

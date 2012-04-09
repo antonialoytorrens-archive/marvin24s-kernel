@@ -72,10 +72,6 @@ enum nvec_msg_category  {
 	NVEC_MSG_TX,
 };
 
-static const unsigned char EC_DISABLE_EVENT_REPORTING[3] = "\x04\x00\x00";
-static const unsigned char EC_ENABLE_EVENT_REPORTING[3]  = "\x04\x00\x01";
-static const unsigned char EC_GET_FIRMWARE_VERSION[2]    = "\x07\x15";
-
 /**
  * nvec_power_handle - holds the handle (pointer to a nvec_chip struct) of
  *                     of the ec responsible for powering off
@@ -658,8 +654,11 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 
 static void nvec_power_off(void)
 {
-	nvec_write_async(nvec_power_handle, EC_DISABLE_EVENT_REPORTING, 3);
-	nvec_write_async(nvec_power_handle, "\x04\x01", 2);
+	/* disable event reporting */
+	NVEC_CALL(nvec_power_handle, SLEEP, GLOBAL_EVENTS, NVEC_DISABLE);
+
+	/* AP power down */
+	NVEC_CALL(nvec_power_handle, SLEEP, AP_PWR_DOWN);
 }
 
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
@@ -734,8 +733,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	clk_enable(nvec->clk);
 
 	/* enable event reporting */
-	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING,
-			 sizeof(EC_ENABLE_EVENT_REPORTING));
+	NVEC_CALL(nvec, SLEEP, GLOBAL_EVENTS, NVEC_ENABLE);
 
 	nvec->nvec_status_notifier.notifier_call = nvec_status_notifier;
 	nvec_register_notifier(nvec, &nvec->nvec_status_notifier, 0);
@@ -746,9 +744,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	}
 
 	/* Get Firmware Version */
-	msg = nvec_write_sync(nvec, EC_GET_FIRMWARE_VERSION,
-		sizeof(EC_GET_FIRMWARE_VERSION));
-
+	msg = NVEC_SYNC_CALL(nvec, CNTL, READ_FW_VER);
 	if (msg) {
 		dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
 			msg->data[4], msg->data[5], msg->data[6], msg->data[7]);
@@ -776,7 +772,9 @@ static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 {
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 
-	nvec_write_async(nvec, EC_DISABLE_EVENT_REPORTING, 3);
+	/* disable global event reporting */
+	NVEC_CALL(nvec, SLEEP, GLOBAL_EVENTS, NVEC_DISABLE);
+
 	mfd_remove_devices(nvec->dev);
 	free_irq(nvec->irq, &nvec_interrupt);
 	iounmap(nvec->base);
@@ -793,12 +791,13 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 	struct nvec_msg *msg;
+
 	dev_dbg(nvec->dev, "suspending\n");
 
 	/* keep these sync or you'll break suspend */
-	msg = nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
+	msg = NVEC_SYNC_CALL(nvec, SLEEP, GLOBAL_EVENTS, NVEC_DISABLE);
 	nvec_msg_free(nvec, msg);
-	msg = nvec_write_sync(nvec, "\x04\x02", 2);
+	msg = NVEC_SYNC_CALL(nvec, SLEEP, AP_SUSPEND);
 	nvec_msg_free(nvec, msg);
 
 	disable_irq(nvec->irq);
@@ -817,8 +816,8 @@ static int tegra_nvec_resume(struct platform_device *pdev)
 	clk_enable(nvec->clk);
 	enable_irq(nvec->irq);
 
-	/* when making the next line nvec_write_sync, resume seems to stop working */
-	nvec_write_async(nvec, EC_ENABLE_EVENT_REPORTING, 3);
+	/* enable global event reporting */
+	NVEC_CALL(nvec, SLEEP, GLOBAL_EVENTS, NVEC_ENABLE);
 
 	return 0;
 }

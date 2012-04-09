@@ -21,8 +21,6 @@
 #define to_nvec_led(led_cdev) \
 	container_of(led_cdev, struct nvec_led, cdev)
 
-#define NVEC_LED_REQ {'\x0d', '\x10', '\x45', '\x10', '\x00'}
-
 #define NVEC_LED_MAX 8
 
 struct nvec_led {
@@ -34,13 +32,12 @@ static void nvec_led_brightness_set(struct led_classdev *led_cdev,
 				    enum led_brightness value)
 {
 	struct nvec_led *led = to_nvec_led(led_cdev);
-	unsigned char buf[] = NVEC_LED_REQ;
+	unsigned char buf[] = { NVEC_OEM0, 0x10, 0x45, 0x10, 0 };
 	buf[4] = value;
 
 	nvec_write_async(led->nvec, buf, sizeof(buf));
 
 	led->cdev.brightness = value;
-
 }
 
 static int __devinit nvec_led_probe(struct platform_device *pdev)
