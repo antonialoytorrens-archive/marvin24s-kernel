@@ -50,12 +50,21 @@
 #define TEGRA_GPIO_HP_DET		TEGRA_GPIO_PW2
 #define TEGRA_GPIO_INT_MIC_EN		TEGRA_GPIO_PK3
 #define TEGRA_GPIO_EXT_MIC_EN		TEGRA_GPIO_PK4
+/* Tegra Modem related GPIOs */
+#define TEGRA_GPIO_W_DISABLE		TEGRA_GPIO_PDD7
+#define TEGRA_GPIO_MODEM_RSVD1		TEGRA_GPIO_PV0
+#define TEGRA_GPIO_MODEM_RSVD2		TEGRA_GPIO_PH7
+
+/* Stat LED GPIO */
+#define TEGRA_GPIO_STAT_LED		(MAX77663_GPIO_BASE + MAX77663_GPIO7)
+
 
 /*****************Interrupt tables ******************/
 /* External peripheral act as interrupt controller */
 /* MAX77663 IRQs */
 #define MAX77663_IRQ_BASE	TEGRA_NR_IRQS
 #define MAX77663_IRQ_END	(MAX77663_IRQ_BASE + MAX77663_IRQ_NR)
+#define MAX77663_IRQ_ACOK_RISING MAX77663_IRQ_ONOFF_ACOK_RISING
 
 /* UART port which is used by bluetooth*/
 #define BLUETOOTH_UART_DEV_NAME "/dev/ttyHS2"
@@ -69,6 +78,7 @@ int kai_panel_init(void);
 int kai_sensors_init(void);
 int kai_keys_init(void);
 int kai_pins_state_init(void);
+int kai_emc_init(void);
 int kai_edp_init(void);
 void __init kai_tsensor_init(void);
 int __init touch_init_raydium(int irq_gpio, int reset_gpio, int platform);

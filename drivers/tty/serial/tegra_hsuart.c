@@ -43,6 +43,8 @@
 #include <mach/dma.h>
 #include <mach/clk.h>
 
+#define TEGRA_UART_TYPE "TEGRA_UART"
+
 #define TX_EMPTY_STATUS (UART_LSR_TEMT | UART_LSR_THRE)
 
 #define BYTES_TO_ALIGN(x) ((unsigned long)(ALIGN((x), sizeof(u32))) - \
@@ -263,6 +265,8 @@ static void tegra_start_tx(struct uart_port *u)
 static int tegra_start_dma_rx(struct tegra_uart_port *t)
 {
 	wmb();
+	dma_sync_single_for_device(t->uport.dev, t->rx_dma_req.dest_addr,
+			t->rx_dma_req.size, DMA_TO_DEVICE);
 	if (tegra_dma_enqueue_req(t->rx_dma, &t->rx_dma_req)) {
 		dev_err(t->uport.dev, "Could not enqueue Rx DMA req\n");
 		return -EINVAL;
@@ -308,6 +312,8 @@ static void tegra_rx_dma_complete_callback(struct tegra_dma_req *req)
 		req->status);
 	if (req->bytes_transferred) {
 		t->uport.icount.rx += req->bytes_transferred;
+		dma_sync_single_for_cpu(t->uport.dev, req->dest_addr,
+				req->size, DMA_FROM_DEVICE);
 		copied = tty_insert_flip_string(tty,
 			((unsigned char *)(req->virt_addr)),
 			req->bytes_transferred);
@@ -317,6 +323,8 @@ static void tegra_rx_dma_complete_callback(struct tegra_dma_req *req)
 				"to tty layer Req %d and coped %d\n",
 				req->bytes_transferred, copied);
 		}
+		dma_sync_single_for_device(t->uport.dev, req->dest_addr,
+				req->size, DMA_TO_DEVICE);
 	}
 
 	do_handle_rx_pio(t);
@@ -1362,7 +1370,7 @@ static void tegra_pm(struct uart_port *u, unsigned int state,
 
 static const char *tegra_type(struct uart_port *u)
 {
-	return 0;
+	return TEGRA_UART_TYPE;
 }
 
 static struct uart_ops tegra_uart_ops = {
@@ -1415,7 +1423,7 @@ static int __init tegra_uart_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, u);
 	u->line = pdev->id;
 	u->ops = &tegra_uart_ops;
-	u->type = ~PORT_UNKNOWN;
+	u->type = PORT_TEGRA;
 	u->fifosize = 32;
 
 	resource = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -1430,6 +1438,7 @@ static int __init tegra_uart_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto fail;
 	}
+	u->iotype = UPIO_MEM32;
 
 	u->irq = platform_get_irq(pdev, 0);
 	if (unlikely(u->irq < 0)) {
