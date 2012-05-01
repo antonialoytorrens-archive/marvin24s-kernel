@@ -45,6 +45,11 @@
 #define paz00_pnl_to_lvds_ms	0
 #define paz00_lvds_to_bl_ms	200
 
+#ifdef CONFIG_TEGRA_DC
+static struct regulator *paz00_hdmi_reg = NULL;
+static struct regulator *paz00_hdmi_pll = NULL;
+#endif
+
 static int paz00_backlight_init(struct device *dev)
 {
 	int ret;
@@ -72,8 +77,8 @@ static void paz00_backlight_exit(struct device *dev)
 static int paz00_backlight_notify(struct device *unused, int brightness)
 {
 	gpio_set_value(paz00_en_vdd_pnl, !!brightness);
-	gpio_set_value(paz00_lvds_shutdown, !!brightness);
-	gpio_set_value(paz00_bl_enb, !!brightness);
+//	gpio_set_value(paz00_lvds_shutdown, !!brightness);
+//	gpio_set_value(paz00_bl_enb, !!brightness);
 	return brightness;
 }
 
@@ -99,6 +104,7 @@ static struct platform_device paz00_backlight_device = {
 	},
 };
 
+#ifdef CONFIG_TEGRA_DC
 static int paz00_panel_enable(void)
 {
 	gpio_set_value(paz00_en_vdd_pnl, 1);
@@ -115,45 +121,38 @@ static int paz00_panel_disable(void)
 	return 0;
 }
 
-static int paz00_set_hdmi_power(bool enable)
+static int paz00_hdmi_enable(void)
 {
-	static struct {
-		struct regulator *regulator;
-		const char *name;
-	} regs[] = {
-		{ .name = "avdd_hdmi" },
-		{ .name = "avdd_hdmi_pll" },
-	};
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(regs); i++) {
-		if (!regs[i].regulator) {
-			regs[i].regulator = regulator_get(NULL, regs[i].name);
-
-			if (IS_ERR(regs[i].regulator)) {
-				int ret = PTR_ERR(regs[i].regulator);
-				regs[i].regulator = NULL;
-				return ret;
-			}
+	if (!paz00_hdmi_reg) {
+		paz00_hdmi_reg = regulator_get(NULL, "avdd_hdmi");
+		if (IS_ERR_OR_NULL(paz00_hdmi_reg)) {
+			pr_err("hdmi: couldn't get regulator avdd_hdmi\n");
+			paz00_hdmi_reg = NULL;
+			return PTR_ERR(paz00_hdmi_reg);
 		}
-
-		if (enable)
-			regulator_enable(regs[i].regulator);
-		else
-			regulator_disable(regs[i].regulator);
 	}
+	regulator_enable(paz00_hdmi_reg);
+
+	if (!paz00_hdmi_pll) {
+		paz00_hdmi_pll = regulator_get(NULL, "avdd_hdmi_pll");
+		if (IS_ERR_OR_NULL(paz00_hdmi_pll)) {
+			pr_err("hdmi: couldn't get regulator avdd_hdmi_pll\n");
+			paz00_hdmi_pll = NULL;
+			regulator_disable(paz00_hdmi_reg);
+			paz00_hdmi_reg = NULL;
+			return PTR_ERR(paz00_hdmi_pll);
+		}
+	}
+	regulator_enable(paz00_hdmi_pll);
 
 	return 0;
 }
 
-static int paz00_hdmi_enable(void)
-{
-	return paz00_set_hdmi_power(true);
-}
-
 static int paz00_hdmi_disable(void)
 {
-	return paz00_set_hdmi_power(false);
+	regulator_disable(paz00_hdmi_reg);
+	regulator_disable(paz00_hdmi_pll);
+	return 0;
 }
 
 static struct resource paz00_disp1_resources[] = {
@@ -253,6 +252,8 @@ static struct tegra_dc_out paz00_disp2_out = {
 	.dcc_bus	= 1,
 	.hotplug_gpio	= paz00_hdmi_hpd,
 
+	.max_pixclock	= KHZ2PICOS(148500),
+
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
 
@@ -297,6 +298,13 @@ static struct nvhost_device paz00_disp2_device = {
 	},
 };
 
+#else
+static int paz00_disp1_check_fb(struct device *dev, struct fb_info *info)
+{
+	return 0;
+}
+#endif
+
 #if defined(CONFIG_TEGRA_NVMAP)
 static struct nvmap_platform_carveout paz00_carveouts[] = {
 	[0] = NVMAP_HEAP_CARVEOUT_IRAM_INIT,
@@ -325,7 +333,6 @@ static struct platform_device *paz00_gfx_devices[] __initdata = {
 #if defined(CONFIG_TEGRA_NVMAP)
 	&paz00_nvmap_device,
 #endif
-	&tegra_grhost_device,
 	&tegra_pwfm0_device,
 	&paz00_backlight_device,
 };
@@ -355,17 +362,20 @@ int __init paz00_panel_init(void) {
 	paz00_carveouts[1].size = tegra_carveout_size;
 #endif
 
-	err = platform_add_devices(paz00_gfx_devices,
-				   ARRAY_SIZE(paz00_gfx_devices));
+#ifdef CONFIG_TEGRA_GRHOST
+	err = nvhost_device_register(&tegra_grhost_device);
 	if (err)
 		return err;
+#endif
 
+	err = platform_add_devices(paz00_gfx_devices,
+				   ARRAY_SIZE(paz00_gfx_devices));
+
+#if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
 	res = nvhost_get_resource_byname(&paz00_disp1_device,
-		IORESOURCE_MEM, "fbmem");
-	if (res) {
-		res->start = tegra_fb_start;
-		res->end = tegra_fb_start + tegra_fb_size - 1;
-	}
+					IORESOURCE_MEM, "fbmem");
+	res->start = tegra_fb_start;
+	res->end = tegra_fb_start + tegra_fb_size - 1;
 
 	res = nvhost_get_resource_byname(&paz00_disp2_device,
 		IORESOURCE_MEM, "fbmem");
@@ -373,20 +383,20 @@ int __init paz00_panel_init(void) {
 		res->start = tegra_fb2_start;
 		res->end = tegra_fb2_start + tegra_fb2_size - 1;
 	}
+#endif
 
 	/* Copy the bootloader fb to the fb. */
-	if (tegra_bootloader_fb_start)
-		tegra_move_framebuffer(tegra_fb_start,
-			tegra_bootloader_fb_start,
+	tegra_move_framebuffer(tegra_fb_start, tegra_bootloader_fb_start,
 			min(tegra_fb_size, tegra_bootloader_fb_size));
-	err = nvhost_device_register(&paz00_disp1_device);
-	if (err)
-		return err;
 
-	err = nvhost_device_register(&paz00_disp2_device);
-	if (err)
-		return err;
+#if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
+	if (!err)
+		err = nvhost_device_register(&paz00_disp1_device);
 
-	return 0;
+	if (!err)
+		err = nvhost_device_register(&paz00_disp2_device);
+#endif
+
+	return err;
 }
 
