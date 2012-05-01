@@ -456,9 +456,6 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 
 	{ "pwm",	"clk_32k",	32768,		false },
 
-	{ "sdmmc1",	"clk_m",	48000000,	true  },
-	{ "sdmmc4",	"clk_m",	48000000,	true  },
-
 	{ "pll_a",	"pll_p_out1",	56448000,	true  },
 	{ "pll_a_out0",	"pll_a",	11289600,	true  },
 	{ "pll_p_out4",	"pll_p",	24000000,	true  },
