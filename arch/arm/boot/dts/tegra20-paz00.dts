@@ -476,7 +476,6 @@
 		nvidia,audio-routing =
 			"Int Spk", "SPKOUT",
 			"Int Spk", "SPKOUTN",
-			"Headset Mic", "MICBIAS1",
 			"MIC1", "Headset Mic",
 			"Headset Stereophone", "HPR",
 			"Headset Stereophone", "HPL",
