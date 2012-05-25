@@ -553,8 +553,10 @@ static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 	{"Left LineIn", NULL,				"LINEINL"},
 	{"Right LineIn", NULL,				"LINEINR"},
 	{"Phone", NULL,					"PHONEP"},
-	{"MIC1 Pre Amp", NULL,				"MIC1"},
-	{"MIC2 Pre Amp", NULL,				"MIC2"},
+	{"MICBIAS1", NULL,				"MIC1"},
+	{"MIC1 Pre Amp", NULL,				"MICBIAS1"},
+	{"MICBIAS2", NULL,				"MIC2"},
+	{"MIC2 Pre Amp", NULL,				"MICBIAS2"},
 	{"MIC1 PGA", NULL,				"MIC1 Pre Amp"},
 	{"MIC2 PGA", NULL,				"MIC2 Pre Amp"},
 
