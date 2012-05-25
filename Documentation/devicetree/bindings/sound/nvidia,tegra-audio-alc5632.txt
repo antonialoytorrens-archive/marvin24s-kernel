@@ -24,7 +24,6 @@ Required properties:
   * MIC1_N
   * MIC2_P
   * MIC2_N
-  * MICBIAS1
   * DMICDAT
 
   Board connectors:
@@ -48,7 +47,6 @@ sound {
 	nvidia,audio-routing =
 				"Int Spk", "SPK_OUTP",
 				"Int Spk", "SPK_OUTN",
-				"Headset Mic","MICBIAS1",
 				"MIC1_N", "Headset Mic",
 				"MIC1_P", "Headset Mic",
 				"Headset Stereophone", "HP_OUT_R",
