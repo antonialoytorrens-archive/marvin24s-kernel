@@ -329,11 +329,14 @@ static struct platform_device leds_gpio = {
 	},
 };
 
+#define NVEC_GPIO_BASE TEGRA_NR_GPIOS + 4 /* 4 is number of tps6586x gpios */
+static int nvec_gpio_base = NVEC_GPIO_BASE;
+
 static struct mfd_cell paz00_nvec_devices[] = {
 	{
 		.name = "nvec-kbd",
 		.id = 1,
-       },
+	},
 	{
 		.name = "nvec-mouse",
 		.id = 1,
@@ -349,6 +352,8 @@ static struct mfd_cell paz00_nvec_devices[] = {
 	{
 		.name = "nvec-paz00",
 		.id = 1,
+		.platform_data = &nvec_gpio_base,
+		.pdata_size = sizeof(int),
 	},
 	{
 		.name   = "nvec-event",
@@ -426,6 +431,7 @@ static struct platform_device gpio_keys_device = {
 static struct tegra_alc5632_audio_platform_data audio_pdata = {
 	/* speaker enable goes via nvec */
 	.gpio_hp_det	= TEGRA_HP_DET,
+	.gpio_spk_en	= NVEC_GPIO_BASE,
 };
 
 static struct platform_device audio_device = {

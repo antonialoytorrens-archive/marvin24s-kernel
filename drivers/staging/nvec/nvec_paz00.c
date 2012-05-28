@@ -82,10 +82,11 @@ static struct gpio_chip gpio_ops = {
 	.can_sleep	= 1,
 };
 
-static int paz00_init_gpios(struct device *dev)
+static int paz00_init_gpios(struct device *dev, int base)
 {
 	nvec_paz00.gpio_dev = &gpio_ops;
 	nvec_paz00.gpio_dev->dev = dev;
+	gpio_ops.base = base;
 
 	return gpiochip_add(nvec_paz00.gpio_dev);
 }
@@ -93,14 +94,15 @@ static int paz00_init_gpios(struct device *dev)
 static int __devinit nvec_paz00_probe(struct platform_device *pdev)
 {
 	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
+	int *base = pdev->dev.platform_data;
 	int ret;
 
 	platform_set_drvdata(pdev, &nvec_paz00);
 	nvec_paz00.nvec = nvec;
 
 	ret = paz00_init_leds(&pdev->dev);
-	if (!ret)
-		ret = paz00_init_gpios(&pdev->dev);
+	if (!ret && base)
+		ret = paz00_init_gpios(&pdev->dev, *base);
 
 	return ret;
 }

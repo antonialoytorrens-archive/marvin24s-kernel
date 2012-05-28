@@ -37,11 +37,13 @@
 #define DRV_NAME "tegra-alc5632"
 
 #define GPIO_HP_DET	BIT(0)
+#define GPIO_SPK_EN	BIT(1)
 
 struct tegra_alc5632 {
 	struct tegra_asoc_utils_data util_data;
 	struct tegra_alc5632_audio_platform_data *pdata;
 	int gpio_requested;
+	int gpio_spk_en;
 };
 
 static int tegra_alc5632_asoc_hw_params(struct snd_pcm_substream *substream,
@@ -133,8 +135,24 @@ static struct snd_soc_jack_gpio tegra_alc5632_hp_jack_gpio = {
 	.debounce_time = 150,
 };
 
+static int tegra_alc5632_event_int_spk(struct snd_soc_dapm_widget *w,
+					struct snd_kcontrol *k, int event)
+{
+	struct snd_soc_dapm_context *dapm = w->dapm;
+	struct snd_soc_card *card = dapm->card;
+	struct tegra_alc5632 *machine = snd_soc_card_get_drvdata(card);
+
+	if (!gpio_is_valid(machine->gpio_spk_en))
+		return 0;
+
+	gpio_set_value_cansleep(machine->gpio_spk_en,
+				SND_SOC_DAPM_EVENT_ON(event));
+
+	return 0;
+}
+
 static const struct snd_soc_dapm_widget tegra_alc5632_dapm_widgets[] = {
-	SND_SOC_DAPM_SPK("Int Spk", NULL),
+	SND_SOC_DAPM_SPK("Int Spk", tegra_alc5632_event_int_spk),
 	SND_SOC_DAPM_HP("Headset Stereophone", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic", NULL),
@@ -161,6 +179,7 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_card *card = codec->card;
 	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
 	struct tegra_alc5632_audio_platform_data *pdata = alc5632->pdata;
+	int ret;
 
 	snd_soc_jack_new(codec, "Headset Jack", SND_JACK_HEADSET,
 			 &tegra_alc5632_hs_jack);
@@ -173,6 +192,16 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 		snd_soc_jack_add_gpios(&tegra_alc5632_hs_jack, 1,
 					&tegra_alc5632_hp_jack_gpio);
 		alc5632->gpio_requested |= GPIO_HP_DET;
+	}
+
+	if (gpio_is_valid(pdata->gpio_spk_en)) {
+		ret = gpio_request(pdata->gpio_spk_en, "spk_en");
+		if (ret) {
+			dev_err(card->dev, "cannot get spk_en gpio\n");
+			return ret;
+		}
+		alc5632->gpio_requested |= GPIO_SPK_EN;
+		alc5632->gpio_spk_en = pdata->gpio_spk_en;
 	}
 
 	snd_soc_dapm_nc_pin(dapm, "AUXOUT");
@@ -268,6 +297,8 @@ static int __devexit tegra_alc5632_remove(struct platform_device *pdev)
 	if (alc5632->gpio_requested & GPIO_HP_DET)
 		snd_soc_jack_free_gpios(&tegra_alc5632_hs_jack, 1,
 			&tegra_alc5632_hp_jack_gpio);
+	if (alc5632->gpio_requested & GPIO_SPK_EN)
+		gpio_free(alc5632->gpio_spk_en);
 
 	alc5632->gpio_requested = 0;
 
