@@ -36,6 +36,7 @@
 struct tegra_alc5632 {
 	struct tegra_asoc_utils_data util_data;
 	int gpio_hp_det;
+	int gpio_spkr_en;
 };
 
 static int tegra_alc5632_asoc_hw_params(struct snd_pcm_substream *substream,
@@ -91,8 +92,24 @@ static struct snd_soc_jack_gpio tegra_alc5632_hp_jack_gpio = {
 	.debounce_time = 150,
 };
 
+static int tegra_alc5632_event_int_spk(struct snd_soc_dapm_widget *w,
+					struct snd_kcontrol *k, int event)
+{
+	struct snd_soc_dapm_context *dapm = w->dapm;
+	struct snd_soc_card *card = dapm->card;
+	struct tegra_alc5632 *machine = snd_soc_card_get_drvdata(card);
+
+	if (!gpio_is_valid(machine->gpio_spkr_en))
+		return 0;
+
+	gpio_set_value_cansleep(machine->gpio_spkr_en,
+				SND_SOC_DAPM_EVENT_ON(event));
+
+	return 0;
+}
+
 static const struct snd_soc_dapm_widget tegra_alc5632_dapm_widgets[] = {
-	SND_SOC_DAPM_SPK("Int Spk", NULL),
+	SND_SOC_DAPM_SPK("Int Spk", tegra_alc5632_event_int_spk),
 	SND_SOC_DAPM_HP("Headset Stereophone", NULL),
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic", NULL),
@@ -179,6 +196,11 @@ static int tegra_alc5632_probe(struct platform_device *pdev)
 	if (alc5632->gpio_hp_det == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
 
+	alc5632->gpio_spkr_en = of_get_named_gpio(pdev->dev.of_node,
+						"nvidia,spkr-en-gpios", 0);
+	if (alc5632->gpio_spkr_en == -ENODEV)
+		return -EPROBE_DEFER;
+
 	ret = snd_soc_of_parse_card_name(card, "nvidia,model");
 	if (ret)
 		goto err;
@@ -207,6 +229,16 @@ static int tegra_alc5632_probe(struct platform_device *pdev)
 	}
 
 	tegra_alc5632_dai.platform_of_node = tegra_alc5632_dai.cpu_of_node;
+
+	if (gpio_is_valid(alc5632->gpio_spkr_en)) {
+
+		ret = devm_gpio_request(&pdev->dev, alc5632->gpio_spkr_en,
+					"spkr_en");
+		if (ret) {
+			dev_err(card->dev, "cannot get spkr_en gpio\n");
+			return ret;
+		}
+	}
 
 	ret = tegra_asoc_utils_init(&alc5632->util_data, &pdev->dev);
 	if (ret)
