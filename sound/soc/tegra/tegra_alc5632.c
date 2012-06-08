@@ -237,7 +237,7 @@ static __devinit int tegra_alc5632_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, card);
 	snd_soc_card_set_drvdata(card, alc5632);
 
-	ret = tegra_asoc_utils_init(&alc5632->util_data, &pdev->dev);
+	ret = tegra_asoc_utils_init(&alc5632->util_data, &pdev->dev, card);
 	if (ret)
 		goto err;
 
