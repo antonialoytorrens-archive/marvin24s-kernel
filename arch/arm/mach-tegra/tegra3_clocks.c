@@ -830,10 +830,6 @@ static int tegra3_cpu_clk_set_rate(struct clk *c, unsigned long rate)
 	bool skip_to_backup =
 		skip && (clk_get_rate_all_locked(c) >= SKIPPER_ENGAGE_RATE);
 
-	/* Hardware clock control is not possible on FPGA platforms.
-	   Report success so that upper level layers don't complain
-	   needlessly. */
-#ifndef CONFIG_TEGRA_FPGA_PLATFORM
 	if (c->dvfs) {
 		if (!c->dvfs->dvfs_rail)
 			return -ENOSYS;
@@ -912,7 +908,6 @@ out:
 		tegra3_super_clk_skipper_update(c->parent, 2, 1);
 	}
 	clk_disable(c->u.cpu.main);
-#endif
 	return ret;
 }
 
@@ -3007,9 +3002,13 @@ static int tegra3_clk_shared_bus_update(struct clk *bus)
 
 	list_for_each_entry(c, &bus->shared_bus_list,
 			u.shared_bus_user.node) {
-		/* Ignore requests from disabled users and from users with
-		   fixed bus-to-client ratio */
-		if (c->u.shared_bus_user.enabled) {
+		/* Ignore requests from disabled floor and bw users, and from
+		 * auto-users riding the bus. Always honor ceiling users, even
+		 * if they are disabled - we do not want to keep enabled parent
+		 * bus just because ceiling is set.
+		 */
+		if (c->u.shared_bus_user.enabled ||
+		    (c->u.shared_bus_user.mode == SHARED_CEILING)) {
 			switch (c->u.shared_bus_user.mode) {
 			case SHARED_BW:
 				bw += c->u.shared_bus_user.rate;
@@ -3892,7 +3891,7 @@ static struct clk tegra_clk_sclk = {
 	.reg	= 0x28,
 	.ops	= &tegra_super_ops,
 	.max_rate = 378000000,
-	.min_rate = 40000000,
+	.min_rate = 12000000,
 };
 
 static struct clk tegra_clk_virtual_cpu_g = {
@@ -3947,7 +3946,7 @@ static struct clk tegra_clk_hclk = {
 	.reg_shift	= 4,
 	.ops		= &tegra_bus_ops,
 	.max_rate       = 378000000,
-	.min_rate       = 40000000,
+	.min_rate       = 12000000,
 };
 
 static struct clk tegra_clk_pclk = {
@@ -3958,7 +3957,7 @@ static struct clk tegra_clk_pclk = {
 	.reg_shift	= 0,
 	.ops		= &tegra_bus_ops,
 	.max_rate       = 167000000,
-	.min_rate       = 40000000,
+	.min_rate       = 12000000,
 };
 
 static struct raw_notifier_head sbus_rate_change_nh;
@@ -4301,6 +4300,7 @@ struct clk tegra_list_clks[] = {
 	SHARED_CLK("usb1.sclk",	"tegra-ehci.0",		"sclk",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
 	SHARED_CLK("usb2.sclk",	"tegra-ehci.1",		"sclk",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
 	SHARED_CLK("usb3.sclk",	"tegra-ehci.2",		"sclk",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
+	SHARED_CLK("wake.sclk",	"wake_sclk",	"sclk",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
 	SHARED_CLK("mon.avp",	"tegra_actmon",		"avp",	&tegra_clk_sbus_cmplx, NULL, 0, 0),
 	SHARED_CLK("cap.sclk",	"cap_sclk",		NULL,	&tegra_clk_sbus_cmplx, NULL, 0, SHARED_CEILING),
 	SHARED_CLK("floor.sclk", "floor_sclk",		NULL,	&tegra_clk_sbus_cmplx, NULL, 0, 0),

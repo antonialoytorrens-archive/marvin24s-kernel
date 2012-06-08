@@ -71,7 +71,6 @@ static const struct hwctx_reginfo ctxsave_regs_3d_global[] = {
 	HWCTX_REGINFO(0xa02,   10, DIRECT),
 	HWCTX_REGINFO(0xb04,    1, DIRECT),
 	HWCTX_REGINFO(0xb06,   13, DIRECT),
-	HWCTX_REGINFO(0xe42,    2, DIRECT), /* HW bug workaround */
 };
 
 static const struct hwctx_reginfo ctxsave_regs_3d_perset[] = {
@@ -381,7 +380,7 @@ static struct nvhost_hwctx *ctx3d_alloc_v1(struct nvhost_hwctx_handler *h,
 		return NULL;
 }
 
-struct nvhost_hwctx_handler *__init nvhost_gr3d_t30_ctxhandler_init(
+struct nvhost_hwctx_handler *nvhost_gr3d_t30_ctxhandler_init(
 		u32 syncpt, u32 waitbase,
 		struct nvhost_channel *ch)
 {

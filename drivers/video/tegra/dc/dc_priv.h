@@ -21,6 +21,7 @@
 #include <linux/io.h>
 #include <linux/mutex.h>
 #include <linux/wait.h>
+#include <linux/fb.h>
 #include <linux/completion.h>
 #include <linux/switch.h>
 
@@ -63,11 +64,13 @@ struct tegra_dc_out_ops {
 	void (*enable)(struct tegra_dc *dc);
 	/* disable output.  dc clocks are on at this point */
 	void (*disable)(struct tegra_dc *dc);
-
 	/* suspend output.  dc clocks are on at this point */
 	void (*suspend)(struct tegra_dc *dc);
 	/* resume output.  dc clocks are on at this point */
 	void (*resume)(struct tegra_dc *dc);
+	/* mode filter. to provide a list of supported modes*/
+	bool (*mode_filter)(struct tegra_dc *dc,
+			struct fb_videomode *mode);
 };
 
 struct tegra_dc {
@@ -155,14 +158,19 @@ static inline void tegra_dc_io_end(struct tegra_dc *dc)
 static inline unsigned long tegra_dc_readl(struct tegra_dc *dc,
 					   unsigned long reg)
 {
+	unsigned long ret;
+
 	BUG_ON(!nvhost_module_powered(nvhost_get_host(dc->ndev)->dev));
-	return readl(dc->base + reg * 4);
+	ret = readl(dc->base + reg * 4);
+	trace_printk("readl %p=%#08lx\n", dc->base + reg * 4, ret);
+	return ret;
 }
 
 static inline void tegra_dc_writel(struct tegra_dc *dc, unsigned long val,
 				   unsigned long reg)
 {
 	BUG_ON(!nvhost_module_powered(nvhost_get_host(dc->ndev)->dev));
+	trace_printk("writel %p=%#08lx\n", dc->base + reg * 4, val);
 	writel(val, dc->base + reg * 4);
 }
 

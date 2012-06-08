@@ -141,6 +141,7 @@ void tegra_assert_system_reset(char mode, const char *cmd)
 #endif
 }
 static int modem_id;
+static int commchip_id;
 static int sku_override;
 static int debug_uart_port_id;
 static enum audio_codec_type audio_codec_name;
@@ -153,6 +154,11 @@ static int max_cpu_current;
 static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "clk_m",	NULL,		0,		true },
+	{ "emc",	NULL,		0,		true },
+	{ "cpu",	NULL,		0,		true },
+	{ "kfuse",	NULL,		0,		true },
+	{ "fuse",	NULL,		0,		true },
+	{ "sclk",	NULL,		0,		true },
 #ifdef CONFIG_TEGRA_SILICON_PLATFORM
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
 	{ "pll_p",	NULL,		216000000,	true },
@@ -181,21 +187,13 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sclk",	"pll_p_out4",	102000000,	true },
 	{ "hclk",	"sclk",		102000000,	true },
 	{ "pclk",	"hclk",		51000000,	true },
-	{ "sbc5.sclk",	NULL,		40000000,	false},
-	{ "sbc6.sclk",	NULL,		40000000,	false},
 #endif
-	{ "sbc1.sclk",	NULL,		40000000,	false},
-	{ "sbc2.sclk",	NULL,		40000000,	false},
-	{ "sbc3.sclk",	NULL,		40000000,	false},
-	{ "sbc4.sclk",	NULL,		40000000,	false},
 #else
 	{ "pll_p",	NULL,		216000000,	true },
 	{ "pll_p_out1",	"pll_p",	28800000,	false },
 	{ "pll_p_out2",	"pll_p",	48000000,	false },
 	{ "pll_p_out3",	"pll_p",	72000000,	true },
 	{ "pll_m_out1",	"pll_m",	275000000,	true },
-	{ "pll_c",	NULL,		ULONG_MAX,	false },
-	{ "pll_c_out1",	"pll_c",	208000000,	false },
 	{ "pll_p_out4",	"pll_p",	108000000,	false },
 	{ "sclk",	"pll_p_out4",	108000000,	true },
 	{ "hclk",	"sclk",		108000000,	true },
@@ -206,17 +204,18 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 #else
 	{ "csite",      NULL,           0,              true },
 #endif
-	{ "emc",	NULL,		0,		true },
-	{ "cpu",	NULL,		0,		true },
-	{ "kfuse",	NULL,		0,		true },
-	{ "fuse",	NULL,		0,		true },
 	{ "pll_u",	NULL,		480000000,	false },
 	{ "sdmmc1",	"pll_p",	48000000,	false},
 	{ "sdmmc3",	"pll_p",	48000000,	false},
 	{ "sdmmc4",	"pll_p",	48000000,	false},
-	{ "pll_a",	"pll_p_out1",	0,		false},
-	{ "pll_a_out0",	"pll_a",	0,		false},
+	{ "sbc1.sclk",	NULL,		40000000,	false},
+	{ "sbc2.sclk",	NULL,		40000000,	false},
+	{ "sbc3.sclk",	NULL,		40000000,	false},
+	{ "sbc4.sclk",	NULL,		40000000,	false},
 #ifndef CONFIG_ARCH_TEGRA_2x_SOC
+	{ "sbc5.sclk",	NULL,		40000000,	false},
+	{ "sbc6.sclk",	NULL,		40000000,	false},
+	{ "wake.sclk",	NULL,		40000000,	true },
 	{ "cbus",	"pll_c",	416000000,	false },
 	{ "pll_c_out1",	"pll_c",	208000000,	false },
 	{ "mselect",	"pll_p",	102000000,	true },
@@ -300,8 +299,6 @@ void tegra_init_cache(bool init)
 {
 	void __iomem *p = IO_ADDRESS(TEGRA_ARM_PERIF_BASE) + 0x3000;
 	u32 aux_ctrl;
-	u32 speedo;
-	u32 tmp;
 
 #ifdef CONFIG_TRUSTED_FOUNDATIONS
 	/* issue the SMC to enable the L2 */
@@ -328,6 +325,8 @@ void tegra_init_cache(bool init)
 		writel(0x221, p + L2X0_TAG_LATENCY_CTRL);
 		writel(0x221, p + L2X0_DATA_LATENCY_CTRL);
 	} else {
+		u32 speedo;
+
 		/* relax l2-cache latency for speedos 4,5,6 (T33's chips) */
 		speedo = tegra_cpu_speedo_id();
 		if (speedo == 4 || speedo == 5 || speedo == 6 ||
@@ -350,6 +349,8 @@ void tegra_init_cache(bool init)
 	if (init) {
 		l2x0_init(p, aux_ctrl, 0x8200c3fe);
 	} else {
+		u32 tmp;
+
 		tmp = aux_ctrl;
 		aux_ctrl = readl(p + L2X0_AUX_CTRL);
 		aux_ctrl &= 0x8200c3fe;
@@ -710,6 +711,22 @@ int tegra_get_modem_id(void)
 
 __setup("modem_id=", tegra_modem_id);
 
+static int __init tegra_commchip_id(char *id)
+{
+	char *p = id;
+
+	if (get_option(&p, &commchip_id) != 1)
+		return 0;
+	return 1;
+}
+
+int tegra_get_commchip_id(void)
+{
+	return commchip_id;
+}
+
+__setup("commchip_id=", tegra_commchip_id);
+
 /*
  * Tegra has a protected aperture that prevents access by most non-CPU
  * memory masters to addresses above the aperture value.  Enabling it
@@ -777,28 +794,9 @@ out:
 	iounmap(to_io);
 }
 
-#ifdef CONFIG_TEGRA_SMMU_BASE_AT_E0000000
-#define FORCE_SMMU_BASE_FOR_TEGRA3_A01 1
-#else
-#define FORCE_SMMU_BASE_FOR_TEGRA3_A01 0
-#endif
-#if FORCE_SMMU_BASE_FOR_TEGRA3_A01 ||  \
-	(defined(CONFIG_TEGRA_IOVMM_SMMU) && defined(CONFIG_ARCH_TEGRA_3x_SOC))
-/* Support for Tegra3 A01 chip mask that needs to have SMMU IOVA reside in
- * the upper half of 4GB IOVA space. A02 and after use the bottom 1GB and
- * do not need to reserve memory.
- */
-#define SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
-#endif
-
 void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 	unsigned long fb2_size)
 {
-#ifdef SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
-	int smmu_reserved = 0;
-	struct tegra_smmu_window *smmu_window = tegra_smmu_window(0);
-#endif
-
 	if (carveout_size) {
 		tegra_carveout_start = memblock_end_of_DRAM() - carveout_size;
 		if (memblock_remove(tegra_carveout_start, carveout_size)) {
@@ -843,33 +841,6 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 
 	if (tegra_carveout_size && tegra_carveout_start < tegra_grhost_aperture)
 		tegra_grhost_aperture = tegra_carveout_start;
-
-#ifdef SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
-	if (!smmu_window) {
-		pr_err("No SMMU resource\n");
-	} else {
-		size_t smmu_window_size;
-
-		if (FORCE_SMMU_BASE_FOR_TEGRA3_A01 ||
-			(tegra_get_chipid() == TEGRA_CHIPID_TEGRA3 &&
-			tegra_get_revision() == TEGRA_REVISION_A01)) {
-			smmu_window->start = TEGRA_SMMU_BASE_TEGRA3_A01;
-			smmu_window->end   = TEGRA_SMMU_BASE_TEGRA3_A01 +
-						TEGRA_SMMU_SIZE_TEGRA3_A01 - 1;
-		}
-		smmu_window_size = smmu_window->end + 1 - smmu_window->start;
-		if (smmu_window->start >= 0x80000000) {
-			if (memblock_reserve(smmu_window->start,
-						smmu_window_size))
-				pr_err(
-			"Failed to reserve SMMU I/O VA window %08lx@%08lx\n",
-				(unsigned long)smmu_window_size,
-				(unsigned long)smmu_window->start);
-			else
-				smmu_reserved = 1;
-		}
-	}
-#endif
 
 	if (tegra_lp0_vec_size &&
 	   (tegra_lp0_vec_start < memblock_end_of_DRAM())) {
@@ -924,12 +895,6 @@ void __init tegra_reserve(unsigned long carveout_size, unsigned long fb_size,
 		tegra_vpr_start,
 		tegra_vpr_size ?
 			tegra_vpr_start + tegra_vpr_size - 1 : 0);
-
-#ifdef SUPPORT_SMMU_BASE_FOR_TEGRA3_A01
-	if (smmu_reserved)
-		pr_info("SMMU:                   %08lx - %08lx\n",
-			smmu_window->start, smmu_window->end);
-#endif
 }
 
 static struct resource ram_console_resources[] = {

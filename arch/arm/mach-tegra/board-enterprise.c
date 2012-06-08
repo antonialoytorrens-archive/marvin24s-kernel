@@ -226,7 +226,7 @@ static struct tegra_i2c_platform_data enterprise_i2c3_platform_data = {
 static struct tegra_i2c_platform_data enterprise_i2c4_platform_data = {
 	.adapter_nr	= 3,
 	.bus_count	= 1,
-	.bus_clk_rate	= { 100000, 0 },
+	.bus_clk_rate	= { 10000, 0 },
 	.scl_gpio		= {TEGRA_GPIO_PV4, 0},
 	.sda_gpio		= {TEGRA_GPIO_PV5, 0},
 	.arb_recovery = arb_lost_recovery,
@@ -533,6 +533,7 @@ static struct tegra_asoc_platform_data enterprise_audio_aic326x_pdata = {
 	.baseband_param		= {
 		.rate = 8000,
 		.channels = 1,
+		.bit_format = TEGRA_DAIFMT_DSP_A,
 	},
 };
 
@@ -950,8 +951,17 @@ static void enterprise_baseband_init(void)
 
 static void enterprise_nfc_init(void)
 {
+	struct board_info bi;
+
 	tegra_gpio_enable(TEGRA_GPIO_PS4);
 	tegra_gpio_enable(TEGRA_GPIO_PM6);
+
+	/* Enable firmware GPIO PX7 for board E1205 */
+	tegra_get_board_info(&bi);
+	if (bi.board_id == BOARD_E1205 && bi.fab >= BOARD_FAB_A03) {
+		nfc_pdata.firm_gpio = TEGRA_GPIO_PX7;
+		tegra_gpio_enable(TEGRA_GPIO_PX7);
+	}
 }
 
 static void __init tegra_enterprise_init(void)

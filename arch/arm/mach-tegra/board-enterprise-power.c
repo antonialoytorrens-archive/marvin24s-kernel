@@ -147,6 +147,7 @@ static struct regulator_consumer_supply tps80031_vana_supply_common[] = {
 
 static struct regulator_consumer_supply tps80031_ldo1_supply_a02[] = {
 	REGULATOR_SUPPLY("avdd_dsi_csi", NULL),
+	REGULATOR_SUPPLY("avdd_hsic", NULL),
 	REGULATOR_SUPPLY("pwrdet_mipi", NULL),
 };
 
@@ -411,6 +412,13 @@ struct tps80031_clk32k_init_data clk32k_idata[] = {
 	},
 };
 
+static struct tps80031_pupd_init_data pupd_idata[] = {
+	{
+		.input_pin = TPS80031_PREQ1,
+		.setting = TPS80031_PUPD_PULLUP,
+	},
+};
+
 static struct tps80031_platform_data tps_platform = {
 	.irq_base	= ENT_TPS80031_IRQ_BASE,
 	.gpio_base	= ENT_TPS80031_GPIO_BASE,
@@ -572,7 +580,7 @@ GPIO_REG(4, sdmmc3_vdd_sel,  tps80031_rails(SMPS4),
 
 /* Macro for defining fixed regulator sub device data */
 #define FIXED_REG(_id, _name, _input_supply, _gpio_nr, _active_high,	\
-			_millivolts, _boot_state)			\
+			_millivolts, _boot_state, _sdelay)		\
 	static struct regulator_init_data ri_data_##_name =		\
 	{								\
 		.supply_regulator = _input_supply,			\
@@ -595,6 +603,7 @@ GPIO_REG(4, sdmmc3_vdd_sel,  tps80031_rails(SMPS4),
 		.enable_high = _active_high,				\
 		.enabled_at_boot = _boot_state,				\
 		.init_data = &ri_data_##_name,				\
+		.startup_delay = _sdelay,				\
 	};								\
 	static struct platform_device fixed_reg_##_name##_dev = {	\
 		.name	= "reg-fixed-voltage",				\
@@ -605,25 +614,25 @@ GPIO_REG(4, sdmmc3_vdd_sel,  tps80031_rails(SMPS4),
 	}
 
 FIXED_REG(0, pmu_5v15_en,     NULL,
-		ENT_TPS80031_GPIO_REGEN1, true, 5000, 0 );
+		ENT_TPS80031_GPIO_REGEN1, true, 5000, 0 , 0);
 FIXED_REG(2, pmu_hdmi_5v0_en, "fixed_reg_pmu_5v15_en",
-		ENT_TPS80031_GPIO_SYSEN, true, 5000, 0);
+		ENT_TPS80031_GPIO_SYSEN, true, 5000, 0, 0);
 FIXED_REG(3, vdd_fuse_en,     "fixed_reg_pmu_3v3_en",
-		TEGRA_GPIO_PM0, true, 3300, 0);
+		TEGRA_GPIO_PM0, true, 3300, 0, 0);
 FIXED_REG(5, cam_ldo_2v8_en,  NULL,
-		TEGRA_GPIO_PM7, true, 2800, 0);
+		TEGRA_GPIO_PM7, true, 2800, 0, 0);
 FIXED_REG(6, cam_ldo_1v8_en,  NULL,
-		TEGRA_GPIO_PF1, true, 1800, 0);
+		TEGRA_GPIO_PF1, true, 1800, 0, 0);
 
 /* Enterprise A02- specific */
 FIXED_REG(1, pmu_3v3_en,      "fixed_reg_pmu_5v15_en",
-		ENT_TPS80031_GPIO_REGEN2, true, 3300, 0);
+		ENT_TPS80031_GPIO_REGEN2, true, 3300, 0, 500);
 
 /* Enterprise A03+ specific */
 FIXED_REG(7, vdd_sdmmc3_2v85_en,  NULL,
-		TEGRA_GPIO_PF2, true, 2850, 0);
+		TEGRA_GPIO_PF2, true, 2850, 0, 0);
 FIXED_REG(8, lcd_1v8_en,  NULL,
-		TEGRA_GPIO_PB2, true, 1800, 0);
+		TEGRA_GPIO_PB2, true, 1800, 0, 0);
 
 #define ADD_FIXED_REG(_name)	(&fixed_reg_##_name##_dev)
 
@@ -739,6 +748,8 @@ int __init enterprise_regulator_init(void)
 	} else {
 		tps_platform.num_subdevs = ARRAY_SIZE(tps80031_devs_a03);
 		tps_platform.subdevs = tps80031_devs_a03;
+		tps_platform.pupd_init_data = pupd_idata;
+		tps_platform.pupd_init_data_size = ARRAY_SIZE(pupd_idata);
 	}
 
 	i2c_register_board_info(4, enterprise_regulators, 1);

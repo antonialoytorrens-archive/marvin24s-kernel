@@ -82,7 +82,8 @@ struct nvhost_device t30_devices[] = {
 	.powergate_ids = { TEGRA_POWERGATE_3D,
 			   TEGRA_POWERGATE_3D1 },
 	NVHOST_DEFAULT_CLOCKGATE_DELAY,
-	.can_powergate = false,
+	.can_powergate = true,
+	.powerup_reset = true,
 	.powergate_delay = 250,
 	.moduleid	= NVHOST_MODULE_NONE,
 },
@@ -95,7 +96,7 @@ struct nvhost_device t30_devices[] = {
 	.waitbases	= BIT(NVWAITBASE_2D_0) | BIT(NVWAITBASE_2D_1),
 	.modulemutexes	= BIT(NVMODMUTEX_2D_FULL) | BIT(NVMODMUTEX_2D_SIMPLE) |
 			  BIT(NVMODMUTEX_2D_SB_A) | BIT(NVMODMUTEX_2D_SB_B),
-	.clocks 	= { {"gr2d", 0},
+	.clocks 	= { {"gr2d", UINT_MAX},
 			    {"epp", 0},
 			    {"emc", 300000000} },
 	NVHOST_MODULE_NO_POWERGATE_IDS,

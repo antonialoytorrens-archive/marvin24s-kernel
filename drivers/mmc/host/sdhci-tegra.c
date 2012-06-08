@@ -70,11 +70,14 @@
 
 static unsigned int tegra_sdhost_min_freq;
 static unsigned int tegra_sdhost_std_freq;
+
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
 static void tegra_3x_sdhci_set_card_clock(struct sdhci_host *sdhci, unsigned int clock);
 static void tegra3_sdhci_post_reset_init(struct sdhci_host *sdhci);
 
 static unsigned int tegra3_sdhost_max_clk[4] = {
 	208000000,	104000000,	208000000,	104000000 };
+#endif
 
 struct tegra_sdhci_hw_ops{
 	/* Set the internal clk and card clk.*/
@@ -183,6 +186,7 @@ static unsigned int tegra_sdhci_get_ro(struct sdhci_host *sdhci)
 	return gpio_get_value(plat->wp_gpio);
 }
 
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
 static void tegra3_sdhci_post_reset_init(struct sdhci_host *sdhci)
 {
 	u16 misc_ctrl;
@@ -219,6 +223,7 @@ static void tegra3_sdhci_post_reset_init(struct sdhci_host *sdhci)
 		SDHCI_VENDOR_MISC_CNTRL_ENABLE_SDR50_SUPPORT;
 	sdhci_writew(sdhci, misc_ctrl, SDHCI_VENDOR_MISC_CNTRL);
 }
+#endif
 
 static int tegra_sdhci_set_uhs_signaling(struct sdhci_host *host,
 		unsigned int uhs)
@@ -395,6 +400,7 @@ static void tegra_sdhci_set_clk_rate(struct sdhci_host *sdhci,
 	sdhci->max_clk = clk_get_rate(pltfm_host->clk);
 }
 
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
 static void tegra_3x_sdhci_set_card_clock(struct sdhci_host *sdhci, unsigned int clock)
 {
 	int div;
@@ -405,6 +411,13 @@ static void tegra_3x_sdhci_set_card_clock(struct sdhci_host *sdhci, unsigned int
 	if (clock && clock == sdhci->clock)
 		return;
 
+	/*
+	 * Disable the card clock before disabling the internal
+	 * clock to avoid abnormal clock waveforms.
+	 */
+	clk = sdhci_readw(sdhci, SDHCI_CLOCK_CONTROL);
+	clk &= ~SDHCI_CLOCK_CARD_EN;
+	sdhci_writew(sdhci, clk, SDHCI_CLOCK_CONTROL);
 	sdhci_writew(sdhci, 0, SDHCI_CLOCK_CONTROL);
 
 	if (clock == 0)
@@ -472,6 +485,7 @@ set_clk:
 out:
 	sdhci->clock = clock;
 }
+#endif
 
 static void tegra_sdhci_set_clock(struct sdhci_host *sdhci, unsigned int clock)
 {
@@ -874,6 +888,9 @@ static struct sdhci_ops tegra_sdhci_ops = {
 	.read_w     = tegra_sdhci_readw,
 	.write_l    = tegra_sdhci_writel,
 	.platform_8bit_width = tegra_sdhci_8bit,
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+	.set_card_clock = tegra_3x_sdhci_set_card_clock,
+#endif
 	.set_clock  = tegra_sdhci_set_clock,
 	.suspend    = tegra_sdhci_suspend,
 	.resume     = tegra_sdhci_resume,
@@ -1018,8 +1035,9 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 		}
 		tegra_host->vdd_io_reg = regulator_get(mmc_dev(host->mmc), "vddio_sdmmc");
 		if (IS_ERR_OR_NULL(tegra_host->vdd_io_reg)) {
-			dev_err(mmc_dev(host->mmc), "%s regulator not found: %ld\n",
-				"vddio_sdmmc", PTR_ERR(tegra_host->vdd_io_reg));
+			dev_info(mmc_dev(host->mmc), "%s regulator not found: %ld."
+				"Assuming vddio_sdmmc is not required.\n",
+					"vddio_sdmmc", PTR_ERR(tegra_host->vdd_io_reg));
 			tegra_host->vdd_io_reg = NULL;
 		} else {
 			rc = regulator_set_voltage(tegra_host->vdd_io_reg,
@@ -1033,8 +1051,9 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 
 		tegra_host->vdd_slot_reg = regulator_get(mmc_dev(host->mmc), "vddio_sd_slot");
 		if (IS_ERR_OR_NULL(tegra_host->vdd_slot_reg)) {
-			dev_err(mmc_dev(host->mmc), "%s regulator not found: %ld\n",
-				"vddio_sd_slot", PTR_ERR(tegra_host->vdd_slot_reg));
+			dev_info(mmc_dev(host->mmc), "%s regulator not found: %ld."
+				" Assuming vddio_sd_slot is not required.\n",
+					"vddio_sd_slot", PTR_ERR(tegra_host->vdd_slot_reg));
 			tegra_host->vdd_slot_reg = NULL;
 		}
 
@@ -1077,11 +1096,13 @@ static int __devinit sdhci_tegra_probe(struct platform_device *pdev)
 	host->mmc->pm_caps |= MMC_PM_KEEP_POWER | MMC_PM_IGNORE_PM_NOTIFY;
 	if (plat->mmc_data.built_in) {
 		host->mmc->caps |= MMC_CAP_NONREMOVABLE;
-		host->mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;
 	}
+	host->mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY;
+#ifdef CONFIG_MMC_EMBEDDED_SDIO
 	/* Do not turn OFF embedded sdio cards as it support Wake on Wireless */
 	if (plat->mmc_data.embedded_sdio)
 		host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
+#endif
 
 	tegra_sdhost_min_freq = TEGRA_SDHOST_MIN_FREQ;
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC

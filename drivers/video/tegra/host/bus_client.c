@@ -594,8 +594,6 @@ int nvhost_client_device_suspend(struct nvhost_device *dev)
 {
 	int ret = 0;
 
-	dev_info(&dev->dev, "suspending\n");
-
 	ret = nvhost_channel_suspend(dev->channel);
 	if (ret)
 		return ret;
@@ -603,4 +601,38 @@ int nvhost_client_device_suspend(struct nvhost_device *dev)
 	dev_info(&dev->dev, "suspend status: %d\n", ret);
 
 	return ret;
+}
+
+int nvhost_client_device_get_resources(struct nvhost_device *dev)
+{
+	struct resource *r = NULL;
+	void __iomem *regs = NULL;
+	struct resource *reg_mem = NULL;
+
+	r = nvhost_get_resource(dev, IORESOURCE_MEM, 0);
+	if (!r)
+		goto fail;
+
+	reg_mem = request_mem_region(r->start, resource_size(r), dev->name);
+	if (!reg_mem)
+		goto fail;
+
+	regs = ioremap(r->start, resource_size(r));
+	if (!regs)
+		goto fail;
+
+	dev->reg_mem = reg_mem;
+	dev->aperture = regs;
+
+	return 0;
+
+fail:
+	if (reg_mem)
+		release_mem_region(r->start, resource_size(r));
+	if (regs)
+		iounmap(regs);
+
+	dev_err(&dev->dev, "failed to get register memory\n");
+
+	return -ENXIO;
 }

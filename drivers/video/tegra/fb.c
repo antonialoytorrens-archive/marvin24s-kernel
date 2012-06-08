@@ -64,11 +64,27 @@ static u32 pseudo_palette[16];
 static int tegra_fb_check_var(struct fb_var_screeninfo *var,
 			      struct fb_info *info)
 {
+	struct tegra_fb_info *tegra_fb = info->par;
+	struct tegra_dc *dc = tegra_fb->win->dc;
+	struct tegra_dc_out_ops *ops = dc->out_ops;
+	struct fb_videomode mode;
+
 	if ((var->yres * var->xres * var->bits_per_pixel / 8 * 2) >
 	    info->screen_size)
 		return -EINVAL;
 
-	/* double yres_virtual to allow double buffering through pan_display */
+	/* Apply mode filter for HDMI only -LVDS supports only fix mode */
+	if (ops && ops->mode_filter) {
+
+		fb_var_to_videomode(&mode, var);
+		if (!ops->mode_filter(dc, &mode))
+			return -EINVAL;
+
+		/* Mode filter may have modified the mode */
+		fb_videomode_to_var(var, &mode);
+	}
+
+	/* Double yres_virtual to allow double buffering through pan_display */
 	var->yres_virtual = var->yres * 2;
 
 	return 0;
@@ -283,16 +299,6 @@ static int tegra_fb_blank(int blank, struct fb_info *info)
 		dev_dbg(&tegra_fb->ndev->dev, "unblank\n");
 		tegra_fb->win->flags = TEGRA_WIN_FLAG_ENABLED;
 		tegra_dc_enable(tegra_fb->win->dc);
-#if defined(CONFIG_FRAMEBUFFER_CONSOLE)
-		/*
-		* TODO:
-		* This is a work around to provide an unblanking flip
-		* to dc driver, required to display fb-console after
-		* a blank event,and needs to be replaced by a proper
-		* unblanking mechanism
-		*/
-		tegra_fb_flip_win(tegra_fb);
-#endif
 		return 0;
 
 	case FB_BLANK_NORMAL:
@@ -331,7 +337,8 @@ static int tegra_fb_pan_display(struct fb_var_screeninfo *var,
 			(var->xoffset * (var->bits_per_pixel/8));
 
 		tegra_fb->win->phys_addr = addr;
-		/* TODO: update virt_addr */
+		tegra_fb->win->flags = TEGRA_WIN_FLAG_ENABLED;
+		tegra_fb->win->virt_addr = info->screen_base;
 
 		tegra_dc_update_windows(&tegra_fb->win, 1);
 		tegra_dc_sync_windows(&tegra_fb->win, 1);
@@ -411,6 +418,41 @@ static int tegra_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long 
 	return 0;
 }
 
+int tegra_fb_get_mode(struct tegra_dc *dc) {
+	return dc->fb->info->mode->refresh;
+}
+
+int tegra_fb_set_mode(struct tegra_dc *dc, int fps) {
+	size_t stereo;
+	struct list_head *pos;
+	struct fb_videomode *best_mode = NULL;
+	int curr_diff = INT_MAX; /* difference of best_mode refresh rate */
+	struct fb_modelist *modelist;
+	struct fb_info *info = dc->fb->info;
+
+	list_for_each(pos, &info->modelist) {
+		struct fb_videomode *mode;
+
+		modelist = list_entry(pos, struct fb_modelist, list);
+		mode = &modelist->mode;
+		if (fps <= mode->refresh && curr_diff > (mode->refresh - fps)) {
+			curr_diff = mode->refresh - fps;
+			best_mode = mode;
+		}
+	}
+	if (best_mode) {
+		info->mode = best_mode;
+		stereo = !!(info->var.vmode & info->mode->vmode &
+#ifndef CONFIG_TEGRA_HDMI_74MHZ_LIMIT
+				FB_VMODE_STEREO_FRAME_PACK);
+#else
+				FB_VMODE_STEREO_LEFT_RIGHT);
+#endif
+		return tegra_dc_set_fb_mode(dc, best_mode, stereo);
+	}
+	return -EIO;
+}
+
 static struct fb_ops tegra_fb_ops = {
 	.owner = THIS_MODULE,
 	.fb_check_var = tegra_fb_check_var,
@@ -455,6 +497,7 @@ void tegra_fb_update_monspecs(struct tegra_fb_info *fb_info,
 
 	memcpy(&fb_info->info->monspecs, specs,
 	       sizeof(fb_info->info->monspecs));
+	fb_info->info->mode = specs->modedb;
 
 	for (i = 0; i < specs->modedb_len; i++) {
 		if (mode_filter) {

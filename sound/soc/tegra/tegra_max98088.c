@@ -559,7 +559,7 @@ static void tegra_max98088_shutdown(struct snd_pcm_substream *substream)
 	 } else {
 
 		if (!i2s->is_call_mode_rec)
-			return 0;
+			return;
 
 		i2s->is_call_mode_rec = 0;
 
@@ -1065,7 +1065,7 @@ static struct snd_soc_dai_link tegra_max98088_dai[NUM_DAI_LINKS] = {
 };
 
 static int tegra30_soc_set_bias_level(struct snd_soc_card *card,
-					enum snd_soc_bias_level level)
+	struct snd_soc_dapm_context *dapm, enum snd_soc_bias_level level)
 {
 	struct tegra_max98088 *machine = snd_soc_card_get_drvdata(card);
 
@@ -1077,7 +1077,7 @@ static int tegra30_soc_set_bias_level(struct snd_soc_card *card,
 }
 
 static int tegra30_soc_set_bias_level_post(struct snd_soc_card *card,
-					enum snd_soc_bias_level level)
+	struct snd_soc_dapm_context *dapm, enum snd_soc_bias_level level)
 {
 	struct tegra_max98088 *machine = snd_soc_card_get_drvdata(card);
 
@@ -1119,7 +1119,7 @@ static __devinit int tegra_max98088_driver_probe(struct platform_device *pdev)
 
 	machine->pdata = pdata;
 
-	ret = tegra_asoc_utils_init(&machine->util_data, &pdev->dev);
+	ret = tegra_asoc_utils_init(&machine->util_data, &pdev->dev, card);
 	if (ret)
 		goto err_free_machine;
 
@@ -1142,6 +1142,12 @@ static __devinit int tegra_max98088_driver_probe(struct platform_device *pdev)
 
 	machine->codec_info[BASEBAND].rate = pdata->baseband_param.rate;
 	machine->codec_info[BASEBAND].channels = pdata->baseband_param.channels;
+	machine->codec_info[BASEBAND].is_format_dsp = 0;
+
+	if ((pdata->baseband_param.bit_format == TEGRA_DAIFMT_DSP_A) ||
+	(pdata->baseband_param.bit_format == TEGRA_DAIFMT_DSP_B)) {
+			machine->codec_info[BASEBAND].is_format_dsp = 1;
+	}
 
 	tegra_max98088_dai[DAI_LINK_HIFI].cpu_dai_name =
 	tegra_max98088_i2s_dai_name[machine->codec_info[HIFI_CODEC].i2s_id];

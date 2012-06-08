@@ -295,14 +295,6 @@ config TEGRA_IOVMM_SMMU
 	  space through the SMMU (System Memory Management Unit)
 	  hardware included on Tegra SoCs.
 
-config TEGRA_SMMU_BASE_AT_E0000000
-	bool "Force SMMU IOVA base to 0xe0000000"
-	depends on TEGRA_IOVMM_SMMU
-	default n
-	help
-	  Forces SMMU IOVA base address to 0xe0000000 for debug purposes
-	  only. Select n for production systems.
-
 config TEGRA_IOVMM_SMMU_SYSFS
 	bool "Enable SMMU register access for debugging"
 	depends on TEGRA_IOVMM_SMMU
@@ -361,6 +353,15 @@ config TEGRA_AUTO_HOTPLUG
 	  This option enables turning CPUs off/on and switching tegra
 	  high/low power CPU clusters automatically, corresponding to
 	  CPU frequency scaling.
+
+config TEGRA_MC_EARLY_ACK
+	bool "Enable early acknowledgement from mermory controller"
+	depends on ARCH_TEGRA_3x_SOC
+	default y
+	help
+	  This option enables early acknowledgement from memory
+	  controller. This feature is used to improve CPU memory
+	  write performance.
 
 config TEGRA_MC_PROFILE
 	tristate "Enable profiling memory controller utilization"
@@ -486,4 +487,10 @@ config TEGRA_PREINIT_CLOCKS
 	help
 	  Preinitialize Tegra clocks to known states before actual full-
 	  scale clock initialization starts.
+
+config TEGRA_PREPOWER_WIFI
+	bool "Pre-power up WiFi "
+	default n
+	help
+	  Pre-power up the on board WiFi chip
 endif
