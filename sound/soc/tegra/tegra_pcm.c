@@ -198,6 +198,7 @@ err:
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_allocate);
 
 static int tegra_pcm_open(struct snd_pcm_substream *substream)
 {
@@ -219,6 +220,7 @@ int tegra_pcm_close(struct snd_pcm_substream *substream)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_close);
 
 int tegra_pcm_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
@@ -249,6 +251,7 @@ int tegra_pcm_hw_params(struct snd_pcm_substream *substream,
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_hw_params);
 
 int tegra_pcm_hw_free(struct snd_pcm_substream *substream)
 {
@@ -256,6 +259,7 @@ int tegra_pcm_hw_free(struct snd_pcm_substream *substream)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_hw_free);
 
 int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
@@ -314,6 +318,7 @@ int tegra_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_trigger);
 
 snd_pcm_uframes_t tegra_pcm_pointer(struct snd_pcm_substream *substream)
 {
@@ -327,6 +332,7 @@ snd_pcm_uframes_t tegra_pcm_pointer(struct snd_pcm_substream *substream)
 	return prtd->period_index * runtime->period_size +
 		bytes_to_frames(runtime, dma_transfer_count);
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_pointer);
 
 int tegra_pcm_mmap(struct snd_pcm_substream *substream,
 				struct vm_area_struct *vma)
@@ -338,6 +344,7 @@ int tegra_pcm_mmap(struct snd_pcm_substream *substream,
 					runtime->dma_addr,
 					runtime->dma_bytes);
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_mmap);
 
 static struct snd_pcm_ops tegra_pcm_ops = {
 	.open		= tegra_pcm_open,
@@ -424,6 +431,7 @@ err_free_play:
 err:
 	return ret;
 }
+EXPORT_SYMBOL(tegra_pcm_dma_allocate);
 
 int tegra_pcm_new(struct snd_soc_pcm_runtime *rtd)
 {
@@ -436,6 +444,7 @@ void tegra_pcm_free(struct snd_pcm *pcm)
 	tegra_pcm_deallocate_dma_buffer(pcm, SNDRV_PCM_STREAM_CAPTURE);
 	tegra_pcm_deallocate_dma_buffer(pcm, SNDRV_PCM_STREAM_PLAYBACK);
 }
+EXPORT_SYMBOL_GPL(tegra_pcm_free);
 
 static int tegra_pcm_probe(struct snd_soc_platform *platform)
 {
