@@ -85,25 +85,6 @@ enum nvec_sleep_subcmds {
 
 static struct nvec_chip *nvec_power_handle;
 
-static struct mfd_cell nvec_devices[] = {
-	{
-		.name = "nvec-kbd",
-		.id = 1,
-	},
-	{
-		.name = "nvec-mouse",
-		.id = 1,
-	},
-	{
-		.name = "nvec-power",
-		.id = 1,
-	},
-	{
-		.name = "nvec-paz00",
-		.id = 1,
-	},
-};
-
 /**
  * nvec_register_notifier - Register a notifier with nvec
  * @nvec: A &struct nvec_chip
@@ -755,11 +736,56 @@ static void nvec_power_off(void)
 	nvec_write_async(nvec_power_handle, ap_pwr_down, 2);
 }
 
+static int add_mfd_subdevice(struct nvec_chip *nvec, struct device_node *np,
+				const char *name)
+{
+	char buf[30];
+	struct mfd_cell cell = { .id = 0, };
+	int ret = 0;
+
+	if ((snprintf(buf, sizeof(buf),
+			"nvidia,nvec-uses-%s", name) <= sizeof(buf)) &&
+			of_get_property(np, buf, NULL)) {
+		snprintf(buf, sizeof(buf), "nvec-%s", name);
+		cell.name = buf;
+		ret = mfd_add_devices(nvec->dev, -1, &cell, 1, NULL, 0, NULL);
+		if (ret < 0)
+			dev_err(nvec->dev, "error adding %s (%d)\n", name, ret);
+		else
+			dev_info(nvec->dev, "added %s\n", name);
+	}
+
+	return ret;
+}
+
+static const char *const nvec_childs[] = { "kbd", "mouse", "power" };
+
+static int parse_childs_from_dt(struct nvec_chip *nvec)
+{
+	struct device_node *np = nvec->dev->of_node;
+	const char *oem_name;
+	int oem_len, i;
+
+	/* subdevices without platform_data */
+	for (i = 0; i < ARRAY_SIZE(nvec_childs); i++)
+		add_mfd_subdevice(nvec, np, nvec_childs[i]);
+
+	/* board specific subdevice */
+	oem_name = of_get_property(np, "nvidia,nvec-uses-oem", &oem_len);
+	if (oem_name != NULL) {
+		struct mfd_cell cell = { .id = 0, .name = oem_name };
+
+		mfd_add_devices(nvec->dev, -1, &cell, 1, NULL, 0, NULL);
+	}
+
+	return 0;
+}
+
 static int tegra_nvec_probe(struct platform_device *pdev)
 {
 	int err, ret;
 	struct clk *i2c_clk;
-	struct nvec_platform_data *pdata = pdev->dev.platform_data;
+	struct device_node *np = pdev->dev.of_node;
 	struct nvec_chip *nvec;
 	struct nvec_msg *msg;
 	struct resource *res;
@@ -767,6 +793,11 @@ static int tegra_nvec_probe(struct platform_device *pdev)
 	char	get_firmware_version[] = { NVEC_CNTL, GET_FIRMWARE_VERSION },
 		unmute_speakers[] = { NVEC_OEM0, 0x10, 0x59, 0x95 },
 		enable_event[7] = { NVEC_SYS, CNF_EVENT_REPORTING, true };
+
+	if (!np) {
+		dev_err(&pdev->dev, "Must be instantiated using device tree\n");
+		return -ENODEV;
+	}
 
 	nvec = devm_kzalloc(&pdev->dev, sizeof(struct nvec_chip), GFP_KERNEL);
 	if (nvec == NULL) {
@@ -776,23 +807,14 @@ static int tegra_nvec_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, nvec);
 	nvec->dev = &pdev->dev;
 
-	if (pdata) {
-		nvec->gpio = pdata->gpio;
-		nvec->i2c_addr = pdata->i2c_addr;
-	} else if (nvec->dev->of_node) {
-		nvec->gpio = of_get_named_gpio(nvec->dev->of_node,
-					"request-gpios", 0);
-		if (nvec->gpio < 0) {
-			dev_err(&pdev->dev, "no gpio specified");
-			return -ENODEV;
-		}
-		if (of_property_read_u32(nvec->dev->of_node,
-					"slave-addr", &nvec->i2c_addr)) {
-			dev_err(&pdev->dev, "no i2c address specified");
-			return -ENODEV;
-		}
-	} else {
-		dev_err(&pdev->dev, "no platform data\n");
+	nvec->gpio = of_get_named_gpio(nvec->dev->of_node, "request-gpios", 0);
+	if (nvec->gpio < 0) {
+		dev_err(&pdev->dev, "no gpio specified");
+		return -ENODEV;
+	}
+	if (of_property_read_u32(nvec->dev->of_node, "slave-addr",
+							    &nvec->i2c_addr)) {
+		dev_err(&pdev->dev, "no i2c address specified");
 		return -ENODEV;
 	}
 
@@ -876,8 +898,7 @@ static int tegra_nvec_probe(struct platform_device *pdev)
 		nvec_msg_free(nvec, msg);
 	}
 
-	ret = mfd_add_devices(nvec->dev, -1, nvec_devices,
-			      ARRAY_SIZE(nvec_devices), base, 0, NULL);
+	ret = parse_childs_from_dt(nvec);
 	if (ret)
 		dev_err(nvec->dev, "error adding subdevices\n");
 
