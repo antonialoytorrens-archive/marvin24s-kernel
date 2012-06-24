@@ -40,7 +40,6 @@ static void nvec_led_brightness_set(struct led_classdev *led_cdev,
 	nvec_write_async(led->nvec, buf, sizeof(buf));
 
 	led->cdev.brightness = value;
-
 }
 
 static int __devinit nvec_paz00_probe(struct platform_device *pdev)
@@ -49,7 +48,7 @@ static int __devinit nvec_paz00_probe(struct platform_device *pdev)
 	struct nvec_led *led;
 	int ret = 0;
 
-	led = kzalloc(sizeof(*led), GFP_KERNEL);
+	led = devm_kzalloc(&pdev->dev, sizeof(*led), GFP_KERNEL);
 	if (led == NULL)
 		return -ENOMEM;
 
@@ -64,16 +63,13 @@ static int __devinit nvec_paz00_probe(struct platform_device *pdev)
 
 	ret = led_classdev_register(&pdev->dev, &led->cdev);
 	if (ret < 0)
-		goto err_led;
+		return ret;
 
 	/* to expose the default value to userspace */
 	led->cdev.brightness = 0;
 
 	return 0;
 
-err_led:
-	kfree(led);
-	return ret;
 }
 
 static int __devexit nvec_paz00_remove(struct platform_device *pdev)
@@ -81,7 +77,6 @@ static int __devexit nvec_paz00_remove(struct platform_device *pdev)
 	struct nvec_led *led = platform_get_drvdata(pdev);
 
 	led_classdev_unregister(&led->cdev);
-	kfree(led);
 	return 0;
 }
 
