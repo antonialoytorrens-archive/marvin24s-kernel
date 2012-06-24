@@ -99,10 +99,6 @@ static struct mfd_cell nvec_devices[] = {
 		.id = 1,
 	},
 	{
-		.name = "nvec-power",
-		.id = 2,
-	},
-	{
 		.name = "nvec-paz00",
 		.id = 1,
 	},
