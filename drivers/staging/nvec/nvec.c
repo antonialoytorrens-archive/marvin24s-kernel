@@ -316,27 +316,6 @@ static void nvec_toggle_global_events(struct nvec_chip *nvec, bool state)
 }
 
 /**
- * nvec_event_mask - fill the command string with event bitfield
- * ev: points to event command string
- * mask: bit to insert into the event mask
- *
- * Configure event command expects a 32 bit bitfield which describes
- * which events to enable. The bitfield has the following structure
- * (from highest byte to lowest):
- *	system state bits 7-0
- *	system state bits 15-8
- *	oem system state bits 7-0
- *	oem system state bits 15-8
- */
-static void nvec_event_mask(char *ev, u32 mask)
-{
-	ev[3] = mask >> 16 && 0xff;
-	ev[4] = mask >> 24 && 0xff;
-	ev[5] = mask >> 0  && 0xff;
-	ev[6] = mask >> 8  && 0xff;
-}
-
-/**
  * nvec_request_master - Process outgoing messages
  * @work: A &struct work_struct (the tx_worker member of &struct nvec_chip)
  *
@@ -758,7 +737,7 @@ static int add_mfd_subdevice(struct nvec_chip *nvec, struct device_node *np,
 	return ret;
 }
 
-static const char *const nvec_childs[] = { "kbd", "mouse", "power" };
+static const char *const nvec_childs[] = { "events", "kbd", "mouse", "power" };
 
 static int parse_childs_from_dt(struct nvec_chip *nvec)
 {
@@ -791,8 +770,7 @@ static int tegra_nvec_probe(struct platform_device *pdev)
 	struct resource *res;
 	void __iomem *base;
 	char	get_firmware_version[] = { NVEC_CNTL, GET_FIRMWARE_VERSION },
-		unmute_speakers[] = { NVEC_OEM0, 0x10, 0x59, 0x95 },
-		enable_event[7] = { NVEC_SYS, CNF_EVENT_REPORTING, true };
+		unmute_speakers[] = { NVEC_OEM0, 0x10, 0x59, 0x95 };
 
 	if (!np) {
 		dev_err(&pdev->dev, "Must be instantiated using device tree\n");
@@ -904,14 +882,6 @@ static int tegra_nvec_probe(struct platform_device *pdev)
 
 	/* unmute speakers? */
 	nvec_write_async(nvec, unmute_speakers, 4);
-
-	/* enable lid switch event */
-	nvec_event_mask(enable_event, LID_SWITCH);
-	nvec_write_async(nvec, enable_event, 7);
-
-	/* enable power button event */
-	nvec_event_mask(enable_event, PWR_BUTTON);
-	nvec_write_async(nvec, enable_event, 7);
 
 	return 0;
 }

@@ -18,10 +18,21 @@ Optional properties:
 - nvidia,nvec-uses-kbd : enables support for a keyboard
                   -mouse : enables support for a ps2 mice
                   -power : enables support for a power adapter (battery and/or ac)
+                  -events : enables support for receiving event send by the nvec
 
 - nvidia,nvec-uses-oem = "board-name" : enables support for a board specific
 	driver named "nvec-<board-name>". This can be used to add functions not
 	provdided by the standard protocol.
 
 - cells : can be used to add parameters to the mfd cells. Each child is named after
-  the coresponding cell name.
+  the coresponding cell name:
+
+	- events : This property configures which events to listen to and which events
+	  should submitted to userspace upon receive. It add the following properties:
+	  - linux,input-type (required) : specifies the linux specific event number
+					    (e.g. EV_SW=5, EV_KEY=1)
+	  - linux,code (required) : specifies the linux specific key code to submit
+	  - nvec,event-status-mask (required) : specifies the nvec event to react on
+						(bitmask with length 32)
+	  - nvec,event-status (optional) : if set to "enabled", it activates the event
+						on boot.
