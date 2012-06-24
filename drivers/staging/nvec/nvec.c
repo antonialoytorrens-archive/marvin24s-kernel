@@ -709,12 +709,14 @@ static void tegra_init_i2c_slave(struct nvec_chip *nvec)
 	enable_irq(nvec->irq);
 }
 
+#ifdef CONFIG_PM_SLEEP
 static void nvec_disable_i2c_slave(struct nvec_chip *nvec)
 {
 	disable_irq(nvec->irq);
 	writel(I2C_SL_NEWL | I2C_SL_NACK, nvec->base + I2C_SL_CNFG);
 	clk_disable(nvec->i2c_clk);
 }
+#endif
 
 static void nvec_power_off(void)
 {
@@ -873,10 +875,10 @@ static int __devexit tegra_nvec_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-
-static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
+#ifdef CONFIG_PM_SLEEP
+static int nvec_suspend(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 	struct nvec_msg *msg;
 	int ret = 0;
@@ -902,8 +904,9 @@ fail:
 	return ret;
 }
 
-static int tegra_nvec_resume(struct platform_device *pdev)
+static int nvec_resume(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 
 	dev_dbg(nvec->dev, "resuming\n");
@@ -912,11 +915,9 @@ static int tegra_nvec_resume(struct platform_device *pdev)
 
 	return 0;
 }
-
-#else
-#define tegra_nvec_suspend NULL
-#define tegra_nvec_resume NULL
 #endif
+
+static const SIMPLE_DEV_PM_OPS(nvec_pm_ops, nvec_suspend, nvec_resume);
 
 /* Match table for of_platform binding */
 static const struct of_device_id nvidia_nvec_of_match[] __devinitconst = {
@@ -928,11 +929,10 @@ MODULE_DEVICE_TABLE(of, nvidia_nvec_of_match);
 static struct platform_driver nvec_device_driver = {
 	.probe   = tegra_nvec_probe,
 	.remove  = __devexit_p(tegra_nvec_remove),
-	.suspend = tegra_nvec_suspend,
-	.resume  = tegra_nvec_resume,
 	.driver  = {
 		.name = "nvec",
 		.owner = THIS_MODULE,
+		.pm = &nvec_pm_ops,
 		.of_match_table = nvidia_nvec_of_match,
 	}
 };
