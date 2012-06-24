@@ -18,7 +18,6 @@
 #include <linux/serio.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
-#include <linux/earlysuspend.h>
 
 #include "nvec.h"
 
@@ -46,9 +45,6 @@ struct nvec_ps2 {
 	struct serio *ser_dev;
 	struct notifier_block notifier;
 	struct nvec_chip *nvec;
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend early_suspend;
-#endif
 };
 
 static struct nvec_ps2 ps2_dev;
@@ -134,37 +130,6 @@ static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void nvec_mouse_early_suspend(struct early_suspend *h)
-{
-	/* disable mouse */
-	ps2_sendcommand(ps2_dev.ser_dev, 0xf5);
-}
-
-static void nvec_mouse_late_resume(struct early_suspend *h)
-{
-	/* enable mouse */
-	ps2_sendcommand(ps2_dev.ser_dev, 0xf4);
-}
-
-static int nvec_mouse_suspend(struct platform_device *pdev, pm_message_t state)
-{
-	/* send cancel autoreceive */
-	ps2_stopstreaming(ps2_dev.ser_dev);
-
-	return 0;
-}
-
-static int nvec_mouse_resume(struct platform_device *pdev)
-{
-	/* send start autoreceive */
-	ps2_startstreaming(ps2_dev.ser_dev);
-
-	return 0;
-}
-
-#else
-
 static int nvec_mouse_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	/* disable mouse */
@@ -187,8 +152,6 @@ static int nvec_mouse_resume(struct platform_device *pdev)
 	return 0;
 }
 
-#endif /* HAS_EARLY_SUSPEND */
-
 static struct platform_driver nvec_mouse_driver = {
 	.probe  = nvec_mouse_probe,
 	.suspend = nvec_mouse_suspend,
@@ -198,20 +161,7 @@ static struct platform_driver nvec_mouse_driver = {
 		.owner = THIS_MODULE,
 	},
 };
-
-static int __init nvec_mouse_init(void)
-{
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	ps2_dev.early_suspend.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN;
-	ps2_dev.early_suspend.suspend = nvec_mouse_early_suspend;
-	ps2_dev.early_suspend.resume = nvec_mouse_late_resume;
-	register_early_suspend(&ps2_dev.early_suspend);
-#endif
-
-	return platform_driver_register(&nvec_mouse_driver);
-}
-
-module_init(nvec_mouse_init);
+module_platform_driver(nvec_mouse_driver);
 
 MODULE_DESCRIPTION("NVEC mouse driver");
 MODULE_AUTHOR("Marc Dietrich <marvin24@gmx.de>");
