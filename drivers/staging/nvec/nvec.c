@@ -769,8 +769,7 @@ static int tegra_nvec_probe(struct platform_device *pdev)
 	struct nvec_msg *msg;
 	struct resource *res;
 	void __iomem *base;
-	char	get_firmware_version[] = { NVEC_CNTL, GET_FIRMWARE_VERSION },
-		unmute_speakers[] = { NVEC_OEM0, 0x10, 0x59, 0x95 };
+	char get_firmware_version[] = { NVEC_CNTL, GET_FIRMWARE_VERSION };
 
 	if (!np) {
 		dev_err(&pdev->dev, "Must be instantiated using device tree\n");
@@ -879,9 +878,6 @@ static int tegra_nvec_probe(struct platform_device *pdev)
 	ret = parse_childs_from_dt(nvec);
 	if (ret)
 		dev_err(nvec->dev, "error adding subdevices\n");
-
-	/* unmute speakers? */
-	nvec_write_async(nvec, unmute_speakers, 4);
 
 	return 0;
 }
