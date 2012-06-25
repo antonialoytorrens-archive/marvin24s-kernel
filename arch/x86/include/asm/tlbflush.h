@@ -172,4 +172,25 @@ static inline void flush_tlb_kernel_range(unsigned long start,
 	flush_tlb_all();
 }
 
+#define __HAVE_LOCAL_FLUSH_TLB_KERNEL_RANGE
+/*
+ * INVLPG_BREAK_EVEN_PAGES is the number of pages after which single tlb
+ * flushing becomes more costly than just doing a complete tlb flush.
+ * While this break even point varies among x86 hardware, tests have shown
+ * that 8 is a good generic value.
+*/
+#define INVLPG_BREAK_EVEN_PAGES 8
+static inline void local_flush_tlb_kernel_range(unsigned long start,
+		unsigned long end)
+{
+	if (cpu_has_invlpg &&
+		(end - start)/PAGE_SIZE <= INVLPG_BREAK_EVEN_PAGES) {
+		while (start < end) {
+			__flush_tlb_single(start);
+			start += PAGE_SIZE;
+		}
+	} else
+		local_flush_tlb();
+}
+
 #endif /* _ASM_X86_TLBFLUSH_H */
