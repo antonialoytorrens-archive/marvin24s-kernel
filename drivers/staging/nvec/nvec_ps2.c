@@ -25,6 +25,9 @@
 #define STOP_STREAMING	{'\x06', '\x04'}
 #define SEND_COMMAND	{'\x06', '\x01', '\xf4', '\x01'}
 
+#define MOUSE_ENABLE	0xf4
+#define MOUSE_DISABLE	0xf5
+
 #ifdef NVEC_PS2_DEBUG
 #define NVEC_PHD(str, buf, len) \
 	print_hex_dump(KERN_DEBUG, str, DUMP_PREFIX_NONE, \
@@ -121,25 +124,22 @@ static int __devinit nvec_mouse_probe(struct platform_device *pdev)
 
 static int nvec_mouse_suspend(struct platform_device *pdev, pm_message_t state)
 {
-	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
+	/* send cancel autoreceive */
+	ps2_stopstreaming(ps2_dev.ser_dev);
 
 	/* disable mouse */
-	nvec_write_async(nvec, "\x06\xf4", 2);
-
-	/* send cancel autoreceive */
-	nvec_write_async(nvec, "\x06\x04", 2);
+	ps2_sendcommand(ps2_dev.ser_dev, MOUSE_DISABLE);
 
 	return 0;
 }
 
 static int nvec_mouse_resume(struct platform_device *pdev)
 {
-	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
-
-	ps2_startstreaming(ps2_dev.ser_dev);
-
 	/* enable mouse */
-	nvec_write_async(nvec, "\x06\xf5", 2);
+	ps2_sendcommand(ps2_dev.ser_dev, MOUSE_ENABLE);
+
+	/* start streaming */
+	ps2_startstreaming(ps2_dev.ser_dev);
 
 	return 0;
 }
