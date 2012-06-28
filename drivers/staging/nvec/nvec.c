@@ -75,9 +75,11 @@ enum nvec_msg_category  {
 
 enum nvec_sleep_subcmds {
 	GLOBAL_EVENTS,
+	AP_PWR_DOWN,
+	AP_SUSPEND,
 };
 
-static const unsigned char EC_GET_FIRMWARE_VERSION[2]    = "\x07\x15";
+#define GET_FIRMWARE_VERSION 0x15
 
 /**
  * nvec_power_handle - holds the handle (pointer to a nvec_chip struct) of
@@ -306,11 +308,17 @@ EXPORT_SYMBOL(nvec_write_sync);
  *
  * This switches on/off global event reports by the embedded controller.
  */
-static void nvec_toggle_global_events(struct nvec_chip *nvec, bool state)
+static int nvec_toggle_global_events(struct nvec_chip *nvec, bool state)
 {
 	unsigned char global_events[] = { NVEC_SLEEP, GLOBAL_EVENTS, state };
+	struct nvec_msg *msg;
 
-	nvec_write_async(nvec, global_events, 3);
+	msg = nvec_write_sync(nvec, global_events, sizeof(global_events));
+	if (!msg)
+		return -1;
+
+	nvec_msg_free(nvec, msg);
+	return 0;
 }
 
 /**
@@ -709,8 +717,10 @@ static void nvec_disable_i2c_slave(struct nvec_chip *nvec)
 
 static void nvec_power_off(void)
 {
+	char ap_pwr_down[] = { NVEC_SLEEP, AP_PWR_DOWN };
+
 	nvec_toggle_global_events(nvec_power_handle, false);
-	nvec_write_async(nvec_power_handle, "\x04\x01", 2);
+	nvec_write_async(nvec_power_handle, ap_pwr_down, 2);
 }
 
 static int __devinit tegra_nvec_probe(struct platform_device *pdev)
@@ -723,6 +733,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct resource *iomem;
 	void __iomem *base;
+	char	get_firmware_version[] = { NVEC_CNTL, GET_FIRMWARE_VERSION };
 
 	nvec = kzalloc(sizeof(struct nvec_chip), GFP_KERNEL);
 	if (nvec == NULL) {
@@ -831,8 +842,7 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	}
 
 	/* Get Firmware Version */
-	msg = nvec_write_sync(nvec, EC_GET_FIRMWARE_VERSION,
-		sizeof(EC_GET_FIRMWARE_VERSION));
+	msg = nvec_write_sync(nvec, get_firmware_version, 2);
 
 	if (msg) {
 		dev_warn(nvec->dev, "ec firmware version %02x.%02x.%02x / %02x\n",
@@ -882,17 +892,15 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 	struct nvec_msg *msg;
 	int ret = 0;
+	char ap_suspend[] = { NVEC_SLEEP, AP_SUSPEND };
 
 	dev_dbg(nvec->dev, "suspending\n");
 
-	/* keep these sync or you'll break suspend */
-	msg = nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
-	if (!msg) {
-		ret = -1;
+	/* disable global events */
+	if (nvec_toggle_global_events(nvec, false))
 		goto fail;
-	}
-	nvec_msg_free(nvec, msg);
-	msg = nvec_write_sync(nvec, "\x04\x02", 2);
+
+	msg = nvec_write_sync(nvec, ap_suspend, sizeof(ap_suspend));
 	if (!msg) {
 		ret = -1;
 		goto fail;
