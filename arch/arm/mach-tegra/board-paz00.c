@@ -398,7 +398,6 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
 	&tegra_pmu_device,
-	&tegra_udc_device,
 	&wifi_rfkill_device,
 	&leds_gpio,
 	&nvec_device,
@@ -426,10 +425,13 @@ static void paz00_i2c_init(void)
 
 static void paz00_usb_init(void)
 {
-	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
-	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
+	tegra_udc_device.dev.platform_data = &tegra_udc_pdata;
+	platform_device_register(&tegra_udc_device);
 
+	tegra_ehci2_device.dev.platform_data = &tegra_ehci_pdata[1];
 	platform_device_register(&tegra_ehci2_device);
+
+	tegra_ehci3_device.dev.platform_data = &tegra_ehci_pdata[2];
 	platform_device_register(&tegra_ehci3_device);
 }
 
