@@ -28,6 +28,7 @@
 #include <mach/dc.h>
 
 #include "../host/dev.h"
+#include "../host/nvhost_acm.h"
 #include "../host/host1x/host1x_syncpt.h"
 
 #include <mach/tegra_dc_ext.h>
@@ -69,7 +70,7 @@ struct tegra_dc_out_ops {
 	/* resume output.  dc clocks are on at this point */
 	void (*resume)(struct tegra_dc *dc);
 	/* mode filter. to provide a list of supported modes*/
-	bool (*mode_filter)(struct tegra_dc *dc,
+	bool (*mode_filter)(const struct tegra_dc *dc,
 			struct fb_videomode *mode);
 };
 
@@ -135,6 +136,8 @@ struct tegra_dc {
 	} stats;
 
 	struct tegra_dc_ext		*ext;
+
+	struct tegra_dc_feature		*feature;
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry			*debugdir;

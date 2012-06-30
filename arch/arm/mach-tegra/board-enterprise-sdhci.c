@@ -1,7 +1,7 @@
 /*
  * arch/arm/mach-tegra/board-enterprise-sdhci.c
  *
- * Copyright (C) 2011 NVIDIA Corporation.
+ * Copyright (C) 2011-2012 NVIDIA Corporation.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -143,13 +143,17 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data0 = {
 	.cd_gpio = -1,
 	.wp_gpio = -1,
 	.power_gpio = -1,
+	.tap_delay = 0x0F,
 	.max_clk_limit = 45000000,
+	.ddr_clk_limit = 41000000,
 };
 
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data2 = {
 	.cd_gpio = -1,
 	.wp_gpio = -1,
 	.power_gpio = -1,
+	.tap_delay = 0x0F,
+	.ddr_clk_limit = 41000000,
 };
 
 static struct tegra_sdhci_platform_data tegra_sdhci_platform_data3 = {
@@ -158,6 +162,7 @@ static struct tegra_sdhci_platform_data tegra_sdhci_platform_data3 = {
 	.power_gpio = -1,
 	.is_8bit = 1,
 	.tap_delay = 0x0F,
+	.ddr_clk_limit = 41000000,
 	.mmc_data = {
 		.built_in = 1,
 	}

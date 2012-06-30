@@ -625,9 +625,8 @@ static void tegra30_i2s_stop_playback(struct tegra30_i2s *i2s)
 		i2s->reg_ctrl &= ~TEGRA30_I2S_CTRL_XFER_EN_TX;
 		tegra30_i2s_write(i2s, TEGRA30_I2S_CTRL, i2s->reg_ctrl);
 	}
-	while (tegra30_ahub_tx_fifo_is_busy(i2s->txcif) && dcnt--)
+	while (tegra30_ahub_tx_fifo_is_enabled(i2s->id) && dcnt--)
 		udelay(100);
-	tegra30_ahub_tx_fifo_clear(i2s->txcif);
 }
 
 static void tegra30_i2s_start_capture(struct tegra30_i2s *i2s)
@@ -647,9 +646,8 @@ static void tegra30_i2s_stop_capture(struct tegra30_i2s *i2s)
 		i2s->reg_ctrl &= ~TEGRA30_I2S_CTRL_XFER_EN_RX;
 		tegra30_i2s_write(i2s, TEGRA30_I2S_CTRL, i2s->reg_ctrl);
 	}
-	while (tegra30_ahub_rx_fifo_is_busy(i2s->rxcif) && dcnt--)
+	while (tegra30_ahub_rx_fifo_is_enabled(i2s->id) && dcnt--)
 		udelay(100);
-	tegra30_ahub_rx_fifo_clear(i2s->rxcif);
 }
 
 static int tegra30_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
@@ -957,10 +955,7 @@ int tegra30_make_voice_call_connections(struct codec_config *codec_info,
 	tegra30_dam_enable(bb_i2s->dam_ifc, TEGRA30_DAM_ENABLE,
 		TEGRA30_DAM_CHIN0_SRC);
 
-	/* if this is the only user of i2s tx then enable it*/
-	if (codec_i2s->playback_ref_count == 1)
-		codec_i2s->reg_ctrl |= TEGRA30_I2S_CTRL_XFER_EN_TX;
-
+	codec_i2s->reg_ctrl |= TEGRA30_I2S_CTRL_XFER_EN_TX;
 	codec_i2s->reg_ctrl |= TEGRA30_I2S_CTRL_XFER_EN_RX;
 	tegra30_i2s_write(codec_i2s, TEGRA30_I2S_CTRL,
 		codec_i2s->reg_ctrl);

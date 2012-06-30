@@ -19,6 +19,8 @@
  */
 
 #include "nvhost_hwctx.h"
+#include "nvhost_channel.h"
+#include "nvhost_cdma.h"
 #include "dev.h"
 #include "host1x/host1x_hardware.h"
 #include "host1x/host1x_syncpt.h"
@@ -142,8 +144,9 @@ static void save_push_v1(struct nvhost_hwctx *nctx, struct nvhost_cdma *cdma)
 		ctx->restore_phys);
 	/* gather the save buffer */
 	nvhost_cdma_push_gather(cdma,
-			(void *)NVHOST_CDMA_PUSH_GATHER_CTXSAVE,
-			(void *)NVHOST_CDMA_PUSH_GATHER_CTXSAVE,
+			nvhost_get_host(nctx->channel->dev)->nvmap,
+			p->save_buf,
+			0,
 			nvhost_opcode_gather(p->save_size),
 			p->save_phys);
 }
@@ -423,6 +426,8 @@ struct nvhost_hwctx_handler *nvhost_gr3d_t30_ctxhandler_init(
 	p->save_phys = nvmap_pin(nvmap, p->save_buf);
 
 	setup_save(p, save_ptr);
+
+	nvmap_munmap(p->save_buf, save_ptr);
 
 	p->h.alloc = ctx3d_alloc_v1;
 	p->h.save_push = save_push_v1;

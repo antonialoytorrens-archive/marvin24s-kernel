@@ -40,9 +40,8 @@
 #include <mach/io.h>
 #include <mach/iomap.h>
 #include <mach/legacy_irq.h>
-#include <mach/nvmap.h>
+#include <linux/nvmap.h>
 
-#include "../../../../video/tegra/nvmap/nvmap.h"
 #include "../../../../video/tegra/host/host1x/host1x_syncpt.h"
 #include "../../../../video/tegra/host/dev.h"
 #include "../../../../video/tegra/host/nvhost_acm.h"
@@ -1172,7 +1171,8 @@ static const struct file_operations tegra_nvavp_fops = {
 	.unlocked_ioctl	= tegra_nvavp_ioctl,
 };
 
-static int tegra_nvavp_probe(struct nvhost_device *ndev)
+static int tegra_nvavp_probe(struct nvhost_device *ndev,
+	struct nvhost_device_id *id_table)
 {
 	struct nvavp_info *nvavp;
 	int irq;

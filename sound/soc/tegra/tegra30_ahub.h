@@ -500,10 +500,8 @@ extern int tegra30_ahub_set_rx_cif_source(enum tegra30_ahub_rxcif rxcif,
 					  enum tegra30_ahub_txcif txcif);
 extern int tegra30_ahub_unset_rx_cif_source(enum tegra30_ahub_rxcif rxcif);
 
-extern int tegra30_ahub_rx_fifo_is_busy(enum tegra30_ahub_rxcif rxcif);
-extern int tegra30_ahub_tx_fifo_is_busy(enum tegra30_ahub_txcif txcif);
-extern int tegra30_ahub_rx_fifo_clear(enum tegra30_ahub_rxcif rxcif);
-extern int tegra30_ahub_tx_fifo_clear(enum tegra30_ahub_txcif txcif);
+extern int tegra30_ahub_rx_fifo_is_enabled(int i2s_id);
+extern int tegra30_ahub_tx_fifo_is_enabled(int i2s_id);
 
 #ifdef CONFIG_PM
 extern int tegra30_ahub_apbif_resume(void);

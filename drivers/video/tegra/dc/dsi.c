@@ -1,7 +1,7 @@
 /*
  * drivers/video/tegra/dc/dsi.c
  *
- * Copyright (c) 2011, NVIDIA Corporation.
+ * Copyright (c) 2011-2012, NVIDIA Corporation.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -31,12 +31,16 @@
 #include <mach/dc.h>
 #include <mach/fb.h>
 #include <mach/csi.h>
+#include <mach/iomap.h>
 #include <linux/nvhost.h>
 
 #include "dc_reg.h"
 #include "dc_priv.h"
 #include "dsi_regs.h"
 #include "dsi.h"
+
+#define APB_MISC_GP_MIPI_PAD_CTRL_0 	(TEGRA_APB_MISC_BASE + 0x820)
+#define DSIB_MODE_ENABLE		0x2
 
 #define DSI_USE_SYNC_POINTS		1
 #define S_TO_MS(x)			(1000 * (x))
@@ -109,6 +113,7 @@ struct tegra_dc_dsi_data {
 
 	struct clk *dc_clk;
 	struct clk *dsi_clk;
+	struct clk *dsi_fixed_clk;
 	bool clk_ref;
 
 	struct mutex lock;
@@ -1453,6 +1458,7 @@ static void tegra_dsi_set_dsi_clk(struct tegra_dc *dc,
 	if (!dsi->clk_ref) {
 		dsi->clk_ref = true;
 		clk_enable(dsi->dsi_clk);
+		clk_enable(dsi->dsi_fixed_clk);
 		tegra_periph_reset_deassert(dsi->dsi_clk);
 	}
 	dsi->current_dsi_clk_khz = clk_get_rate(dsi->dsi_clk) / 1000;
@@ -1619,6 +1625,15 @@ static void tegra_dsi_pad_calibration(struct tegra_dc_dsi_data *dsi)
 	tegra_vi_csi_writel(val, CSI_CIL_PAD_CONFIG);
 }
 
+static void tegra_dsi_panelB_enable()
+{
+	unsigned int val;
+
+	val = readl(IO_ADDRESS(APB_MISC_GP_MIPI_PAD_CTRL_0));
+	val |= DSIB_MODE_ENABLE;
+	writel(val, (IO_ADDRESS(APB_MISC_GP_MIPI_PAD_CTRL_0)));
+}
+
 static int tegra_dsi_init_hw(struct tegra_dc *dc,
 						struct tegra_dc_dsi_data *dsi)
 {
@@ -1632,7 +1647,7 @@ static int tegra_dsi_init_hw(struct tegra_dc *dc,
 
 	tegra_dsi_set_dsi_clk(dc, dsi, dsi->target_lp_clk_khz);
 	if (dsi->info.dsi_instance) {
-		/* TODO:Set the misc register*/
+		tegra_dsi_panelB_enable();
 	}
 
 	/* TODO: only need to change the timing for bta */
@@ -1929,6 +1944,10 @@ static struct dsi_status *tegra_dsi_prepare_host_transmission(
 
 	if (tegra_dsi_host_busy(dsi)) {
 		tegra_dsi_soft_reset(dsi);
+
+		/* WAR to stop host write in middle */
+		tegra_dsi_writel(dsi, TEGRA_DSI_DISABLE, DSI_TRIGGER);
+
 		if (tegra_dsi_host_busy(dsi)) {
 			err = -EBUSY;
 			dev_err(&dc->ndev->dev, "DSI host busy\n");
@@ -2861,6 +2880,7 @@ static int tegra_dc_dsi_init(struct tegra_dc *dc)
 	void __iomem *base;
 	struct clk *dc_clk = NULL;
 	struct clk *dsi_clk = NULL;
+	struct clk *dsi_fixed_clk = NULL;
 	struct tegra_dsi_out *dsi_pdata;
 	int err;
 
@@ -2903,8 +2923,9 @@ static int tegra_dc_dsi_init(struct tegra_dc *dc)
 		dsi_clk = clk_get(&dc->ndev->dev, "dsib");
 	else
 		dsi_clk = clk_get(&dc->ndev->dev, "dsia");
+	dsi_fixed_clk = clk_get(&dc->ndev->dev, "dsi-fixed");
 
-	if (IS_ERR_OR_NULL(dsi_clk)) {
+	if (IS_ERR_OR_NULL(dsi_clk) || IS_ERR_OR_NULL(dsi_fixed_clk)) {
 		dev_err(&dc->ndev->dev, "dsi: can't get clock\n");
 		err = -EBUSY;
 		goto err_release_regs;
@@ -2924,6 +2945,7 @@ static int tegra_dc_dsi_init(struct tegra_dc *dc)
 	dsi->base_res = base_res;
 	dsi->dc_clk = dc_clk;
 	dsi->dsi_clk = dsi_clk;
+	dsi->dsi_fixed_clk = dsi_fixed_clk;
 
 	err = tegra_dc_dsi_cp_info(dsi, dsi_pdata);
 	if (err < 0)
@@ -2937,6 +2959,7 @@ static int tegra_dc_dsi_init(struct tegra_dc *dc)
 err_dsi_data:
 err_clk_put:
 	clk_put(dsi_clk);
+	clk_put(dsi_fixed_clk);
 err_release_regs:
 	release_resource(base_res);
 err_free_dsi:
@@ -3050,6 +3073,7 @@ static int tegra_dsi_deep_sleep(struct tegra_dc *dc,
 
 	/* Disable dsi source clock */
 	clk_disable(dsi->dsi_clk);
+	clk_disable(dsi->dsi_fixed_clk);
 
 	dsi->clk_ref = false;
 	dsi->enabled = false;
