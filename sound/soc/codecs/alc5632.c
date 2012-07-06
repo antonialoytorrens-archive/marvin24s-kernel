@@ -406,7 +406,7 @@ SND_SOC_DAPM_ADC("Right ADC", NULL, ALC5632_PWR_MANAG_ADD2, 6, 0),
 SND_SOC_DAPM_MIXER("DAC Left Channel", ALC5632_PWR_MANAG_ADD1, 15, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("DAC Right Channel",
 	ALC5632_PWR_MANAG_ADD1, 14, 0, NULL, 0),
-SND_SOC_DAPM_MIXER("I2S Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
+SND_SOC_DAPM_MIXER("I2S Mix", ALC5632_PWR_MANAG_ADD1, 11, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("Phone Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("Line Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
 SND_SOC_DAPM_MIXER("Voice Mix", SND_SOC_NOPM, 0, 0, NULL, 0),
@@ -427,7 +427,6 @@ SND_SOC_DAPM_PGA("MIC1 Pre Amp", ALC5632_PWR_MANAG_ADD3, 1, 0, NULL, 0),
 SND_SOC_DAPM_PGA("MIC2 Pre Amp", ALC5632_PWR_MANAG_ADD3, 0, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS1", ALC5632_PWR_MANAG_ADD1, 3, 0, NULL, 0),
 SND_SOC_DAPM_SUPPLY("MICBIAS2", ALC5632_PWR_MANAG_ADD1, 2, 0, NULL, 0),
-SND_SOC_DAPM_SUPPLY("I2S Pwr", ALC5632_PWR_MANAG_ADD1, 11, 0, NULL, 0),
 
 SND_SOC_DAPM_PGA_E("D Amp", ALC5632_PWR_MANAG_ADD2, 14, 0, NULL, 0,
 	amp_mixer_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
@@ -458,7 +457,6 @@ static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 	{"Right DAC", NULL, "AIFRXR"},
 
 	/* virtual mixer - mixes left & right channels */
-	{"I2S Mix",	NULL,	"I2S Pwr"},
 	{"I2S Mix",	NULL,	"Left DAC"},
 	{"I2S Mix",	NULL,	"Right DAC"},
 	{"Line Mix",	NULL,	"Right LineIn"},
@@ -576,7 +574,6 @@ static const struct snd_soc_dapm_route alc5632_dapm_routes[] = {
 	{"VAIFTX", NULL,				"ADCR Mux"},
 
 	/* Digital I2S out */
-	{"I2SOut Mux", NULL, "I2S Pwr"},
 	{"I2SOut Mux", "ADC LR", "ADCLR"},
 	{"I2SOut Mux", "Voice Stereo Digital", "VAIFRX"},
 	{"AIFTXL", NULL, "I2SOut Mux"},
