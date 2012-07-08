@@ -820,7 +820,7 @@ static void nvmap_heap_compact(struct nvmap_heap *heap,
 		}
 		ptr = ptr_next;
 	}
-	pr_err("Relocated %d chunks\n", relocation_count);
+	pr_info("Relocated %d chunks\n", relocation_count);
 }
 #endif
 
@@ -859,11 +859,11 @@ struct nvmap_heap_block *nvmap_heap_alloc(struct nvmap_heap *h,
 	len = ALIGN(len, PAGE_SIZE);
 	b = do_heap_alloc(h, len, align, prot, 0);
 	if (!b) {
-		pr_err("Compaction triggered!\n");
+		pr_info("Compaction triggered!\n");
 		nvmap_heap_compact(h, len, true);
 		b = do_heap_alloc(h, len, align, prot, 0);
 		if (!b) {
-			pr_err("Full compaction triggered!\n");
+			pr_info("Full compaction triggered!\n");
 			nvmap_heap_compact(h, len, false);
 			b = do_heap_alloc(h, len, align, prot, 0);
 		}
