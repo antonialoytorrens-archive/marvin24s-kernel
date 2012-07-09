@@ -194,7 +194,6 @@ static struct tegra_usb_phy_platform_ops ulpi_link_plat_ops = {
 	.open = ulpi_link_platform_open,
 };
 
-#if 0
 static struct tegra_usb_platform_data tegra_udc_pdata = {
 	.port_otg = false,
 	.has_hostpc = false,
@@ -218,7 +217,6 @@ static struct tegra_usb_platform_data tegra_udc_pdata = {
 		.xcvr_use_fuses = 1,
 	},
 };
-#endif
 
 static struct tegra_usb_platform_data tegra_ehci2_ulpi_link_pdata = {
 	.port_otg = false,
@@ -464,8 +462,8 @@ static void paz00_i2c_init(void)
 
 static void paz00_usb_init(void)
 {
-/*	tegra_udc_device.dev.platform_data = &tegra_udc_pdata;
-	platform_device_register(&tegra_udc_device); */
+	tegra_udc_device.dev.platform_data = &tegra_udc_pdata;
+	platform_device_register(&tegra_udc_device);
 
 	tegra_ehci2_device.dev.platform_data = &tegra_ehci2_ulpi_link_pdata;
 	platform_device_register(&tegra_ehci2_device);
