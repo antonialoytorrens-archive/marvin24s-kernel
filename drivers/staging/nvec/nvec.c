@@ -680,8 +680,6 @@ static void tegra_init_i2c_slave(struct nvec_chip *nvec)
 	writel(0, nvec->base + I2C_SL_ADDR2);
 
 	enable_irq(nvec->irq);
-
-	clk_disable(nvec->i2c_clk);
 }
 
 static void nvec_disable_i2c_slave(struct nvec_chip *nvec)
@@ -798,8 +796,6 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 	disable_irq(nvec->irq);
 
 	tegra_init_i2c_slave(nvec);
-
-	clk_enable(i2c_clk);
 
 	gpio_direction_output(nvec->gpio, 1);
 	gpio_set_value(nvec->gpio, 1);
