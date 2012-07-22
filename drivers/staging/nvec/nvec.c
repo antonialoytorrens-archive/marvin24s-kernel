@@ -83,6 +83,12 @@ static const unsigned char EC_GET_FIRMWARE_VERSION[2]    = "\x07\x15";
  */
 static struct nvec_chip *nvec_power_handle;
 
+static inline void nvec_writel(struct nvec_chip *nvec, u32 val, unsigned long reg)
+{
+	writel(val, nvec->base + reg);
+	readl(nvec->base + reg);
+}
+
 /**
  * nvec_register_notifier - Register a notifier with nvec
  * @nvec: A &struct nvec_chip
@@ -535,7 +541,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 	if ((status & RNW) == 0) {
 		received = readl(nvec->base + I2C_SL_RCVD);
 		if (status & RCVD)
-			writel(0, nvec->base + I2C_SL_RCVD);
+			nvec_writel(nvec, 0, I2C_SL_RCVD);
 	}
 
 	if (status == (I2C_SL_IRQ | RCVD))
@@ -628,7 +634,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 
 	/* Send data if requested, but not on end of transmission */
 	if ((status & (RNW | END_TRANS)) == RNW)
-		writel(to_send, nvec->base + I2C_SL_RCVD);
+		nvec_writel(nvec, to_send, I2C_SL_RCVD);
 
 	/* If we have send the first byte */
 	if (status == (I2C_SL_IRQ | RNW | RCVD))
@@ -645,14 +651,7 @@ static irqreturn_t nvec_interrupt(int irq, void *dev)
 		status & RCVD ? " RCVD" : "",
 		status & RNW ? " RNW" : "");
 
-
-	/*
-	 * TODO: A correct fix needs to be found for this.
-	 *
-	 * We experience less incomplete messages with this delay than without
-	 * it, but we don't know why. Help is appreciated.
-	 */
-	udelay(100);
+	nvec_writel(nvec, status, I2C_SL_STATUS);
 
 	return IRQ_HANDLED;
 }
