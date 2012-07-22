@@ -124,10 +124,10 @@ static int nvec_mouse_suspend(struct platform_device *pdev, pm_message_t state)
 	struct nvec_chip *nvec = dev_get_drvdata(pdev->dev.parent);
 
 	/* disable mouse */
-	nvec_write_async(nvec, "\x06\xf4", 2);
+	nvec_write_async(nvec, "\x06\x01\xf5\x01", 2);
 
 	/* send cancel autoreceive */
-	nvec_write_async(nvec, "\x06\x04", 2);
+	ps2_stopstreaming(ps2_dev.ser_dev);
 
 	return 0;
 }
@@ -139,7 +139,7 @@ static int nvec_mouse_resume(struct platform_device *pdev)
 	ps2_startstreaming(ps2_dev.ser_dev);
 
 	/* enable mouse */
-	nvec_write_async(nvec, "\x06\xf5", 2);
+	nvec_write_async(nvec, "\x06\x01\xf4\x01", 3);
 
 	return 0;
 }
