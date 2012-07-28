@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <asm/mach-types.h>
 #include <linux/nvhost.h>
+#include <linux/nvmap.h>
 #include <linux/gpio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pwm_backlight.h>
@@ -26,7 +27,6 @@
 #include <mach/dc.h>
 #include <mach/irqs.h>
 #include <mach/iomap.h>
-#include <mach/nvmap.h>
 #include <mach/tegra_fb.h>
 #include <mach/fb.h>
 
@@ -386,7 +386,7 @@ int __init paz00_panel_init(void) {
 #endif
 
 	/* Copy the bootloader fb to the fb. */
-	if (tegra_bootloader_fb_start != NULL)
+	if (tegra_bootloader_fb_start)
 		tegra_move_framebuffer(tegra_fb_start, tegra_bootloader_fb_start,
 			min(tegra_fb_size, tegra_bootloader_fb_size));
 
