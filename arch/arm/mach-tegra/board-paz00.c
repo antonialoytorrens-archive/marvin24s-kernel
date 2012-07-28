@@ -487,11 +487,11 @@ static void paz00_i2c_init(void)
 static void paz00_usb_init(void)
 {
 	/* OTG should be the first to be registered */
-	tegra_otg_device.dev.platform_data = &tegra_otg_pdata;
-	platform_device_register(&tegra_otg_device);
+//	tegra_otg_device.dev.platform_data = &tegra_otg_pdata;
+//	platform_device_register(&tegra_otg_device);
 
-	tegra_udc_device.dev.platform_data = &tegra_udc_pdata;
-	platform_device_register(&tegra_udc_device);
+//	tegra_udc_device.dev.platform_data = &tegra_udc_pdata;
+//	platform_device_register(&tegra_udc_device);
 
 	tegra_ehci2_device.dev.platform_data = &tegra_ehci2_ulpi_link_pdata;
 	platform_device_register(&tegra_ehci2_device);
