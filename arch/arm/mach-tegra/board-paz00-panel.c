@@ -385,10 +385,15 @@ int __init paz00_panel_init(void) {
 	}
 #endif
 
+/* disable copy for now because it corrupts our nice Toshiba logo
+ * This can be readded after u-boot is supported
+ */
+#if 0
 	/* Copy the bootloader fb to the fb. */
 	if (tegra_bootloader_fb_start)
 		tegra_move_framebuffer(tegra_fb_start, tegra_bootloader_fb_start,
 			min(tegra_fb_size, tegra_bootloader_fb_size));
+#endif
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
 	if (!err)
