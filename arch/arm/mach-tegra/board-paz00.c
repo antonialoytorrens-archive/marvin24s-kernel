@@ -542,6 +542,9 @@ static struct tegra_sdhci_platform_data sdhci_pdata4 = {
 	.wp_gpio	= -1,
 	.power_gpio	= -1,
 	.is_8bit	= 1,
+	.mmc_data = {
+		.built_in = 1,
+	},
 };
 
 static void __init tegra_paz00_init(void)
