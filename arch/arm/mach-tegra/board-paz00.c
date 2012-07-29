@@ -573,7 +573,7 @@ void __init tegra_paz00_reserve(void)
 	tegra_reserve(SZ_128M, SZ_8M, SZ_16M);
 }
 
-MACHINE_START(PAZ00, "Toshiba AC100 / Dynabook AZ")
+MACHINE_START(PAZ00, "paz00")
 	.boot_params	= 0x00000100,
 	.fixup		= tegra_paz00_fixup,
 	.map_io         = tegra_map_common_io,
