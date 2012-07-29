@@ -759,9 +759,10 @@ static int __devinit tegra_nvec_probe(struct platform_device *pdev)
 		goto err_iounmap;
 	}
 
-	i2c_clk = clk_get_sys("tegra-i2c.2", "i2c-fast");
+	i2c_clk = clk_get(&pdev->dev, NULL);
 	if (IS_ERR(i2c_clk)) {
-		dev_err(nvec->dev, "failed to get controller clock\n");
+		dev_err(nvec->dev, "failed to get bus clock\n");
+		ret = PTR_ERR(i2c_clk);
 		goto err_iounmap;
 	}
 
