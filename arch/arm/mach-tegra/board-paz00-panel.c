@@ -17,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/resource.h>
 #include <linux/platform_device.h>
+#include <linux/earlysuspend.h>
 #include <asm/mach-types.h>
 #include <linux/nvhost.h>
 #include <linux/nvmap.h>
@@ -337,6 +338,39 @@ static struct platform_device *paz00_gfx_devices[] __initdata = {
 	&paz00_backlight_device,
 };
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+/* put early_suspend/late_resume handlers here for the display in order
+ * to keep the code out of the display driver, keeping it closer to upstream
+ */
+struct early_suspend paz00_panel_early_suspender;
+
+static void paz00_panel_early_suspend(struct early_suspend *h)
+{
+        /* power down LCD, add use a black screen for HDMI */
+        if (num_registered_fb > 0)
+                fb_blank(registered_fb[0], FB_BLANK_POWERDOWN);
+        if (num_registered_fb > 1)
+                fb_blank(registered_fb[1], FB_BLANK_NORMAL);
+#ifdef CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
+        cpufreq_store_default_gov();
+        if (cpufreq_change_gov(cpufreq_conservative_gov))
+                pr_err("Early_suspend: Error changing governor to %s\n",
+                                cpufreq_conservative_gov);
+#endif
+}
+
+static void paz00_panel_late_resume(struct early_suspend *h)
+{
+        unsigned i;
+#ifdef CONFIG_TEGRA_CONVSERVATIVE_GOV_ON_EARLYSUPSEND
+        if (cpufreq_restore_default_gov())
+                pr_err("Early_suspend: Unable to restore governor\n");
+#endif
+        for (i = 0; i < num_registered_fb; i++)
+                fb_blank(registered_fb[i], FB_BLANK_UNBLANK);
+}
+#endif
+
 int __init paz00_panel_init(void) {
 	int err;
 	struct resource *res;
@@ -356,6 +390,13 @@ int __init paz00_panel_init(void) {
 	gpio_request(paz00_hdmi_hpd, "hdmi_hpd");
 	gpio_direction_input(paz00_hdmi_hpd);
 	tegra_gpio_enable(paz00_hdmi_hpd);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+        paz00_panel_early_suspender.suspend = paz00_panel_early_suspend;
+        paz00_panel_early_suspender.resume = paz00_panel_late_resume;
+        paz00_panel_early_suspender.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
+        register_early_suspend(&paz00_panel_early_suspender);
+#endif
 
 #if defined(CONFIG_TEGRA_NVMAP)
 	paz00_carveouts[1].base = tegra_carveout_start;
