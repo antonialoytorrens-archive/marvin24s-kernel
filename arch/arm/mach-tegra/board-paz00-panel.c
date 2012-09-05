@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <asm/mach-types.h>
 #include <linux/nvhost.h>
+#include <linux/nvmap.h>
 #include <linux/gpio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pwm_backlight.h>
@@ -26,13 +27,13 @@
 #include <mach/dc.h>
 #include <mach/irqs.h>
 #include <mach/iomap.h>
-#include <mach/nvmap.h>
 #include <mach/tegra_fb.h>
 #include <mach/fb.h>
 
 #include "devices.h"
 #include "gpio-names.h"
 #include "board.h"
+#include "tegra2_host1x_devices.h"
 
 #define paz00_bl_enb		TEGRA_GPIO_PU4
 #define paz00_lvds_shutdown	TEGRA_GPIO_PM6
@@ -363,7 +364,7 @@ int __init paz00_panel_init(void) {
 #endif
 
 #ifdef CONFIG_TEGRA_GRHOST
-	err = nvhost_device_register(&tegra_grhost_device);
+	err = tegra2_register_host1x_devices();
 	if (err)
 		return err;
 #endif
