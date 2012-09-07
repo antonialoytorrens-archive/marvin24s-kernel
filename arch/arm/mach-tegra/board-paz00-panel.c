@@ -332,6 +332,9 @@ static struct platform_device *paz00_gfx_devices[] __initdata = {
 	&paz00_nvmap_device,
 #endif
 	&tegra_pwfm0_device,
+};
+
+static struct platform_device *paz00_backlight_devices[] __initdata = {
 	&paz00_backlight_device,
 };
 
@@ -397,6 +400,9 @@ int __init paz00_panel_init(void) {
 		err = nvhost_device_register(&paz00_disp2_device);
 #endif
 
+	if (!err)
+		err = platform_add_devices(paz00_backlight_devices,
+			ARRAY_SIZE(paz00_backlight_devices));
+
 	return err;
 }
-
