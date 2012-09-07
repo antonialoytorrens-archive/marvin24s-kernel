@@ -55,6 +55,7 @@
 #include "gpio-names.h"
 #include "pm.h"
 #include "../../../drivers/staging/nvec/nvec.h"
+#include "wakeups-t2.h"
 
 #define ATAG_NVIDIA	0x41000801
 #define MAX_MEMHDL	8
@@ -397,9 +398,21 @@ static struct gpio_keys_button paz00_gpio_keys_buttons[] = {
 	},
 };
 
+#define PMC_WAKE_STATUS 0x14
+
+static int paz00_wakeup_key(void)
+{
+	unsigned long status =
+		readl(IO_ADDRESS(TEGRA_PMC_BASE) + PMC_WAKE_STATUS);
+
+	return (status & (1 << TEGRA_WAKE_GPIO_PV2)) ?
+		KEY_POWER : KEY_RESERVED;
+}
+
 static struct gpio_keys_platform_data paz00_gpio_keys = {
 	.buttons	= paz00_gpio_keys_buttons,
 	.nbuttons	= ARRAY_SIZE(paz00_gpio_keys_buttons),
+	.wakeup_key	= paz00_wakeup_key,
 };
 
 static struct platform_device gpio_keys_device = {
