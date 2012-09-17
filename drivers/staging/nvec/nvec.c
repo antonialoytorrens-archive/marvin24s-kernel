@@ -869,18 +869,29 @@ static int tegra_nvec_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct nvec_chip *nvec = platform_get_drvdata(pdev);
 	struct nvec_msg *msg;
+	int ret = 0;
 
 	dev_dbg(nvec->dev, "suspending\n");
 
 	/* keep these sync or you'll break suspend */
 	msg = nvec_write_sync(nvec, EC_DISABLE_EVENT_REPORTING, 3);
+	if (!msg) {
+		ret = -1;
+		goto fail;
+	}
 	nvec_msg_free(nvec, msg);
 	msg = nvec_write_sync(nvec, "\x04\x02", 2);
+	if (!msg) {
+		ret = -1;
+		goto fail;
+	}
 	nvec_msg_free(nvec, msg);
+fail:
+	if (ret)
+		pr_err("nvec failed in suspend - probalby ec timeout\n");
 
 	nvec_disable_i2c_slave(nvec);
-
-	return 0;
+	return ret;
 }
 
 static int tegra_nvec_resume(struct platform_device *pdev)
