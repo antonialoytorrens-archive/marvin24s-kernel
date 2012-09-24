@@ -89,6 +89,9 @@ config SND_SOC_TEGRA_ALC5632
 	depends on MACH_HAS_SND_SOC_TEGRA_ALC5632
 	select SND_SOC_TEGRA_I2S
 	select SND_SOC_ALC5632
+	select SND_SOC_TEGRA20_SPDIF if ARCH_TEGRA_2x_SOC
+        select SND_SOC_TEGRA30_SPDIF if ARCH_TEGRA_3x_SOC
+        select SND_SOC_SPDIF
 	help
 	  Say Y or M here if you want to add support for SoC audio on the
 	  Toshiba AC100 netbook.

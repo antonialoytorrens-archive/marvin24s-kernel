@@ -102,6 +102,51 @@ static int tegra_alc5632_asoc_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int tegra_spdif_hw_params(struct snd_pcm_substream *substream,
+					struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct tegra_alc5632 *alc5632 = snd_soc_card_get_drvdata(card);
+	int srate, mclk, min_mclk;
+	int err;
+
+	srate = params_rate(params);
+	switch (srate) {
+	case 11025:
+	case 22050:
+	case 44100:
+	case 88200:
+		mclk = 11289600;
+		break;
+	case 8000:
+	case 16000:
+	case 32000:
+	case 48000:
+	case 64000:
+	case 96000:
+		mclk = 12288000;
+		break;
+	default:
+		return -EINVAL;
+	}
+	min_mclk = 128 * srate;
+
+	err = tegra_asoc_utils_set_rate(&alc5632->util_data, srate, mclk);
+	if (err < 0) {
+		if (!(alc5632->util_data.set_mclk % min_mclk))
+			mclk = alc5632->util_data.set_mclk;
+		else {
+			dev_err(card->dev, "Can't configure clocks\n");
+			return err;
+		}
+	}
+
+	tegra_asoc_utils_lock_clk_rate(&alc5632->util_data, 1);
+
+	return 0;
+}
+
 static int tegra_alc5632_hw_free(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -114,6 +159,11 @@ static int tegra_alc5632_hw_free(struct snd_pcm_substream *substream)
 
 static struct snd_soc_ops tegra_alc5632_asoc_ops = {
 	.hw_params = tegra_alc5632_asoc_hw_params,
+	.hw_free = tegra_alc5632_hw_free,
+};
+
+static struct snd_soc_ops tegra_spdif_ops = {
+	.hw_params = tegra_spdif_hw_params,
 	.hw_free = tegra_alc5632_hw_free,
 };
 
@@ -217,22 +267,33 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static struct snd_soc_dai_link tegra_alc5632_dai = {
-	.name = "ALC5632",
-	.stream_name = "ALC5632 PCM",
-	.codec_name = "alc5632.0-001e",
-	.platform_name = "tegra-pcm-audio",
-	.cpu_dai_name = "tegra20-i2s.0",
-	.codec_dai_name = "alc5632-hifi",
-	.init = tegra_alc5632_asoc_init,
-	.ops = &tegra_alc5632_asoc_ops,
+static struct snd_soc_dai_link tegra_alc5632_dai[] = {
+	{
+		.name = "ALC5632",
+		.stream_name = "ALC5632 PCM",
+		.codec_name = "alc5632.0-001e",
+		.platform_name = "tegra-pcm-audio",
+		.cpu_dai_name = "tegra20-i2s.0",
+		.codec_dai_name = "alc5632-hifi",
+		.init = tegra_alc5632_asoc_init,
+		.ops = &tegra_alc5632_asoc_ops,
+	},
+	{
+		.name = "SPDIF",
+		.stream_name = "SPDIF PCM",
+		.codec_name = "spdif-dit.0",
+		.platform_name = "tegra-pcm-audio",
+		.cpu_dai_name = "tegra20-spdif",
+		.codec_dai_name = "dit-hifi",
+		.ops = &tegra_spdif_ops,
+	},
 };
 
 static struct snd_soc_card snd_soc_tegra_alc5632 = {
 	.name = "tegra-alc5632",
 	.owner = THIS_MODULE,
-	.dai_link = &tegra_alc5632_dai,
-	.num_links = 1,
+	.dai_link = tegra_alc5632_dai,
+	.num_links = ARRAY_SIZE(tegra_alc5632_dai),
 	.controls = tegra_alc5632_controls,
 	.num_controls = ARRAY_SIZE(tegra_alc5632_controls),
 	.dapm_widgets = tegra_alc5632_dapm_widgets,

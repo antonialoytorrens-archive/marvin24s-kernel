@@ -514,7 +514,9 @@ static struct platform_device *paz00_devices[] __initdata = {
 	&tegra_gart_device,
 	&audio_device,
 	&tegra_i2s_device1,
+	&tegra_spdif_device,
 	&tegra_das_device,
+	&spdif_dit_device,
 	&tegra_pcm_device,
 	&tegra_avp_device,
 };
