@@ -578,6 +578,7 @@ static __initdata struct tegra_clk_init_table paz00_clk_init_table[] = {
 	{ "audio",	"pll_a_out0",	11289600,	true  },
 	{ "audio_2x",	"audio",	22579200,	false },
 	{ "i2s1",	"pll_a_out0",	0	,	false },
+	{ "spdif_out",  "pll_a_out0",   0,              false},
 
 	{ NULL,		NULL,		0,		0     },
 };
