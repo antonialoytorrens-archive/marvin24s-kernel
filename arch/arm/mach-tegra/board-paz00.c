@@ -347,7 +347,7 @@ static struct mfd_cell paz00_nvec_devices[] = {
 		.id = 2,
 	},
 	{
-		.name = "nvec-leds",
+		.name = "nvec-paz00",
 		.id = 1,
 	},
 	{
