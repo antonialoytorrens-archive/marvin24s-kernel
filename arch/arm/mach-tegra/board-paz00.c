@@ -503,12 +503,12 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 
 static struct platform_device *paz00_devices[] __initdata = {
 	&debug_uart,
+	&nvec_device,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
 	&tegra_pmu_device,
 	&wifi_rfkill_device,
 	&leds_gpio,
-	&nvec_device,
 	&gpio_keys_device,
 	&tegra_gart_device,
 	&audio_device,
