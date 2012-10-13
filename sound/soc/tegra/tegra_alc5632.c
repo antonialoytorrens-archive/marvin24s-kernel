@@ -198,11 +198,11 @@ static int tegra_alc5632_asoc_init(struct snd_soc_pcm_runtime *rtd)
 	if (gpio_is_valid(pdata->gpio_spk_en)) {
 		ret = gpio_request(pdata->gpio_spk_en, "spk_en");
 		if (ret) {
-			dev_err(card->dev, "cannot get spk_en gpio\n");
-			return ret;
+			dev_warn(card->dev, "cannot get spk_en gpio\n");
+		} else {
+			alc5632->gpio_requested |= GPIO_SPK_EN;
+			alc5632->gpio_spk_en = pdata->gpio_spk_en;
 		}
-		alc5632->gpio_requested |= GPIO_SPK_EN;
-		alc5632->gpio_spk_en = pdata->gpio_spk_en;
 	}
 
 	snd_soc_dapm_nc_pin(dapm, "AUXOUT");
