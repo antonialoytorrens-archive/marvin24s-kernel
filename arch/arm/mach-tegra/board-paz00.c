@@ -332,6 +332,26 @@ static struct platform_device leds_gpio = {
 #define NVEC_GPIO_BASE TEGRA_NR_GPIOS + 4 /* 4 is number of tps6586x gpios */
 static int nvec_gpio_base = NVEC_GPIO_BASE;
 
+static struct nvec_events_platform_data nvec_ev_pdata[] = {
+	{
+		.name = "lid switch",
+		.input_type = EV_SW,
+		.key_code = SW_LID,
+		.status_mask = BIT(7),
+		.enabled = true,
+	},
+	{
+		.name = "power key",
+		.input_type = EV_KEY,
+		.key_code = KEY_POWER,
+		.status_mask = BIT(1),
+		.enabled = true,
+	},
+	{	/* keep last entry */
+		.status_mask = 0,
+	},
+};
+
 static struct mfd_cell paz00_nvec_devices[] = {
 	{
 		.name = "nvec-kbd",
@@ -356,8 +376,10 @@ static struct mfd_cell paz00_nvec_devices[] = {
 		.pdata_size = sizeof(int),
 	},
 	{
-		.name   = "nvec-event",
-		.id     = 1,
+		.name = "nvec-event",
+		.id = 1,
+		.platform_data = &nvec_ev_pdata,
+		.pdata_size = sizeof(nvec_ev_pdata),
 	},
 };
 

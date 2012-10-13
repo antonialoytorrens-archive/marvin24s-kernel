@@ -134,6 +134,24 @@ struct nvec_platform_data {
 };
 
 /**
+ * struct nvec_events_platform_data - platform data for events child
+ * contains an array of events to enable
+ * @name: name of the event
+ * @input_type: linux type, e.g. EV_SW, EV_KEY
+ * @key_code: linux key code to report, e.g. SW_LID, KEY_POWER
+ * @event_mask: 32bit bitfield for nvec specifing which event to enable
+ * @enabled: is the event enabled or disabled (true or false)
+ */
+
+struct nvec_events_platform_data {
+	char name[32];
+	int input_type;
+	int key_code;
+	unsigned long status_mask;
+	bool enabled;
+};
+
+/**
  * struct nvec_chip - A single connection to an NVIDIA Embedded controller
  * @dev: The device
  * @gpio: GPIO number of the EC request pin
