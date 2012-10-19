@@ -432,7 +432,7 @@ static int paz00_wakeup_key(void)
 	unsigned long status =
 		readl(IO_ADDRESS(TEGRA_PMC_BASE) + PMC_WAKE_STATUS);
 
-	return (status & (1 << TEGRA_WAKE_GPIO_PV2)) ?
+	return (status & (1 << TEGRA_WAKE_GPIO_PJ7)) ?
 		KEY_POWER : KEY_RESERVED;
 }
 
