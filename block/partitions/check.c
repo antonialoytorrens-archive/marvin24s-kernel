@@ -19,6 +19,8 @@
 
 #include "check.h"
 
+#include "tegrapart.h"
+#include "nvtegra.h"
 #include "acorn.h"
 #include "amiga.h"
 #include "atari.h"
@@ -41,6 +43,12 @@ static int (*check_part[])(struct parsed_partitions *) = {
 	 * Probe partition formats with tables at disk address 0
 	 * that also have an ADFS boot block at 0xdc0.
 	 */
+#ifdef CONFIG_NVTEGRAPARTITION
+	nvtegra_partition,
+#endif
+#ifdef CONFIG_TEGRAPART_PARTITION
+	tegrapart_partition,
+#endif
 #ifdef CONFIG_ACORN_PARTITION_ICS
 	adfspart_check_ICS,
 #endif
