@@ -1,0 +1,253 @@
+Runtime Interpreted Power Sequences
+===================================
+
+Problem
+-------
+Very commonly, boards need the help of out-of-driver code to turn some of their
+devices on and off. For instance, SoC boards might use a GPIO (abstracted to a
+regulator or not) to control the power supply of a backlight. The GPIO that
+should be used, however, as well as the exact power sequence that may also
+involve other resources, is board-dependent and thus unknown to the driver.
+
+This was previously addressed by having hooks in the device's platform data that
+are called whenever the state of the device might need a power status change.
+This approach, however, introduces board-dependant code into the kernel and is
+not compatible with the device tree.
+
+The Runtime Interpreted Power Sequences (or power sequences for short) aim at
+turning this code into platform data or device tree nodes. Power sequences are
+described using a simple format and run by a lightweight interpreter whenever
+needed. This allows device drivers to work without power callbacks and makes the
+kernel less board-dependant.
+
+What are Power Sequences?
+-------------------------
+A power sequence is an array of sequential steps describing an action to be
+performed on a resource. The supported resources and actions operations are:
+- delay (just wait for a given number of microseconds)
+- GPIO (set to 0 or 1)
+- regulator (enable or disable)
+- PWM (enable or disable)
+
+When a power sequence is run, its steps is executed one after the other until
+one step fails or the end of the sequence is reached.
+
+Power sequences are named, and grouped into "sets" which contain all the
+sequences of a device as well as the resources they use.
+
+Power sequences can be declared as platform data or in the device tree.
+
+Platform Data Format
+--------------------
+All relevant data structures for declaring power sequences are located in
+include/linux/power_seq.h.
+
+The platform data for a device may include an instance of platform_power_seq_set
+which references all the power sequences used for a device. The power sequences
+reference resources in their steps, and setup the union member that corresponds
+to the resource's type. Resources, similarly, have a union which relevant member
+depends on their type.
+
+Note that the only "platform data" per se here is platform_power_seq_set. Other
+structures (power_seq and power_seq_resource) will be used at runtime and thus
+*must* survive initialization, so do not declare them with the __initdata
+attribute.
+
+The following example should make it clear how the platform data for power
+sequences is defined. It declares two power sequences named "power-on" and
+"power-off" for a backlight device. The "power-on" sequence enables the "power"
+regulator of the device, waits for 10ms, and then enables PWM "backlight" and
+set GPIO 28 to 1. "power-off" does the opposite.
+
+struct power_seq_resource reg_res = {
+	.type = POWER_SEQ_REGULATOR,
+	.regulator.id = "power",
+};
+
+struct power_seq_resource gpio_res = {
+	.type = POWER_SEQ_GPIO,
+	.gpio.gpio = 28,
+};
+
+struct power_seq_resource pwm_res = {
+	.type = POWER_SEQ_PWM,
+	.pwm.id = "backlight",
+};
+
+struct power_seq_resource delay_res = {
+	.type = POWER_SEQ_DELAY,
+};
+
+struct power_seq power_on_seq = {
+	.id = "power-on",
+	.num_steps = 4,
+	.steps = {
+		{
+			.resource = &reg_res,
+			.regulator.enable = true,
+		}, {
+			.resource = &delay_res,
+			.delay.delay = 10000,
+		}, {
+			.resource = &pwm_res,
+			.pwm.enable = true,
+		}, {
+			.resource = &gpio_res,
+			.gpio.value = 1,
+		},
+	},
+};
+
+struct power_seq power_off_seq = {
+	.id = "power-off",
+	.num_steps = 4,
+	.steps = {
+		{
+			.resource = &gpio_res,
+			.gpio.value = 0,
+		}, {
+			.resource = &pwm_res,
+			.pwm.enable = false,
+		}, {
+			.resource = &delay_res,
+			.delay.delay = 10000,
+		}, {
+			.resource = &reg_res,
+			.regulator.enable = false,
+		},
+	},
+};
+
+struct platform_power_seq_set backlight_power_seqs __initdata = {
+	.num_seqs = 2,
+	.seqs = {
+		&power_on_seq,
+		&power_off_seq,
+	},
+};
+
+"backlight_power_seqs" can then be passed to power_seq_set_add_sequences() in
+order to add the sequences to a set and allocate all the necessary resources.
+More on this later in this document.
+
+Device Tree
+-----------
+Power sequences can also be encoded as device tree nodes. The following
+properties and nodes are equivalent to the platform data defined previously:
+
+pwms = <&pwm 2 5000000>;
+pwm-names = "backlight";
+power-supply = <&vdd_bl_reg>;
+
+power-sequences {
+	power-on {
+		step0 {
+			type = "regulator";
+			id = "power";
+			enable;
+		};
+		step1 {
+			type = "delay";
+			delay = <10000>;
+		};
+		step2 {
+			type = "pwm";
+			id = "backlight";
+			enable;
+		};
+		step3 {
+			type = "gpio";
+			gpio = <&gpio 28 0>;
+			value = <1>;
+		};
+	};
+
+	power-off {
+		step0 {
+			type = "gpio";
+			gpio = <&gpio 28 0>;
+			value = <0>;
+		};
+		step1 {
+			type = "pwm";
+			id = "backlight";
+			disable;
+		};
+		step2 {
+			type = "delay";
+			delay = <10000>;
+		};
+		step3 {
+			type = "regulator";
+			id = "power";
+			disable;
+		};
+	};
+};
+
+See Documentation/devicetree/bindings/power/power_seq.txt for the complete
+syntax of the DT bindings.
+
+Use by Drivers and Resources Management
+---------------------------------------
+Power sequences make use of resources that must be properly allocated and
+managed. The power_seq_set structure manages the sequences and resources for a
+particular device. A driver willing to use power sequences will thus declare one
+instance of power_seq_set per device and initialize it at probe time:
+
+struct my_device_data {
+	struct device *dev;
+	...
+	struct power_set_set power_seqs;
+	...
+};
+
+power_seq_set_init(&my_device->power_seqs, my_device->dev);
+
+The power_seq_set_add_sequence() and power_seq_set_add_sequences() functions are
+then used to add one or several sequences to a set. These functions will also
+allocate all the resources used by the sequence(s) and make sure they are ready
+to be run. All resources are allocated through devm and will thus be freed when
+the set's device is removed.
+
+  int power_seq_set_add_sequence(struct power_seq_set *set,
+			         struct power_seq *seq);
+  int power_seq_set_add_sequences(struct power_seq_set *set,
+				  struct platform_power_seq_set *seqs);
+
+Power sequences added to a set can then be resolved by their name using
+power_seq_lookup():
+
+  struct power_seq *power_seq_lookup(struct power_seq_set *seqs,
+				     const char *id);
+
+power_seq_lookup() returns a ready-to-run pointer to the power sequence which
+name matches the id parameter.
+
+A retrieved power sequence can then be executed by power_seq_run:
+
+  int power_seq_run(struct power_seq *seq);
+
+It returns 0 if the sequence has successfully been run, or an error code if a
+problem occurred.
+
+Sometimes, you may want to browse the list of resources allocated for the
+sequences of a device, for instance to ensure that a resource of a given type is
+present. The power_seq_for_each_resource() macro does this:
+
+  power_seq_for_each_resource(pos, seqs)
+
+Here "pos" will be a pointer to a struct power_seq_resource. This structure
+contains the type of the resource, the information used for identifying it, and
+the resolved resource itself.
+
+Finally, users of the device tree can obtain a platform_power_seq_set structure
+built from the device's node using devm_of_parse_power_seq_set:
+
+  struct platform_power_seq_set *devm_of_parse_power_seq_set(struct device *dev);
+
+The power sequences must be declared under a "power-sequences" node directly
+declared under the device's node. Detailed syntax contained in Documentation/devicetree/bindings/power/power_seq.txt. As the function name
+states, all memory is allocated through devm. The returned
+platform_power_seq_set can be freed after being added to a set, but the
+sequences themselves must be preserved until they are freed by devm.
