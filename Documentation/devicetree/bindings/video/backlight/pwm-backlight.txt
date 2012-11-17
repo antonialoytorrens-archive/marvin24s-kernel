@@ -13,16 +13,73 @@ Required properties:
 
 Optional properties:
   - pwm-names: a list of names for the PWM devices specified in the
-               "pwms" property (see PWM binding[0])
+      "pwms" property (see PWM binding[0]).
+  - power-sequences: Power sequences (see Power sequences[1]) used to bring the
+      backlight on and off. If this property is present, then two power
+      sequences named "power-on" and "power-off" must be defined to control how
+      the backlight is to be powered on and off. These sequences must reference
+      the PWM specified in the pwms property by its name, and can also reference
+      other resources supported by the power sequences mechanism
 
 [0]: Documentation/devicetree/bindings/pwm/pwm.txt
+[1]: Documentation/devicetree/bindings/power/power_seq.txt
 
 Example:
 
 	backlight {
 		compatible = "pwm-backlight";
-		pwms = <&pwm 0 5000000>;
-
 		brightness-levels = <0 4 8 16 32 64 128 255>;
 		default-brightness-level = <6>;
+		low-threshold-brightness = <50>;
+
+		/* resources used by the power sequences */
+		pwms = <&pwm 0 5000000>;
+		pwm-names = "backlight";
+		power-supply = <&backlight_reg>;
+
+		power-sequences {
+			power-on {
+				step0 {
+					type = "regulator";
+					id = "power";
+					enable;
+				};
+				step1 {
+					type = "delay";
+					delay = <10000>;
+				};
+				step2 {
+					type = "pwm";
+					id = "backlight";
+					enable;
+				};
+				step3 {
+					type = "gpio";
+					gpio = <&gpio 28 0>;
+					value = <1>;
+				};
+			};
+
+			power-off {
+				step0 {
+					type = "gpio";
+					gpio = <&gpio 28 0>;
+					value = <0>;
+				};
+				step1 {
+					type = "pwm";
+					id = "backlight";
+					disable;
+				};
+				step2 {
+					type = "delay";
+					delay = <10000>;
+				};
+				step3 {
+					type = "regulator";
+					id = "power";
+					disable;
+				};
+			};
+		};
 	};
