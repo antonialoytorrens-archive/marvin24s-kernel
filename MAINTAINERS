@@ -5961,6 +5961,16 @@ F:	fs/timerfd.c
 F:	include/linux/timer*
 F:	kernel/*timer*
 
+POWER SEQUENCES
+M:	Alexandre Courbot <acourbot@nvidia.com>
+S:	Supported
+W:	https://github.com/Gnurou/linux
+T:	git git://github.com/Gnurou/linux.git power-seq/for-next
+F:	Documentation/devicetree/bindings/power/power_seq.txt
+F:	Documentation/power/power_seq.txt
+F:	include/linux/power_seq.h
+F:	drivers/power/power_seq/
+
 POWER SUPPLY CLASS/SUBSYSTEM and DRIVERS
 M:	Anton Vorontsov <cbou@mail.ru>
 M:	David Woodhouse <dwmw2@infradead.org>
