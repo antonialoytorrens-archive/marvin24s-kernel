@@ -1,0 +1,121 @@
+Runtime Interpreted Power Sequences
+===================================
+
+Power sequences are sequential descriptions of actions to be performed on
+power-related resources. Having these descriptions in a well-defined data format
+allows us to take much of the board- or device- specific power control code out
+of the kernel and place it into the device tree instead, making kernels less
+board-dependant.
+
+A device typically makes use of multiple power sequences, for different purposes
+such as powering on and off. All the power sequences of a given device are
+grouped into a set. In the device tree, this set is a sub-node of the device
+node named "power-sequences".
+
+Power Sequences Structure
+-------------------------
+Every device that makes use of power sequences must have a "power-sequences"
+node into which individual power sequences are declared as sub-nodes. The name
+of the node becomes the name of the sequence within the power sequences
+framework.
+
+Similarly, each power sequence declares its steps as sub-nodes of itself. Steps
+must be named sequentially, with the first step named step0, the second step1,
+etc. Failure to follow this rule will result in a parsing error.
+
+Power Sequences Steps
+---------------------
+Steps of a sequence describe an action to be performed on a resource. They
+always include a "type" property which indicates what kind of resource this
+step works on. Depending on the resource type, additional properties are defined
+to control the action to be performed.
+
+"delay" type required properties:
+  - delay: delay to wait (in microseconds)
+
+"regulator" type required properties:
+  - id: name of the regulator to use.
+  - enable / disable: one of these two empty properties must be present to
+                      enable or disable the resource
+
+"pwm" type required properties:
+  - id: name of the PWM to use.
+  - enable / disable: one of these two empty properties must be present to
+                      enable or disable the resource
+
+"gpio" type required properties:
+  - gpio: phandle of the GPIO to use.
+  - value: value this GPIO should take. Must be 0 or 1.
+
+Example
+-------
+Here are example sequences declared within a backlight device that use all the
+supported resources types:
+
+	backlight {
+		compatible = "pwm-backlight";
+		...
+
+		/* resources used by the power sequences */
+		pwms = <&pwm 2 5000000>;
+		pwm-names = "backlight";
+		power-supply = <&backlight_reg>;
+
+		power-sequences {
+			power-on {
+				step0 {
+					type = "regulator";
+					id = "power";
+					enable;
+				};
+				step1 {
+					type = "delay";
+					delay = <10000>;
+				};
+				step2 {
+					type = "pwm";
+					id = "backlight";
+					enable;
+				};
+				step3 {
+					type = "gpio";
+					gpio = <&gpio 28 0>;
+					value = <1>;
+				};
+			};
+
+			power-off {
+				step0 {
+					type = "gpio";
+					gpio = <&gpio 28 0>;
+					value = <0>;
+				};
+				step1 {
+					type = "pwm";
+					id = "backlight";
+					disable;
+				};
+				step2 {
+					type = "delay";
+					delay = <10000>;
+				};
+				step3 {
+					type = "regulator";
+					id = "power";
+					disable;
+				};
+			};
+		};
+	};
+
+The first part lists the PWM and regulator resources used by the sequences.
+These resources will be requested on behalf of the backlight device when the
+sequences are built and are declared according to their own bindings (for
+instance, regulators and pwms are resolved by name - note though that name
+declaration is done differently by the two frameworks).
+
+After the resources declaration, two sequences follow for powering the backlight
+on and off. Their names are specified by the pwm-backlight device bindings. Once
+the sequences are built by calling devm_of_parse_power_seq_set() on the
+backlight device, they can be added to a set using
+power_seq_set_add_sequences().

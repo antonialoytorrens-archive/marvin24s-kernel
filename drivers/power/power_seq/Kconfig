@@ -1,0 +1,2 @@
+config POWER_SEQ
+	bool
