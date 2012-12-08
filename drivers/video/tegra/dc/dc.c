@@ -727,6 +727,10 @@ static void tegra_dc_set_out(struct tegra_dc *dc, struct tegra_dc_out *out)
 	struct tegra_dc_mode *mode;
 
 	dc->out = out;
+
+	if (!dc->out->max_pclk_khz)
+		dc->out->max_pclk_khz = ULONG_MAX;
+
 	mode = tegra_dc_get_override_mode(dc);
 
 	if (mode)
@@ -754,7 +758,6 @@ static void tegra_dc_set_out(struct tegra_dc *dc, struct tegra_dc_out *out)
 
 	if (dc->out_ops && dc->out_ops->init)
 		dc->out_ops->init(dc);
-
 }
 
 unsigned tegra_dc_get_out_height(const struct tegra_dc *dc)
@@ -1325,7 +1328,7 @@ static int tegra_dc_init(struct tegra_dc *dc)
 	print_mode_info(dc, dc->mode);
 
 	if (dc->mode.pclk)
-		if (tegra_dc_program_mode(dc, &dc->mode))
+		if (tegra_dc_program_mode(dc))
 			return -EINVAL;
 
 	/* Initialize SD AFTER the modeset.

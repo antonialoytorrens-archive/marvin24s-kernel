@@ -114,6 +114,8 @@ struct tegra_dc {
 
 	struct tegra_dc_mode		mode;
 	s64				frametime_ns;
+	unsigned long			pll_rate;
+	unsigned long			divider;
 
 	struct tegra_dc_win		windows[DC_N_WINDOWS];
 	struct tegra_dc_blend		blend;
@@ -392,12 +394,18 @@ void tegra_dc_program_bandwidth(struct tegra_dc *dc, bool use_new);
 int tegra_dc_set_dynamic_emc(struct tegra_dc_win *windows[], int n);
 
 /* defined in mode.c, used in dc.c */
-int tegra_dc_program_mode(struct tegra_dc *dc, struct tegra_dc_mode *mode);
+int tegra_dc_program_mode(struct tegra_dc *dc);
 int tegra_dc_calc_refresh(const struct tegra_dc_mode *m);
 
 /* defined in clock.c, used in dc.c, dsi.c and hdmi.c */
 void tegra_dc_setup_clk(struct tegra_dc *dc, struct clk *clk);
-unsigned long tegra_dc_pclk_round_rate(struct tegra_dc *dc, int pclk);
+unsigned long tegra_dc_pclk_round_rate(const struct tegra_dc *dc,
+					int pclk,
+					unsigned long *div_out);
+unsigned long tegra_dc_find_pll_d_rate(const struct tegra_dc *dc,
+						unsigned long pclk,
+						unsigned long *rate_out,
+						unsigned long *div_out);
 
 /* defined in lut.c, used in dc.c */
 void tegra_dc_init_lut_defaults(struct tegra_dc_lut *lut);

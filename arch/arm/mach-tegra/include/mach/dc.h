@@ -352,6 +352,7 @@ struct tegra_dc_out {
 	unsigned			align;
 	unsigned			depth;
 	unsigned			dither;
+	unsigned long			max_pclk_khz;
 
 	struct tegra_dc_mode		*modes;
 	int				n_modes;

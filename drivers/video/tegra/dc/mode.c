@@ -180,12 +180,11 @@ static inline void print_mode(struct tegra_dc *dc,
 			const struct tegra_dc_mode *mode, const char *note) { }
 #endif /* DEBUG */
 
-int tegra_dc_program_mode(struct tegra_dc *dc, struct tegra_dc_mode *mode)
+int tegra_dc_program_mode(struct tegra_dc *dc)
 {
+	const struct tegra_dc_mode *mode = &dc->mode;
 	unsigned long val;
-	unsigned long rate;
 	unsigned long div;
-	unsigned long pclk;
 
 	print_mode(dc, mode, __func__);
 
@@ -224,22 +223,8 @@ int tegra_dc_program_mode(struct tegra_dc *dc, struct tegra_dc_mode *mode)
 
 	tegra_dc_writel(dc, val, DC_DISP_DISP_INTERFACE_CONTROL);
 
-	rate = tegra_dc_clk_get_rate(dc);
-
-	pclk = tegra_dc_pclk_round_rate(dc, mode->pclk);
-	trace_printk("%s:pclk=%ld\n", dc->ndev->name, pclk);
-	if (pclk < (mode->pclk / 100 * 99) ||
-	    pclk > (mode->pclk / 100 * 109)) {
-		dev_err(&dc->ndev->dev,
-			"can't divide %ld clock to %d -1/+9%% %ld %d %d\n",
-			rate, mode->pclk,
-			pclk, (mode->pclk / 100 * 99),
-			(mode->pclk / 100 * 109));
-		return -EINVAL;
-	}
-
-	div = (rate * 2 / pclk) - 2;
-	trace_printk("%s:div=%ld\n", dc->ndev->name, div);
+	WARN_ON(dc->divider < 2 || dc->divider > 257);
+	div = dc->divider - 2;
 
 	tegra_dc_writel(dc, 0x00010001,
 			DC_DISP_SHIFT_CLOCK_OPTIONS);
@@ -268,6 +253,29 @@ EXPORT_SYMBOL(tegra_dc_get_panel_sync_rate);
 
 int tegra_dc_set_mode(struct tegra_dc *dc, const struct tegra_dc_mode *mode)
 {
+	unsigned long new_pclk = mode->pclk;
+	unsigned long pll_rate, div;
+
+	if (!new_pclk) {
+		memset(&dc->mode, 0, sizeof(dc->mode));
+		return 0;
+	}
+
+	if (dc->out->type == TEGRA_DC_OUT_HDMI) {
+		new_pclk = tegra_dc_find_pll_d_rate(dc, new_pclk,
+						    &pll_rate, &div);
+
+	} else {
+		pll_rate = tegra_dc_pclk_round_rate(dc, new_pclk, &div);
+		new_pclk = div ? (pll_rate * 2 / div) : 0;
+	}
+
+	if (!new_pclk)
+		return -EINVAL;
+
+	dc->pll_rate = pll_rate;
+	dc->divider = div;
+
 	memcpy(&dc->mode, mode, sizeof(dc->mode));
 
 	if (dc->out->type == TEGRA_DC_OUT_RGB)
@@ -277,6 +285,7 @@ int tegra_dc_set_mode(struct tegra_dc *dc, const struct tegra_dc_mode *mode)
 
 	print_mode(dc, mode, __func__);
 	dc->frametime_ns = calc_frametime_ns(mode);
+	dc->mode.pclk = new_pclk;
 
 	return 0;
 }

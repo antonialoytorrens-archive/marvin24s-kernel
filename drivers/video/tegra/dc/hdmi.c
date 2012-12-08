@@ -1278,6 +1278,27 @@ static bool tegra_dc_hdmi_valid_asp_ratio(const struct tegra_dc *dc,
 	return false;
 }
 
+bool tegra_dc_round_pclk(const struct tegra_dc *dc, struct fb_videomode *mode)
+{
+	unsigned long pclk_hz;
+
+	pclk_hz = PICOS2KHZ(mode->pixclock) * 1000;
+
+	if (dc->out->type == TEGRA_DC_OUT_HDMI) {
+		pclk_hz = tegra_dc_find_pll_d_rate(dc, pclk_hz, NULL, NULL);
+	} else {
+		unsigned long pll_rate, div;
+		pll_rate = tegra_dc_pclk_round_rate(dc, pclk_hz, &div);
+		pclk_hz = div ? (pll_rate * 2 / div) : 0;
+	}
+
+	if (!pclk_hz)
+		return false;
+
+	mode->pixclock = KHZ2PICOS(pclk_hz / 1000);
+
+	return true;
+}
 
 static bool tegra_dc_hdmi_mode_filter(const struct tegra_dc *dc,
 					struct fb_videomode *mode)
@@ -1290,9 +1311,15 @@ static bool tegra_dc_hdmi_mode_filter(const struct tegra_dc *dc,
 		return false;
 
 #ifdef CONFIG_TEGRA_HDMI_74MHZ_LIMIT
-		if (PICOS2KHZ(mode->pixclock) > 74250)
-			return false;
+	if (PICOS2KHZ(mode->pixclock) > 74250)
+		return false;
 #endif
+
+	if (!tegra_dc_round_pclk(dc, mode)) {
+		dev_vdbg(&dc->ndev->dev, "MODE:%ux%u pclk(%lu) can't round\n",
+			mode->xres, mode->yres, PICOS2KHZ(mode->pixclock) * 1000);
+		return false;
+	}
 
 	/* Check if the mode's pixel clock is more than the max rate*/
 	if (!tegra_dc_hdmi_valid_pixclock(dc, mode))
@@ -1691,6 +1718,10 @@ static int tegra_dc_hdmi_init(struct tegra_dc *dc)
 			TEGRA_NVHDCP_POLICY_ALWAYS_ON);
 
 	tegra_dc_hdmi_debug_create(hdmi);
+
+	/* HDMI maximum is 165MHz per specification */
+	if (!dc->out->max_pclk_khz || dc->out->max_pclk_khz > 165000)
+		dc->out->max_pclk_khz = 165000;
 
 	return 0;
 
@@ -2260,7 +2291,19 @@ static void tegra_dc_hdmi_enable(struct tegra_dc *dc)
 	clk_set_rate(hdmi->clk, oldrate / 2);
 
 	tegra_dc_setup_clk(dc, hdmi->clk);
-	clk_set_rate(hdmi->clk, dc->mode.pclk);
+	/*
+	 * Bias the pixel clock upwards by 1Hz, although we've already adjusted
+	 * it to be a value that we can drive.  The Tegra clock code by design
+	 * always rounds the divider up (i.e., it rounds down to the next
+	 * available rate).  For rates that aren't exactly divisible by the
+	 * divider such as 1 GHz / 7 == 166666666.66...Hz, passing the
+	 * truncated value 166666666 to the clock API will give us 1 GHz / 6,
+	 * which is not even close to what we want.
+	 *
+	* Adding 1 here will ensure that the clock API will use the desired
+	* divider.
+	*/
+	clk_set_rate(hdmi->clk, dc->mode.pclk + 1);
 
 	clk_enable(hdmi->clk);
 	tegra_periph_reset_assert(hdmi->clk);

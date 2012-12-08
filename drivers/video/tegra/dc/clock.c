@@ -26,125 +26,134 @@
 #include "dc_reg.h"
 #include "dc_priv.h"
 
-unsigned long tegra_dc_pclk_round_rate(struct tegra_dc *dc, int pclk)
+/*
+ * Find the best divider and resulting clock given an input clock rate and
+ * desired pixel clock, taking into account restrictions on the divider and
+ * output device.
+ */
+static unsigned long tegra_dc_pclk_best_div(const struct tegra_dc *dc,
+					    int pclk,
+					    unsigned long input_rate)
 {
-	unsigned long rate;
-	unsigned long div;
+	/* Multiply by 2 since the divider works in .5 increments */
+	unsigned long div = DIV_ROUND_CLOSEST(input_rate * 2, pclk);
 
-	rate = tegra_dc_clk_get_rate(dc);
-
-	div = DIV_ROUND_CLOSEST(rate * 2, pclk);
-
-	if (div < 2)
+	if (!div)
 		return 0;
 
-	return rate * 2 / div;
+	/* Don't attempt to exceed this output's maximum pixel clock */
+	WARN_ON(!dc->out->max_pclk_khz);
+	while (input_rate * 2 / div > dc->out->max_pclk_khz * 1000)
+		div++;
+
+	/* We have a u7.1 divider, where 0 means "divide by 1" */
+	if (div < 2)
+		div = 2;
+	if (div > 257)
+		div = 257;
+
+	return div;
 }
 
-static unsigned long tegra_dc_pclk_predict_rate(struct clk *parent, int pclk)
+unsigned long tegra_dc_pclk_round_rate(const struct tegra_dc *dc,
+						int pclk,
+						unsigned long *div_out)
 {
-	unsigned long rate;
+	long rate = clk_round_rate(dc->clk, pclk);
 	unsigned long div;
 
-	rate = clk_get_rate(parent);
+	if (rate < 0)
+		rate = clk_get_rate(dc->clk);
 
-	div = DIV_ROUND_CLOSEST(rate * 2, pclk);
+	div = tegra_dc_pclk_best_div(dc, pclk, rate);
 
-	if (div < 2)
-		return 0;
+	*div_out = div;
 
-	return rate * 2 / div;
+	return rate;
+}
+
+unsigned long tegra_dc_find_pll_d_rate(const struct tegra_dc *dc,
+						unsigned long pclk,
+						unsigned long *rate_out,
+						unsigned long *div_out)
+{
+	/*
+	 * These are the only freqs we can get from pll_d currently.
+	 * TODO: algorithmically determine pll_d's m, n, p values so it can
+	 * output more frequencies.
+	*/
+	const unsigned long pll_d_freqs[] = {
+		216000000,
+		252000000,
+		594000000,
+		1000000000,
+	};
+	long best_pclk_ratio = 0;
+	unsigned long best_pclk = 0;
+	unsigned long best_rate = 0;
+	unsigned long best_div = 0;
+	int i;
+
+	if (dc->out->type != TEGRA_DC_OUT_HDMI)
+		return pclk;
+
+	for (i = 0; i < ARRAY_SIZE(pll_d_freqs); i++) {
+		const unsigned long rate = pll_d_freqs[i];
+		unsigned long rounded, div;
+		long ratio;
+		u64 tmp;
+
+		/* Divide rate by 2 since pll_d_out0 is always 1/2 pll_d */
+		div = tegra_dc_pclk_best_div(dc, pclk, rate / 2);
+		if (!div)
+			continue;
+
+		rounded = rate / div;
+		if (rounded > dc->out->max_pclk_khz * 1000)
+			continue;
+
+		tmp = (u64)rounded * 1000;
+		do_div(tmp, pclk);
+		ratio = lower_32_bits(tmp);
+
+		/* Ignore anything outside of 95%-105% of the target */
+		if (ratio < 950 || ratio > 1050)
+			continue;
+
+		if (abs(ratio - 1000) < abs(best_pclk_ratio - 1000)) {
+			best_pclk = rounded;
+			best_pclk_ratio = ratio;
+			best_rate = rate;
+			best_div = div;
+		}
+	}
+	if (rate_out)
+		*rate_out = best_rate;
+	if (div_out)
+		*div_out = best_div;
+
+	return best_pclk;
 }
 
 void tegra_dc_setup_clk(struct tegra_dc *dc, struct clk *clk)
 {
-	int pclk;
-
-	if (dc->out->type == TEGRA_DC_OUT_RGB) {
-		unsigned long rate;
-		struct clk *parent_clk =
-			clk_get_sys(NULL, dc->out->parent_clk ? : "pll_p");
-
-		if (dc->out->parent_clk_backup &&
-		    (parent_clk == clk_get_sys(NULL, "pll_p"))) {
-			rate = tegra_dc_pclk_predict_rate(
-				parent_clk, dc->mode.pclk);
-			/* use pll_d as last resort */
-			if (rate < (dc->mode.pclk / 100 * 99) ||
-			    rate > (dc->mode.pclk / 100 * 109))
-				parent_clk = clk_get_sys(
-					NULL, dc->out->parent_clk_backup);
-		}
-
-		if (clk_get_parent(clk) != parent_clk)
-			clk_set_parent(clk, parent_clk);
-
-		if (parent_clk != clk_get_sys(NULL, "pll_p")) {
-			struct clk *base_clk = clk_get_parent(parent_clk);
-
-			/* Assuming either pll_d or pll_d2 is used */
-			rate = dc->mode.pclk * 2;
-
-			if (rate != clk_get_rate(base_clk))
-				clk_set_rate(base_clk, rate);
-		}
-	}
+	/*
+	* We should always have a valid rate here, since modes should
+	* go through tegra_dc_set_mode() before attempting to program them.
+	*/
+	WARN_ON(!dc->pll_rate);
 
 	if (dc->out->type == TEGRA_DC_OUT_HDMI) {
-		unsigned long rate;
 		struct clk *parent_clk = clk_get_sys(NULL,
 			dc->out->parent_clk ? : "pll_d_out0");
 		struct clk *base_clk = clk_get_parent(parent_clk);
 
-		/*
-		 * Providing dynamic frequency rate setting for T20/T30 HDMI.
-		 * The required rate needs to be setup at 4x multiplier,
-		 * as out0 is 1/2 of the actual PLL output.
-		 */
-
-		rate = dc->mode.pclk * 4;
-		if (rate != clk_get_rate(base_clk))
-			clk_set_rate(base_clk, rate);
+		if (dc->pll_rate != clk_get_rate(base_clk))
+			clk_set_rate(base_clk, dc->pll_rate);
 
 		if (clk_get_parent(clk) != parent_clk)
 			clk_set_parent(clk, parent_clk);
+	} else {
+		tegra_dvfs_set_rate(clk, dc->pll_rate);
 	}
-
-	if (dc->out->type == TEGRA_DC_OUT_DSI) {
-		unsigned long rate;
-		struct clk *parent_clk;
-		struct clk *base_clk;
-
-		if (clk == dc->clk) {
-			parent_clk = clk_get_sys(NULL,
-					dc->out->parent_clk ? : "pll_d_out0");
-			base_clk = clk_get_parent(parent_clk);
-			tegra_clk_cfg_ex(base_clk,
-					TEGRA_CLK_PLLD_DSI_OUT_ENB, 1);
-		} else {
-			if (dc->pdata->default_out->dsi->dsi_instance) {
-				parent_clk = clk_get_sys(NULL,
-					dc->out->parent_clk ? : "pll_d2_out0");
-				base_clk = clk_get_parent(parent_clk);
-				tegra_clk_cfg_ex(base_clk,
-						TEGRA_CLK_PLLD_CSI_OUT_ENB, 1);
-			} else {
-				parent_clk = clk_get_sys(NULL,
-					dc->out->parent_clk ? : "pll_d_out0");
-				base_clk = clk_get_parent(parent_clk);
-				tegra_clk_cfg_ex(base_clk,
-						TEGRA_CLK_PLLD_DSI_OUT_ENB, 1);
-			}
-		}
-
-		rate = dc->mode.pclk * dc->shift_clk_div * 2;
-		if (rate != clk_get_rate(base_clk))
-			clk_set_rate(base_clk, rate);
-
-		if (clk_get_parent(clk) != parent_clk)
-			clk_set_parent(clk, parent_clk);
-	}
-
-	pclk = tegra_dc_pclk_round_rate(dc, dc->mode.pclk);
-	tegra_dvfs_set_rate(clk, pclk);
 }
