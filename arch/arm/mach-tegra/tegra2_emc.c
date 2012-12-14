@@ -28,6 +28,12 @@
 #define TEGRA_MRR_DIVLD        (1<<20)
 #define TEGRA_EMC_STATUS       0x02b4
 #define TEGRA_EMC_MRR          0x00ec
+
+#define GMI_AD0                (1 << 4)
+#define GMI_AD1                (1 << 5)
+#define RAM_ID_MASK            (GMI_AD0 | GMI_AD1)
+#define RAM_CODE_SHIFT         4
+#define TEGRA_APB_STRAP_OPT    0x8
 static DEFINE_MUTEX(tegra_emc_mrr_lock);
 
 #ifdef CONFIG_TEGRA_EMC_SCALING_ENABLE
@@ -38,6 +44,7 @@ static bool emc_enable;
 module_param(emc_enable, bool, 0644);
 
 static void __iomem *emc = IO_ADDRESS(TEGRA_EMC_BASE);
+static void __iomem *apb_misc = IO_ADDRESS(TEGRA_APB_MISC_BASE);
 static const struct tegra_emc_table *tegra_emc_table;
 static int tegra_emc_table_size;
 
@@ -224,11 +231,23 @@ void tegra_init_emc(const struct tegra_emc_chip *chips, int chips_size)
 	int rev_id2;
 	int pid;
 	int chip_matched = -1;
+	int ram_id;
 
-	vid = tegra_emc_read_mrr(5);
-	rev_id1 = tegra_emc_read_mrr(6);
-	rev_id2 = tegra_emc_read_mrr(7);
-	pid = tegra_emc_read_mrr(8);
+	ram_id = (readl(apb_misc + TEGRA_APB_STRAP_OPT) & RAM_ID_MASK) >> RAM_CODE_SHIFT;
+	if (ram_id == 3) {
+		/* LPDDR 2 */
+		vid = tegra_emc_read_mrr(5);
+		rev_id1 = tegra_emc_read_mrr(6);
+		rev_id2 = tegra_emc_read_mrr(7);
+		pid = tegra_emc_read_mrr(8);
+	} else {
+		/* DDR2 -> use strap directly */
+		vid = -1;
+		rev_id1 = -1;
+		rev_id2 = -1;
+		/* on paz00, 0:1 specifies the ram mfg, 2:3 the 2nd boot dev */
+		pid = ram_id & 3;
+	}
 
 	for (i = 0; i < chips_size; i++) {
 		if (chips[i].mem_manufacturer_id >= 0) {
