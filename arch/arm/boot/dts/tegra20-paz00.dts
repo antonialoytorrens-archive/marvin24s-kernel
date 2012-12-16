@@ -266,6 +266,34 @@
 		clock-frequency = <80000>;
 		request-gpios = <&gpio 170 0>; /* gpio PV2 */
 		slave-addr = <138>;
+
+		nvidia,nvec-uses-events;
+		nvidia,nvec-uses-kbd;
+		nvidia,nvec-uses-mouse;
+		nvidia,nvec-uses-power;
+		nvidia,nvec-uses-oem = "nvec-paz00";
+
+		cells {
+			events {
+				lid_switch {
+					linux,input-type = <5>;	/* EV_SW */
+					linux,code = <0>;	/* LID_SW */
+					nvec,event-status-mask = <0x02>;
+					nvec,event-status = "enabled";
+				};
+				power_key {
+					linux,input-type = <1>;	/* EV_KEY */
+					linux,code = <116>;	/* KEY_POWER */
+					nvec,event-status-mask = <0x80>;
+					nvec,event-status = "enabled";
+				};
+			};
+
+			paz00: paz00 {
+				#gpio-cells = <2>;
+				gpio-controller;
+			};
+		};
 	};
 
 	i2c@7000d000 {
