@@ -334,14 +334,14 @@ static struct nvec_events_platform_data nvec_ev_pdata[] = {
 		.name = "lid switch",
 		.input_type = EV_SW,
 		.key_code = SW_LID,
-		.status_mask = BIT(7),
+		.status_mask = BIT(1),
 		.enabled = true,
 	},
 	{
 		.name = "power key",
 		.input_type = EV_KEY,
 		.key_code = KEY_POWER,
-		.status_mask = BIT(1),
+		.status_mask = BIT(7),
 		.enabled = true,
 	},
 	{	/* keep last entry */

@@ -84,7 +84,7 @@ static int nvec_event_notifier(struct notifier_block *nb,
 			&event->command, event->length + 2, false);
 
 	list_for_each_entry(e, &evdev->event_list, node) {
-		if (e->mask && event->payload) {
+		if (e->mask & event->payload) {
 			if (test_bit(EV_KEY, e->dev->evbit)) {
 				input_report_key(e->dev, e->key, 1);
 				input_sync(e->dev);
