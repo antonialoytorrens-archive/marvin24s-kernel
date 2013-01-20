@@ -165,6 +165,7 @@ static __initdata struct tegra_clk_init_table common_clk_init_table[] = {
 	{ "sclk",	NULL,		0,		true },
 #ifdef CONFIG_TEGRA_SILICON_PLATFORM
 #ifdef CONFIG_ARCH_TEGRA_2x_SOC
+	{ "pll_c_out1",	"pll_c",	240000000,	false },
 	{ "pll_p",	NULL,		216000000,	true },
 	{ "pll_p_out1",	"pll_p",	28800000,	true },
 	{ "pll_p_out2",	"pll_p",	48000000,	false },
