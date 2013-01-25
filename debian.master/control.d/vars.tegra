@@ -1,0 +1,8 @@
+arch="armhf"
+supported="NVIDIA TEGRA2"
+desc="NVIDIA Tegra2-based =HUMAN= systems"
+target="Targeted towards boards such as PAZ00, Trimslice, etc."
+bootloader="flash-kernel"
+provides=""
+section_image="universe/base"
+do_debug="Yes"

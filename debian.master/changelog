@@ -1,3 +1,18 @@
+linux (3.8.0-9.18a) raring; urgency=low
+
+  * Add Tegra flavour
+    - built-in some essential drivers (gpu, pwm, usb, ...)
+    - disble non-armhf builds
+    - add ignore modules and abi (compiler problem)
+
+  * Add AC100 specific patches
+    - update nvec to latest version
+    - add backlight driver
+    - add support for nvidia partitions
+    - misc sound fixes
+
+ -- Marc Dietrich <marvin24@gmx.de>  Sat, 1 Mar 2013 23:22:13 +0100
+
 linux (3.8.0-9.18) raring; urgency=low
 
   [Tim Gardner]
