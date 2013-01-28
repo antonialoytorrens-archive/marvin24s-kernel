@@ -16,6 +16,7 @@
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_fixed.h>
 #include <uapi/drm/tegra_drm.h>
+#include <video/display.h>
 
 #include "host1x.h"
 
@@ -202,6 +203,9 @@ struct tegra_output {
 
 	struct drm_encoder encoder;
 	struct drm_connector connector;
+	struct display_entity stream;
+	struct display_entity *panel;
+	struct display_entity_notifier display_notifier;
 };
 
 static inline struct tegra_output *encoder_to_output(struct drm_encoder *e)
@@ -212,6 +216,18 @@ static inline struct tegra_output *encoder_to_output(struct drm_encoder *e)
 static inline struct tegra_output *connector_to_output(struct drm_connector *c)
 {
 	return container_of(c, struct tegra_output, connector);
+}
+
+static inline
+struct tegra_output *display_entity_to_output(struct display_entity *e)
+{
+	return container_of(e, struct tegra_output, stream);
+}
+
+static inline struct tegra_output *
+display_notifier_to_output(struct display_entity_notifier *n)
+{
+	return container_of(n, struct tegra_output, display_notifier);
 }
 
 static inline int tegra_output_enable(struct tegra_output *output)

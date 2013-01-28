@@ -105,6 +105,29 @@ static const struct drm_encoder_funcs encoder_funcs = {
 
 static void tegra_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
+	struct tegra_output *output = encoder_to_output(encoder);
+	enum display_entity_state state;
+
+	if (!output->panel)
+		return;
+
+	switch (mode) {
+	case DRM_MODE_DPMS_ON:
+		state = DISPLAY_ENTITY_STATE_ON;
+		break;
+	case DRM_MODE_DPMS_STANDBY:
+		state = DISPLAY_ENTITY_STATE_STANDBY;
+		break;
+	case DRM_MODE_DPMS_SUSPEND:
+	case DRM_MODE_DPMS_OFF:
+		state = DISPLAY_ENTITY_STATE_OFF;
+		break;
+	default:
+		dev_warn(output->dev, "unknown DPMS state, ignoring\n");
+		return;
+	}
+
+	display_entity_set_state(output->panel, state);
 }
 
 static bool tegra_encoder_mode_fixup(struct drm_encoder *encoder,
@@ -129,9 +152,14 @@ static void tegra_encoder_mode_set(struct drm_encoder *encoder,
 	struct tegra_output *output = encoder_to_output(encoder);
 	int err;
 
-	err = tegra_output_enable(output);
+	if (output->panel)
+		err = display_entity_set_state(output->panel,
+					       DISPLAY_ENTITY_STATE_ON);
+	else
+		err = tegra_output_enable(output);
+
 	if (err < 0)
-		dev_err(encoder->dev->dev, "tegra_output_enable(): %d\n", err);
+		dev_err(encoder->dev->dev, "cannot enable output: %d\n", err);
 }
 
 static const struct drm_encoder_helper_funcs encoder_helper_funcs = {
@@ -184,6 +212,71 @@ int tegra_output_parse_dt(struct tegra_output *output)
 
 	return 0;
 }
+
+static int display_notify_callback(struct display_entity_notifier *notifier,
+				   struct display_entity *entity, int event)
+{
+	struct tegra_output *output = display_notifier_to_output(notifier);
+	struct device_node *pnode;
+
+	switch (event) {
+	case DISPLAY_ENTITY_NOTIFIER_CONNECT:
+		if (output->panel)
+			break;
+
+		pnode = of_parse_phandle(output->of_node, "nvidia,panel", 0);
+		if (!pnode)
+			break;
+
+		if (entity->dev && entity->dev->of_node == pnode) {
+			dev_dbg(output->dev, "connecting panel\n");
+			output->panel = display_entity_get(entity);
+			display_entity_connect(&output->stream, output->panel);
+			/* TODO set state of panel according to current DPMS
+			 * state? */
+		}
+		of_node_put(pnode);
+
+		break;
+
+	case DISPLAY_ENTITY_NOTIFIER_DISCONNECT:
+		if (!output->panel || output->panel != entity)
+			break;
+
+		dev_dbg(output->dev, "disconnecting panel\n");
+		display_entity_disconnect(&output->stream, output->panel);
+		output->panel = NULL;
+		display_entity_put(output->panel);
+
+		break;
+
+	default:
+		dev_dbg(output->dev, "unhandled display event\n");
+		break;
+	}
+
+	return 0;
+}
+
+static int tegra_output_set_stream(struct display_entity *entity,
+				   enum display_entity_stream_state state)
+{
+	struct tegra_output *output = display_entity_to_output(entity);
+
+	switch (state) {
+	case DISPLAY_ENTITY_STATE_OFF:
+	case DISPLAY_ENTITY_STATE_STANDBY:
+		return output->ops->disable(output);
+	case DISPLAY_ENTITY_STATE_ON:
+		return output->ops->enable(output);
+	}
+
+	return 0;
+}
+
+static struct display_entity_video_ops tegra_output_video_ops = {
+	.set_stream = tegra_output_set_stream,
+};
 
 int tegra_output_init(struct drm_device *drm, struct tegra_output *output)
 {
@@ -250,6 +343,23 @@ int tegra_output_init(struct drm_device *drm, struct tegra_output *output)
 
 	output->encoder.possible_crtcs = 0x3;
 
+	/* register display entity */
+	memset(&output->stream, 0, sizeof(output->stream));
+	output->stream.dev = output->dev;
+	output->stream.ops.video = &tegra_output_video_ops;
+	err = display_entity_register(&output->stream);
+	if (err) {
+		dev_err(output->dev, "cannot register display entity\n");
+		return err;
+	}
+
+	/* register display notifier */
+	output->display_notifier.dev = NULL;
+	output->display_notifier.notify = display_notify_callback;
+	err = display_entity_register_notifier(&output->display_notifier);
+	if (err)
+		return err;
+
 	return 0;
 
 free_hpd:
@@ -260,6 +370,12 @@ free_hpd:
 
 int tegra_output_exit(struct tegra_output *output)
 {
+	if (output->panel)
+		display_entity_put(output->panel);
+
+	display_entity_unregister_notifier(&output->display_notifier);
+	display_entity_unregister(&output->stream);
+
 	if (gpio_is_valid(output->hpd_gpio)) {
 		free_irq(output->hpd_irq, output);
 		gpio_free(output->hpd_gpio);
