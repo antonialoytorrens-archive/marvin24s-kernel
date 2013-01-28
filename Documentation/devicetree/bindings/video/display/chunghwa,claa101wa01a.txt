@@ -1,0 +1,8 @@
+Chunghwa CLAA101WA01A Display Panel
+
+Required properties:
+- compatible: "chunghwa,claa101wa01a"
+- pnl-supply: regulator controlling power supply to the panel
+- bl-supply: regulator controlling power supply to the backlight
+- pnl-enable-gpios: GPIO that enables the panel
+- bl-enable-gpios: GPIO that enables the backlight

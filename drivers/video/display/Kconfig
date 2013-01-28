@@ -2,3 +2,15 @@ menuconfig DISPLAY_CORE
 	tristate "Display Core"
 	---help---
 	  Support common display framework for graphics devices.
+
+if DISPLAY_CORE
+
+config DISPLAY_PANEL_CLAA101WA01A
+	tristate "Chunghwa CLAA101WA01A Display Panel"
+	select BACKLIGHT_PWM
+	---help---
+	  Support for the Chunghwa CLAA101WA01A Display Panel.
+
+	  If you are in doubt, say N.
+
+endif # DISPLAY_CORE
