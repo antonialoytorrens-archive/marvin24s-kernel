@@ -28,6 +28,7 @@
 #include <linux/pm_runtime.h>
 
 #include <linux/usb/tegra_usb_phy.h>
+#include <linux/clk/tegra.h>
 
 #define TEGRA_USB_BASE			0xC5000000
 #define TEGRA_USB2_BASE			0xC5004000
@@ -665,6 +666,10 @@ static int tegra_ehci_probe(struct platform_device *pdev)
 
 	clk_prepare_enable(tegra->emc_clk);
 	clk_set_rate(tegra->emc_clk, 400000000);
+
+	tegra_periph_reset_assert(tegra->clk);
+	udelay(1);
+	tegra_periph_reset_deassert(tegra->clk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
