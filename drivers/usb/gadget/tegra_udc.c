@@ -2609,7 +2609,7 @@ static int __init tegra_udc_probe(struct platform_device *pdev)
 	}
 
 	err = request_irq(udc->irq, tegra_udc_irq,
-				IRQF_SHARED | IRQF_TRIGGER_HIGH,
+				IRQF_SHARED | IRQF_TRIGGER_RISING,
 				driver_name, udc);
 	if (err) {
 		ERR("cannot request irq %d err %d\n", udc->irq, err);
