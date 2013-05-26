@@ -11,6 +11,14 @@
 	};
 
 	host1x {
+		dc@54200000 {
+			rgb {
+				status = "okay";
+				nvidia,ddc-i2c-bus = <&lvds_ddc>;
+				nvidia,panel = <&panel>;
+			};
+		};
+
 		hdmi {
 			status = "okay";
 
@@ -250,7 +258,7 @@
 		status = "okay";
 	};
 
-	i2c@7000c000 {
+        lvds_ddc: i2c@7000c000 {
 		status = "okay";
 		clock-frequency = <400000>;
 
@@ -488,6 +496,30 @@
 		};
 	};
 
+	pwm: pwm {
+		status = "okay";
+	};
+
+	backlight: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm 0 5000000>;
+
+		brightness-levels = <0 16 32 48 64 80 96 112 128 144 160 176 192 208 224 240 255>;
+		default-brightness-level = <10>;
+	};
+
+	panel: panel {
+		compatible = "chunghwa,claa101wa01a";
+
+		pnl-supply = <&vdd_panel_reg>;
+		pnl-enable-gpios = <&gpio 102 0>;
+
+		bl-supply = <&bl_panel_reg>;
+		bl-enable-gpios = <&gpio 164 0>;
+
+		backlight = <&backlight>;
+	};
+
 	regulators {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -499,6 +531,25 @@
 			regulator-name = "+5valw";
 			regulator-min-microvolt = <5000000>;
 			regulator-max-microvolt = <5000000>;
+			regulator-always-on;
+		};
+
+		vdd_panel_reg: regulator@1 {
+			compatible = "regulator-fixed";
+			reg = <1>;
+			regulator-name = "+3VS,vdd_pnl";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio 4 0>; /* gpio PA4 */
+			enable-active-high;
+		};
+
+		bl_panel_reg: regulator@2 {
+			compatible = "regulator-fixed";
+			reg = <2>;
+			regulator-name = "dummy blacklight regulator";
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
 			regulator-always-on;
 		};
 	};
