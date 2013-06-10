@@ -28,7 +28,7 @@
 #include <linux/pm_runtime.h>
 
 #include <linux/usb/tegra_usb_phy.h>
-#include <linux/clk/tegra.h>
+#include <mach/clk.h>
 
 #define TEGRA_USB_BASE			0xC5000000
 #define TEGRA_USB2_BASE			0xC5004000
