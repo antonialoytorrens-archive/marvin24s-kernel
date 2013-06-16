@@ -35,6 +35,7 @@
 #include <linux/mfd/core.h>
 #include <linux/rfkill-gpio.h>
 #include <linux/serial_8250.h>
+#include <linux/tegra_uart.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -47,6 +48,7 @@
 #include <mach/gpio.h>
 #include <mach/usb_phy.h>
 #include <mach/tegra_alc5632_pdata.h>
+#include <mach/clk.h>
 
 #include "board.h"
 #include "board-paz00.h"
@@ -146,37 +148,144 @@ static int __init parse_tag_nvidia(const struct tag *tag)
 }
 __tagtable(ATAG_NVIDIA, parse_tag_nvidia);
 
-static struct plat_serial8250_port debug_uart_platform_data[] = {
-	{
-		/* serial port on JP1 */
-		.membase	= IO_ADDRESS(TEGRA_UARTA_BASE),
-		.mapbase	= TEGRA_UARTA_BASE,
-		.irq		= INT_UARTA,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.iotype		= UPIO_MEM,
-		.regshift	= 2,
-		.uartclk	= 216000000,
-	}, {
-		/* serial port on mini-pcie */
-		.membase	= IO_ADDRESS(TEGRA_UARTC_BASE),
-		.mapbase	= TEGRA_UARTC_BASE,
-		.irq		= INT_UARTC,
-		.flags		= UPF_BOOT_AUTOCONF,
-		.iotype		= UPIO_MEM,
-		.regshift	= 2,
-		.uartclk	= 216000000,
-	}, {
-		.flags		= 0
-	}
+static struct platform_device *paz00_uart_devices[] __initdata = {
+	&tegra_uarta_device,
+	&tegra_uartb_device,
+	&tegra_uartc_device,
+	&tegra_uartd_device,
+	&tegra_uarte_device,
 };
 
-static struct platform_device debug_uart = {
-	.name = "serial8250",
-	.id = PLAT8250_DEV_PLATFORM,
-	.dev = {
-		.platform_data = debug_uart_platform_data,
-	},
+static struct uart_clk_parent uart_parent_clk[] = {
+	[0] = {.name = "pll_p"},
+	[1] = {.name = "pll_m"},
+	[2] = {.name = "clk_m"},
 };
+
+static struct tegra_uart_platform_data paz00_uart_pdata;
+static unsigned long debug_uart_port_clk_rate;
+static void __init uart_debug_init(void)
+{
+	int debug_port_id;
+
+	debug_port_id = get_tegra_uart_debug_port_id();
+	if (debug_port_id < 0)
+		debug_port_id = 3;
+
+	switch (debug_port_id) {
+	case 0:
+		/* UARTA is the debug port. */
+		pr_info("Selecting UARTA as the debug console\n");
+		paz00_uart_devices[0] = &debug_uarta_device;
+		debug_uart_clk = clk_get_sys("serial8250.0", "uarta");
+		debug_uart_port_base = ((struct plat_serial8250_port *)(
+			debug_uarta_device.dev.platform_data))->mapbase;
+		debug_uart_port_clk_rate = ((struct plat_serial8250_port *)(
+			debug_uarta_device.dev.platform_data))->uartclk;
+
+		break;
+
+	case 1:
+		/* UARTB is the debug port. */
+		pr_info("Selecting UARTB as the debug console\n");
+		paz00_uart_devices[1] = &debug_uartb_device;
+		debug_uart_clk = clk_get_sys("serial8250.0", "uartb");
+		debug_uart_port_base = ((struct plat_serial8250_port *)(
+			debug_uartb_device.dev.platform_data))->mapbase;
+		debug_uart_port_clk_rate = ((struct plat_serial8250_port *)(
+			debug_uartb_device.dev.platform_data))->uartclk;
+
+		break;
+
+	case 2:
+		/* UARTC is the debug port. */
+		pr_info("Selecting UARTC as the debug console\n");
+		paz00_uart_devices[2] = &debug_uartc_device;
+		debug_uart_clk = clk_get_sys("serial8250.0", "uartc");
+		debug_uart_port_base = ((struct plat_serial8250_port *)(
+			debug_uartc_device.dev.platform_data))->mapbase;
+		debug_uart_port_clk_rate = ((struct plat_serial8250_port *)(
+			debug_uartc_device.dev.platform_data))->uartclk;
+
+		break;
+
+	case 3:
+		/* UARTD is the debug port. */
+		pr_info("Selecting UARTD as the debug console\n");
+		paz00_uart_devices[3] = &debug_uartd_device;
+		debug_uart_clk = clk_get_sys("serial8250.0", "uartd");
+		debug_uart_port_base = ((struct plat_serial8250_port *)(
+			debug_uartd_device.dev.platform_data))->mapbase;
+		debug_uart_port_clk_rate = ((struct plat_serial8250_port *)(
+			debug_uartd_device.dev.platform_data))->uartclk;
+
+		break;
+
+	default:
+		pr_info("The debug console id %d is invalid, Assuming UARTA",
+			debug_port_id);
+		paz00_uart_devices[0] = &debug_uarta_device;
+		debug_uart_clk = clk_get_sys("serial8250.0", "uarta");
+		debug_uart_port_base = ((struct plat_serial8250_port *)(
+			debug_uarta_device.dev.platform_data))->mapbase;
+		debug_uart_port_clk_rate = ((struct plat_serial8250_port *)(
+			debug_uarta_device.dev.platform_data))->uartclk;
+
+		break;
+	}
+}
+
+static int __init paz00_uart_init(void)
+{
+	struct clk *c;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(uart_parent_clk); ++i) {
+		c = tegra_get_clock_by_name(uart_parent_clk[i].name);
+		if (IS_ERR_OR_NULL(c)) {
+			pr_err("Not able to get the clock for %s\n",
+						uart_parent_clk[i].name);
+			continue;
+		}
+		uart_parent_clk[i].parent_clk = c;
+		uart_parent_clk[i].fixed_clk_rate = clk_get_rate(c);
+	}
+	paz00_uart_pdata.parent_clk_list = uart_parent_clk;
+	paz00_uart_pdata.parent_clk_count = ARRAY_SIZE(uart_parent_clk);
+
+	tegra_uarta_device.dev.platform_data = &paz00_uart_pdata;
+	tegra_uartb_device.dev.platform_data = &paz00_uart_pdata;
+	tegra_uartc_device.dev.platform_data = &paz00_uart_pdata;
+	tegra_uartd_device.dev.platform_data = &paz00_uart_pdata;
+	tegra_uarte_device.dev.platform_data = &paz00_uart_pdata;
+
+	/* Register low speed only if it is selected */
+	if (!is_tegra_debug_uartport_hs()) {
+
+		uart_debug_init();
+
+		/* Clock enable for the debug channel */
+		if (!IS_ERR_OR_NULL(debug_uart_clk)) {
+
+			pr_info("The debug console clock name is %s\n",
+						debug_uart_clk->name);
+			c = tegra_get_clock_by_name("pll_p");
+			if (IS_ERR_OR_NULL(c))
+				pr_err("Not getting the parent clock pll_p\n");
+			else
+				clk_set_parent(debug_uart_clk, c);
+
+			clk_enable(debug_uart_clk);
+			clk_set_rate(debug_uart_clk, debug_uart_port_clk_rate);
+		} else {
+			pr_err("Not getting the clock %s for debug console\n",
+					debug_uart_clk->name);
+		}
+	}
+
+	return platform_add_devices(paz00_uart_devices,
+				 ARRAY_SIZE(paz00_uart_devices));
+}
 
 static struct tegra_usb_platform_data tegra_udc_pdata = {
 	.port_otg = true,
@@ -503,7 +612,6 @@ static struct tegra_i2c_platform_data paz00_dvc_platform_data = {
 };
 
 static struct platform_device *paz00_devices[] __initdata = {
-	&debug_uart,
 	&nvec_device,
 	&tegra_sdhci_device4,
 	&tegra_sdhci_device1,
@@ -613,6 +721,7 @@ static void __init tegra_paz00_init(void)
 	paz00_i2c_init();
 	paz00_regulator_init();
 	paz00_suspend_init();
+	paz00_uart_init();
 	paz00_panel_init();
 	paz00_usb_init();
 }
