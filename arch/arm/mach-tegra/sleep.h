@@ -27,6 +27,8 @@
 					+ IO_PPSB_VIRT)
 #define TEGRA_PMC_VIRT	(TEGRA_PMC_BASE - IO_APB_PHYS + IO_APB_VIRT)
 
+#define TEGRA_IRAM_CODE_AREA	(TEGRA_IRAM_BASE + SZ_4K)
+
 /* PMC_SCRATCH37-39 and 41 are used for tegra_pen_lock and idle */
 #define PMC_SCRATCH37	0x130
 #define PMC_SCRATCH38	0x134

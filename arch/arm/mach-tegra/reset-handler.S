@@ -169,6 +169,19 @@ after_errata:
 1:
 #endif
 
+	/* Waking up from LP1? */
+	ldr	r8, [r12, #RESET_DATA(MASK_LP1)]
+	tst	r8, r11				@ if in_lp1
+	beq	__is_not_lp1
+	cmp	r10, #0
+	bne	__die				@ only CPU0 can be here
+	ldr	lr, [r12, #RESET_DATA(STARTUP_LP1)]
+ THUMB(	add	lr, lr, #1 )			@ switch to Thumb mode
+	cmp	lr, #0
+	bleq	__die				@ no LP1 startup handler
+	bx	lr
+__is_not_lp1:
+
 	/* Waking up from LP2? */
 	ldr	r9, [r12, #RESET_DATA(MASK_LP2)]
 	tst	r9, r11				@ if in_lp2
