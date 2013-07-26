@@ -217,6 +217,9 @@ static bool tegra_lp1_iram_hook(void)
 	case TEGRA30:
 		tegra30_lp1_iram_hook();
 		break;
+	case TEGRA20:
+		tegra20_lp1_iram_hook();
+		break;
 	default:
 		break;
 	}
@@ -237,6 +240,9 @@ static bool tegra_sleep_core_init(void)
 	switch (tegra_chip_id) {
 	case TEGRA30:
 		tegra30_sleep_core_init();
+		break;
+	case TEGRA20:
+		tegra20_sleep_core_init();
 		break;
 	default:
 		break;

@@ -38,6 +38,14 @@ static inline void tegra30_lp1_iram_hook(void) {}
 static inline void void tegra30_sleep_core_init(void) {}
 #endif
 
+#ifdef CONFIG_ARCH_TEGRA_2x_SOC
+void tegra20_lp1_iram_hook(void);
+void tegra20_sleep_core_init(void);
+#else
+static inline void tegra20_lp1_iram_hook(void) {}
+static inline void void tegra20_sleep_core_init(void) {}
+#endif
+
 extern unsigned long l2x0_saved_regs_addr;
 
 void save_cpu_arch_register(void);
