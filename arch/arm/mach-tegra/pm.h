@@ -30,6 +30,14 @@ struct tegra_lp1_iram {
 extern struct tegra_lp1_iram *tegra_lp1_iram;
 extern void (*tegra_sleep_core_finish)(unsigned long v2p);
 
+#ifdef CONFIG_ARCH_TEGRA_3x_SOC
+void tegra30_lp1_iram_hook(void);
+void tegra30_sleep_core_init(void);
+#else
+static inline void tegra30_lp1_iram_hook(void) {}
+static inline void void tegra30_sleep_core_init(void) {}
+#endif
+
 extern unsigned long l2x0_saved_regs_addr;
 
 void save_cpu_arch_register(void);

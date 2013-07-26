@@ -213,6 +213,14 @@ static int tegra_sleep_core(unsigned long v2p)
  */
 static bool tegra_lp1_iram_hook(void)
 {
+	switch (tegra_chip_id) {
+	case TEGRA30:
+		tegra30_lp1_iram_hook();
+		break;
+	default:
+		break;
+	}
+
 	if (!tegra_lp1_iram)
 		return false;
 
@@ -226,6 +234,14 @@ static bool tegra_lp1_iram_hook(void)
 
 static bool tegra_sleep_core_init(void)
 {
+	switch (tegra_chip_id) {
+	case TEGRA30:
+		tegra30_sleep_core_init();
+		break;
+	default:
+		break;
+	}
+
 	if (!tegra_sleep_core_finish)
 		return false;
 
