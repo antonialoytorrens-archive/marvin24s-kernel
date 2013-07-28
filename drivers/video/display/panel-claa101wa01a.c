@@ -213,6 +213,20 @@ static int __exit panel_claa101_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int panel_claa101_suspend(struct device *dev)
+{
+	struct panel_claa101 *panel = dev_get_drvdata(dev);
+	return panel_claa101_off(panel);
+}
+
+static int panel_claa101_resume(struct device *dev)
+{
+	struct panel_claa101 *panel = dev_get_drvdata(dev);
+	return panel_claa101_on(panel);
+}
+#endif
+
 #ifdef CONFIG_OF
 static struct of_device_id panel_claa101_of_match[] = {
 	{ .compatible = "chunghwa,claa101wa01a", },
@@ -223,6 +237,8 @@ MODULE_DEVICE_TABLE(of, panel_claa101_of_match);
 #endif
 
 static const struct dev_pm_ops panel_claa101_dev_pm_ops = {
+	.suspend = panel_claa101_suspend,
+	.resume = panel_claa101_resume,
 };
 
 static struct platform_driver panel_claa101_driver = {
