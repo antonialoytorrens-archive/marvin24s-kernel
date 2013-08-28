@@ -108,6 +108,10 @@ extern int early_init_dt_scan_root(unsigned long node, const char *uname,
 
 extern bool early_init_dt_scan(void *params);
 
+extern const char *of_flat_dt_get_machine_name(void);
+extern const void *of_flat_dt_match_machine(const void *default_match,
+		const void * (*get_next_compat)(const char * const**));
+
 /* Other Prototypes */
 extern void unflatten_device_tree(void);
 extern void unflatten_and_copy_device_tree(void);
