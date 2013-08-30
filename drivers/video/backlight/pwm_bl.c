@@ -194,6 +194,8 @@ static int pwm_backlight_parse_dt(struct device *dev,
 	if (gpio_is_valid(data->enable_gpio) && (flags & OF_GPIO_ACTIVE_LOW))
 		data->enable_gpio_flags |= PWM_BACKLIGHT_GPIO_ACTIVE_LOW;
 
+	data->boot_off = of_property_read_bool(node, "backlight-boot-off");
+
 	return 0;
 }
 
@@ -325,6 +327,12 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	}
 
 	bl->props.brightness = data->dft_brightness;
+
+	if (data->boot_off)
+		bl->props.power = FB_BLANK_POWERDOWN;
+	else
+		bl->props.power = FB_BLANK_UNBLANK;
+
 	backlight_update_status(bl);
 
 	platform_set_drvdata(pdev, bl);
