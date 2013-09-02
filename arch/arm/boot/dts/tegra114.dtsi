@@ -1,6 +1,7 @@
 #include <dt-bindings/clock/tegra114-car.h>
 #include <dt-bindings/gpio/tegra-gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpu/host1x/tegra114-mipi.h>
 
 #include "skeleton.dtsi"
 
@@ -396,6 +397,13 @@
 			clocks = <&tegra_car TEGRA114_CLK_I2S4>;
 			status = "disabled";
 		};
+	};
+
+	mipi: mipi {
+		compatible = "nvidia,tegra114-mipi";
+		reg = <0x700e3000 0x100>;
+		clocks = <&tegra_car TEGRA114_CLK_MIPI_CAL>;
+		#calibrate-cells = <1>;
 	};
 
 	sdhci@78000000 {
