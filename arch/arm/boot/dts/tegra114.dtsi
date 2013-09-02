@@ -63,6 +63,26 @@
 			clock-names = "hdmi", "parent";
 			status = "disabled";
 		};
+
+		dsi@54300000 {
+			compatible = "nvidia,tegra114-dsi";
+			reg = <0x54300000 0x00040000>;
+			clocks = <&tegra_car TEGRA114_CLK_DSIA>,
+				 <&tegra_car TEGRA114_CLK_PLL_D_OUT0>;
+			clock-names = "dsi", "parent";
+			calibrate = <&mipi TEGRA114_MIPI_DSIA>;
+			status = "disabled";
+		};
+
+		dsi@54400000 {
+			compatible = "nvidia,tegra114-dsi";
+			reg = <0x54400000 0x00040000>;
+			clocks = <&tegra_car TEGRA114_CLK_DSIB>,
+				 <&tegra_car TEGRA114_CLK_PLL_D2_OUT0>;
+			clock-names = "dsi", "parent";
+			calibrate = <&mipi TEGRA114_MIPI_DSIB>;
+			status = "disabled";
+		};
 	};
 
 	gic: interrupt-controller {
