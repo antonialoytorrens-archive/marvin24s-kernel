@@ -233,6 +233,7 @@ static const struct tegra_drm_client_ops gr2d_ops = {
 };
 
 static const struct of_device_id gr2d_match[] = {
+	{ .compatible = "nvidia,tegra114-gr2d" },
 	{ .compatible = "nvidia,tegra30-gr2d" },
 	{ .compatible = "nvidia,tegra20-gr2d" },
 	{ },
