@@ -12,6 +12,7 @@
 #include <linux/cpumask.h>
 #include <linux/io.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
 

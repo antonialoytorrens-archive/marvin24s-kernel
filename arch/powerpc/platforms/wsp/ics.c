@@ -14,6 +14,8 @@
 #include <linux/kernel.h>
 #include <linux/msi.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/smp.h>
 #include <linux/spinlock.h>

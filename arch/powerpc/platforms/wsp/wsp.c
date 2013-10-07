@@ -9,6 +9,7 @@
 
 #include <linux/kernel.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/smp.h>
 #include <linux/delay.h>
