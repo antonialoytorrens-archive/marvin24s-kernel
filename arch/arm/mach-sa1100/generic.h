@@ -3,6 +3,7 @@
  *
  * Author: Nicolas Pitre
  */
+#include <linux/cpufreq.h>
 #include <linux/reboot.h>
 
 extern void sa1100_timer_init(void);

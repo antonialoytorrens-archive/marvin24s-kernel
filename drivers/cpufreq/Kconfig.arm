@@ -216,9 +216,11 @@ config ARM_S5PV210_CPUFREQ
 
 config ARM_SA1100_CPUFREQ
 	bool
+	select CPU_FREQ_TABLE
 
 config ARM_SA1110_CPUFREQ
 	bool
+	select CPU_FREQ_TABLE
 
 config ARM_SPEAR_CPUFREQ
 	bool "SPEAr CPUFreq support"
