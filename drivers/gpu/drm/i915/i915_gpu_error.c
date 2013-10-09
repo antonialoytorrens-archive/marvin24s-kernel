@@ -215,6 +215,24 @@ static void print_error_buffers(struct drm_i915_error_state_buf *m,
 	}
 }
 
+static const char *hangcheck_action_to_str(enum intel_ring_hangcheck_action a)
+{
+	switch (a) {
+	case HANGCHECK_IDLE:
+		return "idle";
+	case HANGCHECK_WAIT:
+		return "wait";
+	case HANGCHECK_ACTIVE:
+		return "active";
+	case HANGCHECK_KICK:
+		return "kick";
+	case HANGCHECK_HUNG:
+		return "hung";
+	}
+
+	return "unknown";
+}
+
 static void i915_ring_error_state(struct drm_i915_error_state_buf *m,
 				  struct drm_device *dev,
 				  struct drm_i915_error_state *error,
@@ -255,6 +273,9 @@ static void i915_ring_error_state(struct drm_i915_error_state_buf *m,
 	err_printf(m, "  waiting: %s\n", yesno(error->waiting[ring]));
 	err_printf(m, "  ring->head: 0x%08x\n", error->cpu_ring_head[ring]);
 	err_printf(m, "  ring->tail: 0x%08x\n", error->cpu_ring_tail[ring]);
+	err_printf(m, "  hangcheck: %s [%d]\n",
+		   hangcheck_action_to_str(error->hangcheck_action[ring]),
+		   error->hangcheck_score[ring]);
 }
 
 void i915_error_printf(struct drm_i915_error_state_buf *e, const char *f, ...)
@@ -283,7 +304,7 @@ int i915_error_state_to_str(struct drm_i915_error_state_buf *m,
 	err_printf(m, "Time: %ld s %ld us\n", error->time.tv_sec,
 		   error->time.tv_usec);
 	err_printf(m, "Kernel: " UTS_RELEASE "\n");
-	err_printf(m, "PCI ID: 0x%04x\n", dev->pci_device);
+	err_printf(m, "PCI ID: 0x%04x\n", dev->pdev->device);
 	err_printf(m, "EIR: 0x%08x\n", error->eir);
 	err_printf(m, "IER: 0x%08x\n", error->ier);
 	err_printf(m, "PGTBL_ER: 0x%08x\n", error->pgtbl_er);
@@ -720,6 +741,9 @@ static void i915_record_ring_state(struct drm_device *dev,
 
 	error->cpu_ring_head[ring->id] = ring->head;
 	error->cpu_ring_tail[ring->id] = ring->tail;
+
+	error->hangcheck_score[ring->id] = ring->hangcheck.score;
+	error->hangcheck_action[ring->id] = ring->hangcheck.action;
 }
 
 
