@@ -228,25 +228,29 @@
 
 static const char fsg_string_interface[] = "Mass Storage";
 
-#include "storage_common.c"
+#include "storage_common.h"
+#include "f_mass_storage.h"
 
+/* Static strings, in UTF-8 (for simplicity we use only ASCII characters) */
+static struct usb_string		fsg_strings[] = {
+	{FSG_STRING_INTERFACE,		fsg_string_interface},
+	{}
+};
+
+static struct usb_gadget_strings	fsg_stringtab = {
+	.language	= 0x0409,		/* en-us */
+	.strings	= fsg_strings,
+};
+
+static struct usb_gadget_strings *fsg_strings_array[] = {
+	&fsg_stringtab,
+	NULL,
+};
 
 /*-------------------------------------------------------------------------*/
 
 struct fsg_dev;
 struct fsg_common;
-
-/* FSF callback functions */
-struct fsg_operations {
-	/*
-	 * Callback function to call when thread exits.  If no
-	 * callback is set or it returns value lower then zero MSF
-	 * will force eject all LUNs it operates on (including those
-	 * marked as non-removable or with prevent_medium_removal flag
-	 * set).
-	 */
-	int (*thread_exits)(struct fsg_common *common);
-};
 
 /* Data shared by all the FSG instances. */
 struct fsg_common {
@@ -268,13 +272,14 @@ struct fsg_common {
 	struct fsg_buffhd	*next_buffhd_to_fill;
 	struct fsg_buffhd	*next_buffhd_to_drain;
 	struct fsg_buffhd	*buffhds;
+	unsigned int		fsg_num_buffers;
 
 	int			cmnd_size;
 	u8			cmnd[MAX_COMMAND_SIZE];
 
 	unsigned int		nluns;
 	unsigned int		lun;
-	struct fsg_lun		*luns;
+	struct fsg_lun		**luns;
 	struct fsg_lun		*curlun;
 
 	unsigned int		bulk_out_maxpacket;
@@ -311,27 +316,6 @@ struct fsg_common {
 	char inquiry_string[8 + 16 + 4 + 1];
 
 	struct kref		ref;
-};
-
-struct fsg_config {
-	unsigned nluns;
-	struct fsg_lun_config {
-		const char *filename;
-		char ro;
-		char removable;
-		char cdrom;
-		char nofua;
-	} luns[FSG_MAX_LUNS];
-
-	/* Callback functions. */
-	const struct fsg_operations	*ops;
-	/* Gadget's private data. */
-	void			*private_data;
-
-	const char *vendor_name;		/*  8 characters or less */
-	const char *product_name;		/* 16 characters or less */
-
-	char			can_stall;
 };
 
 struct fsg_dev {
@@ -2172,7 +2156,7 @@ static int received_cbw(struct fsg_dev *fsg, struct fsg_buffhd *bh)
 		common->data_dir = DATA_DIR_NONE;
 	common->lun = cbw->Lun;
 	if (common->lun < common->nluns)
-		common->curlun = &common->luns[common->lun];
+		common->curlun = common->luns[common->lun];
 	else
 		common->curlun = NULL;
 	common->tag = cbw->Tag;
@@ -2244,7 +2228,7 @@ reset:
 	if (common->fsg) {
 		fsg = common->fsg;
 
-		for (i = 0; i < fsg_num_buffers; ++i) {
+		for (i = 0; i < common->fsg_num_buffers; ++i) {
 			struct fsg_buffhd *bh = &common->buffhds[i];
 
 			if (bh->inreq) {
@@ -2303,7 +2287,7 @@ reset:
 	clear_bit(IGNORE_BULK_OUT, &fsg->atomic_bitflags);
 
 	/* Allocate the requests */
-	for (i = 0; i < fsg_num_buffers; ++i) {
+	for (i = 0; i < common->fsg_num_buffers; ++i) {
 		struct fsg_buffhd	*bh = &common->buffhds[i];
 
 		rc = alloc_request(common, fsg->bulk_in, &bh->inreq);
@@ -2320,7 +2304,9 @@ reset:
 
 	common->running = 1;
 	for (i = 0; i < common->nluns; ++i)
-		common->luns[i].unit_attention_data = SS_RESET_OCCURRED;
+		if (common->luns[i])
+			common->luns[i]->unit_attention_data =
+				SS_RESET_OCCURRED;
 	return rc;
 }
 
@@ -2372,7 +2358,7 @@ static void handle_exception(struct fsg_common *common)
 
 	/* Cancel all the pending transfers */
 	if (likely(common->fsg)) {
-		for (i = 0; i < fsg_num_buffers; ++i) {
+		for (i = 0; i < common->fsg_num_buffers; ++i) {
 			bh = &common->buffhds[i];
 			if (bh->inreq_busy)
 				usb_ep_dequeue(common->fsg->bulk_in, bh->inreq);
@@ -2384,7 +2370,7 @@ static void handle_exception(struct fsg_common *common)
 		/* Wait until everything is idle */
 		for (;;) {
 			int num_active = 0;
-			for (i = 0; i < fsg_num_buffers; ++i) {
+			for (i = 0; i < common->fsg_num_buffers; ++i) {
 				bh = &common->buffhds[i];
 				num_active += bh->inreq_busy + bh->outreq_busy;
 			}
@@ -2407,7 +2393,7 @@ static void handle_exception(struct fsg_common *common)
 	 */
 	spin_lock_irq(&common->lock);
 
-	for (i = 0; i < fsg_num_buffers; ++i) {
+	for (i = 0; i < common->fsg_num_buffers; ++i) {
 		bh = &common->buffhds[i];
 		bh->state = BUF_STATE_EMPTY;
 	}
@@ -2420,7 +2406,9 @@ static void handle_exception(struct fsg_common *common)
 		common->state = FSG_STATE_STATUS_PHASE;
 	else {
 		for (i = 0; i < common->nluns; ++i) {
-			curlun = &common->luns[i];
+			curlun = common->luns[i];
+			if (!curlun)
+				continue;
 			curlun->prevent_medium_removal = 0;
 			curlun->sense_data = SS_NO_SENSE;
 			curlun->unit_attention_data = SS_NO_SENSE;
@@ -2462,8 +2450,9 @@ static void handle_exception(struct fsg_common *common)
 		 * CONFIG_CHANGE cases.
 		 */
 		/* for (i = 0; i < common->nluns; ++i) */
-		/*	common->luns[i].unit_attention_data = */
-		/*		SS_RESET_OCCURRED;  */
+		/*	if (common->luns[i]) */
+		/*		common->luns[i]->unit_attention_data = */
+		/*			SS_RESET_OCCURRED;  */
 		break;
 
 	case FSG_STATE_CONFIG_CHANGE:
@@ -2559,12 +2548,13 @@ static int fsg_main_thread(void *common_)
 
 	if (!common->ops || !common->ops->thread_exits
 	 || common->ops->thread_exits(common) < 0) {
-		struct fsg_lun *curlun = common->luns;
+		struct fsg_lun **curlun_it = common->luns;
 		unsigned i = common->nluns;
 
 		down_write(&common->filesem);
-		for (; i--; ++curlun) {
-			if (!fsg_lun_is_open(curlun))
+		for (; i--; ++curlun_it) {
+			struct fsg_lun *curlun = *curlun_it;
+			if (!curlun || !fsg_lun_is_open(curlun))
 				continue;
 
 			fsg_lun_close(curlun);
@@ -2579,6 +2569,41 @@ static int fsg_main_thread(void *common_)
 
 
 /*************************** DEVICE ATTRIBUTES ***************************/
+
+static ssize_t ro_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	return fsg_show_ro(dev, attr, buf);
+}
+
+static ssize_t nofua_show(struct device *dev, struct device_attribute *attr,
+			  char *buf)
+{
+	return fsg_show_nofua(dev, attr, buf);
+}
+
+static ssize_t file_show(struct device *dev, struct device_attribute *attr,
+			 char *buf)
+{
+	return fsg_show_file(dev, attr, buf);
+}
+
+static ssize_t ro_store(struct device *dev, struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	return fsg_store_ro(dev, attr, buf, count);
+}
+
+static ssize_t nofua_store(struct device *dev, struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	return fsg_store_nofua(dev, attr, buf, count);
+}
+
+static ssize_t file_store(struct device *dev, struct device_attribute *attr,
+			  const char *buf, size_t count)
+{
+	return fsg_store_file(dev, attr, buf, count);
+}
 
 static DEVICE_ATTR_RW(ro);
 static DEVICE_ATTR_RW(nofua);
@@ -2597,28 +2622,39 @@ static void fsg_lun_release(struct device *dev)
 	/* Nothing needs to be done */
 }
 
-static inline void fsg_common_get(struct fsg_common *common)
+void fsg_common_get(struct fsg_common *common)
 {
 	kref_get(&common->ref);
 }
 
-static inline void fsg_common_put(struct fsg_common *common)
+void fsg_common_put(struct fsg_common *common)
 {
 	kref_put(&common->ref, fsg_common_release);
 }
 
-static struct fsg_common *fsg_common_init(struct fsg_common *common,
-					  struct usb_composite_dev *cdev,
-					  struct fsg_config *cfg)
+/* check if fsg_num_buffers is within a valid range */
+static inline int fsg_num_buffers_validate(unsigned int fsg_num_buffers)
+{
+	if (fsg_num_buffers >= 2 && fsg_num_buffers <= 4)
+		return 0;
+	pr_err("fsg_num_buffers %u is out of range (%d to %d)\n",
+	       fsg_num_buffers, 2, 4);
+	return -EINVAL;
+}
+
+struct fsg_common *fsg_common_init(struct fsg_common *common,
+				   struct usb_composite_dev *cdev,
+				   struct fsg_config *cfg)
 {
 	struct usb_gadget *gadget = cdev->gadget;
 	struct fsg_buffhd *bh;
-	struct fsg_lun *curlun;
+	struct fsg_lun **curlun_it;
 	struct fsg_lun_config *lcfg;
+	struct usb_string *us;
 	int nluns, i, rc;
 	char *pathbuf;
 
-	rc = fsg_num_buffers_validate();
+	rc = fsg_num_buffers_validate(cfg->fsg_num_buffers);
 	if (rc != 0)
 		return ERR_PTR(rc);
 
@@ -2640,7 +2676,8 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 		common->free_storage_on_release = 0;
 	}
 
-	common->buffhds = kcalloc(fsg_num_buffers,
+	common->fsg_num_buffers = cfg->fsg_num_buffers;
+	common->buffhds = kcalloc(common->fsg_num_buffers,
 				  sizeof *(common->buffhds), GFP_KERNEL);
 	if (!common->buffhds) {
 		if (common->free_storage_on_release)
@@ -2656,29 +2693,38 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 	common->ep0req = cdev->req;
 	common->cdev = cdev;
 
-	/* Maybe allocate device-global string IDs, and patch descriptors */
-	if (fsg_strings[FSG_STRING_INTERFACE].id == 0) {
-		rc = usb_string_id(cdev);
-		if (unlikely(rc < 0))
-			goto error_release;
-		fsg_strings[FSG_STRING_INTERFACE].id = rc;
-		fsg_intf_desc.iInterface = rc;
+	us = usb_gstrings_attach(cdev, fsg_strings_array,
+				 ARRAY_SIZE(fsg_strings));
+	if (IS_ERR(us)) {
+		rc = PTR_ERR(us);
+		goto error_release;
 	}
+	fsg_intf_desc.iInterface = us[FSG_STRING_INTERFACE].id;
 
 	/*
 	 * Create the LUNs, open their backing files, and register the
 	 * LUN devices in sysfs.
 	 */
-	curlun = kcalloc(nluns, sizeof(*curlun), GFP_KERNEL);
-	if (unlikely(!curlun)) {
+	curlun_it = kcalloc(nluns, sizeof(*curlun_it), GFP_KERNEL);
+	if (unlikely(!curlun_it)) {
 		rc = -ENOMEM;
 		goto error_release;
 	}
-	common->luns = curlun;
+	common->luns = curlun_it;
 
 	init_rwsem(&common->filesem);
 
-	for (i = 0, lcfg = cfg->luns; i < nluns; ++i, ++curlun, ++lcfg) {
+	for (i = 0, lcfg = cfg->luns; i < nluns; ++i, ++curlun_it, ++lcfg) {
+		struct fsg_lun *curlun;
+
+		curlun = kzalloc(sizeof(*curlun), GFP_KERNEL);
+		if (!curlun) {
+			rc = -ENOMEM;
+			common->nluns = i;
+			goto error_release;
+		}
+		*curlun_it = curlun;
+
 		curlun->cdrom = !!lcfg->cdrom;
 		curlun->ro = lcfg->cdrom || lcfg->ro;
 		curlun->initially_ro = curlun->ro;
@@ -2694,6 +2740,7 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 			INFO(common, "failed to register LUN%d: %d\n", i, rc);
 			common->nluns = i;
 			put_device(&curlun->dev);
+			kfree(curlun);
 			goto error_release;
 		}
 
@@ -2727,7 +2774,7 @@ static struct fsg_common *fsg_common_init(struct fsg_common *common,
 
 	/* Data buffers cyclic list */
 	bh = common->buffhds;
-	i = fsg_num_buffers;
+	i = common->fsg_num_buffers;
 	goto buffhds_first_it;
 	do {
 		bh->next = bh + 1;
@@ -2746,7 +2793,7 @@ buffhds_first_it:
 	snprintf(common->inquiry_string, sizeof common->inquiry_string,
 		 "%-8s%-16s%04x", cfg->vendor_name ?: "Linux",
 		 /* Assume product name dependent on the first LUN */
-		 cfg->product_name ?: (common->luns->cdrom
+		 cfg->product_name ?: ((*common->luns)->cdrom
 				     ? "File-CD Gadget"
 				     : "File-Stor Gadget"),
 		 i);
@@ -2777,9 +2824,10 @@ buffhds_first_it:
 	INFO(common, "Number of LUNs=%d\n", common->nluns);
 
 	pathbuf = kmalloc(PATH_MAX, GFP_KERNEL);
-	for (i = 0, nluns = common->nluns, curlun = common->luns;
+	for (i = 0, nluns = common->nluns, curlun_it = common->luns;
 	     i < nluns;
-	     ++curlun, ++i) {
+	     ++curlun_it, ++i) {
+		struct fsg_lun *curlun = *curlun_it;
 		char *p = "(no medium)";
 		if (fsg_lun_is_open(curlun)) {
 			p = "(error)";
@@ -2824,11 +2872,14 @@ static void fsg_common_release(struct kref *ref)
 	}
 
 	if (likely(common->luns)) {
-		struct fsg_lun *lun = common->luns;
+		struct fsg_lun **lun_it = common->luns;
 		unsigned i = common->nluns;
 
 		/* In error recovery common->nluns may be zero. */
-		for (; i; --i, ++lun) {
+		for (; i; --i, ++lun_it) {
+			struct fsg_lun *lun = *lun_it;
+			if (!lun)
+				continue;
 			device_remove_file(&lun->dev, &dev_attr_nofua);
 			device_remove_file(&lun->dev,
 					   lun->cdrom
@@ -2840,6 +2891,7 @@ static void fsg_common_release(struct kref *ref)
 					 : &dev_attr_file_nonremovable);
 			fsg_lun_close(lun);
 			device_unregister(&lun->dev);
+			kfree(lun);
 		}
 
 		kfree(common->luns);
@@ -2847,7 +2899,7 @@ static void fsg_common_release(struct kref *ref)
 
 	{
 		struct fsg_buffhd *bh = common->buffhds;
-		unsigned i = fsg_num_buffers;
+		unsigned i = common->fsg_num_buffers;
 		do {
 			kfree(bh->buf);
 		} while (++bh, --i);
@@ -2941,11 +2993,6 @@ autoconf_fail:
 
 /****************************** ADD FUNCTION ******************************/
 
-static struct usb_gadget_strings *fsg_strings_array[] = {
-	&fsg_stringtab,
-	NULL,
-};
-
 static int fsg_bind_config(struct usb_composite_dev *cdev,
 			   struct usb_configuration *c,
 			   struct fsg_common *common)
@@ -2958,7 +3005,6 @@ static int fsg_bind_config(struct usb_composite_dev *cdev,
 		return -ENOMEM;
 
 	fsg->function.name        = FSG_DRIVER_DESC;
-	fsg->function.strings     = fsg_strings_array;
 	fsg->function.bind        = fsg_bind;
 	fsg->function.unbind      = fsg_unbind;
 	fsg->function.setup       = fsg_setup;
@@ -2985,49 +3031,10 @@ static int fsg_bind_config(struct usb_composite_dev *cdev,
 
 /************************* Module parameters *************************/
 
-struct fsg_module_parameters {
-	char		*file[FSG_MAX_LUNS];
-	bool		ro[FSG_MAX_LUNS];
-	bool		removable[FSG_MAX_LUNS];
-	bool		cdrom[FSG_MAX_LUNS];
-	bool		nofua[FSG_MAX_LUNS];
 
-	unsigned int	file_count, ro_count, removable_count, cdrom_count;
-	unsigned int	nofua_count;
-	unsigned int	luns;	/* nluns */
-	bool		stall;	/* can_stall */
-};
-
-#define _FSG_MODULE_PARAM_ARRAY(prefix, params, name, type, desc)	\
-	module_param_array_named(prefix ## name, params.name, type,	\
-				 &prefix ## params.name ## _count,	\
-				 S_IRUGO);				\
-	MODULE_PARM_DESC(prefix ## name, desc)
-
-#define _FSG_MODULE_PARAM(prefix, params, name, type, desc)		\
-	module_param_named(prefix ## name, params.name, type,		\
-			   S_IRUGO);					\
-	MODULE_PARM_DESC(prefix ## name, desc)
-
-#define FSG_MODULE_PARAMETERS(prefix, params)				\
-	_FSG_MODULE_PARAM_ARRAY(prefix, params, file, charp,		\
-				"names of backing files or devices");	\
-	_FSG_MODULE_PARAM_ARRAY(prefix, params, ro, bool,		\
-				"true to force read-only");		\
-	_FSG_MODULE_PARAM_ARRAY(prefix, params, removable, bool,	\
-				"true to simulate removable media");	\
-	_FSG_MODULE_PARAM_ARRAY(prefix, params, cdrom, bool,		\
-				"true to simulate CD-ROM instead of disk"); \
-	_FSG_MODULE_PARAM_ARRAY(prefix, params, nofua, bool,		\
-				"true to ignore SCSI WRITE(10,12) FUA bit"); \
-	_FSG_MODULE_PARAM(prefix, params, luns, uint,			\
-			  "number of LUNs");				\
-	_FSG_MODULE_PARAM(prefix, params, stall, bool,			\
-			  "false to prevent bulk stalls")
-
-static void
-fsg_config_from_params(struct fsg_config *cfg,
-		       const struct fsg_module_parameters *params)
+void fsg_config_from_params(struct fsg_config *cfg,
+		       const struct fsg_module_parameters *params,
+		       unsigned int fsg_num_buffers)
 {
 	struct fsg_lun_config *lun;
 	unsigned i;
@@ -3055,19 +3062,6 @@ fsg_config_from_params(struct fsg_config *cfg,
 
 	/* Finalise */
 	cfg->can_stall = params->stall;
+	cfg->fsg_num_buffers = fsg_num_buffers;
 }
 
-static inline struct fsg_common *
-fsg_common_from_params(struct fsg_common *common,
-		       struct usb_composite_dev *cdev,
-		       const struct fsg_module_parameters *params)
-	__attribute__((unused));
-static inline struct fsg_common *
-fsg_common_from_params(struct fsg_common *common,
-		       struct usb_composite_dev *cdev,
-		       const struct fsg_module_parameters *params)
-{
-	struct fsg_config cfg;
-	fsg_config_from_params(&cfg, params);
-	return fsg_common_init(common, cdev, &cfg);
-}
