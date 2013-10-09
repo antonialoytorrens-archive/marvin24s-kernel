@@ -268,20 +268,14 @@ struct vnt_tx_mgmt *s_MgrMakeProbeRequest(struct vnt_private *pDevice,
 
 void vCommandTimerWait(struct vnt_private *pDevice, unsigned long MSecond)
 {
-
-	init_timer(&pDevice->sTimerCommand);
-
-	pDevice->sTimerCommand.data = (unsigned long)pDevice;
-	pDevice->sTimerCommand.function = (TimerFunction)vRunCommand;
-	pDevice->sTimerCommand.expires = RUN_AT((MSecond * HZ) / 1000);
-
-	add_timer(&pDevice->sTimerCommand);
-
-	return;
+	schedule_delayed_work(&pDevice->run_command_work,
+						msecs_to_jiffies(MSecond));
 }
 
-void vRunCommand(struct vnt_private *pDevice)
+void vRunCommand(struct work_struct *work)
 {
+	struct vnt_private *pDevice =
+		container_of(work, struct vnt_private, run_command_work.work);
 	struct vnt_manager *pMgmt = &pDevice->vnt_mgmt;
 	PWLAN_IE_SSID pItemSSID;
 	PWLAN_IE_SSID pItemSSIDCurr;
@@ -696,7 +690,7 @@ void vRunCommand(struct vnt_private *pDevice)
             DBG_PRT(MSG_LEVEL_DEBUG, KERN_INFO"eCommandState == WLAN_CMD_AP_MODE_START\n");
 
             if (pMgmt->eConfigMode == WMAC_CONFIG_AP) {
-                del_timer(&pMgmt->sTimerSecondCallback);
+		cancel_delayed_work_sync(&pDevice->second_callback_work);
                 pMgmt->eCurrState = WMAC_STATE_IDLE;
                 pMgmt->eCurrMode = WMAC_MODE_STANDBY;
                 pDevice->bLinkPass = false;
@@ -724,7 +718,7 @@ void vRunCommand(struct vnt_private *pDevice)
                 }
                 pDevice->bLinkPass = true;
                 ControlvMaskByte(pDevice,MESSAGE_REQUEST_MACREG,MAC_REG_PAPEDELAY,LEDSTS_STS,LEDSTS_INTER);
-                add_timer(&pMgmt->sTimerSecondCallback);
+		schedule_delayed_work(&pDevice->second_callback_work, HZ);
             }
             s_bCommandComplete(pDevice);
             break;
@@ -1156,14 +1150,8 @@ static int s_bClearBSSID_SCAN(struct vnt_private *pDevice)
 //mike add:reset command timer
 void vResetCommandTimer(struct vnt_private *pDevice)
 {
+	cancel_delayed_work_sync(&pDevice->run_command_work);
 
-	//delete timer
-	del_timer(&pDevice->sTimerCommand);
-	//init timer
-	init_timer(&pDevice->sTimerCommand);
-	pDevice->sTimerCommand.data = (unsigned long)pDevice;
-	pDevice->sTimerCommand.function = (TimerFunction)vRunCommand;
-	pDevice->sTimerCommand.expires = RUN_AT(HZ);
 	pDevice->cbFreeCmdQueue = CMD_Q_SIZE;
 	pDevice->uCmdDequeueIdx = 0;
 	pDevice->uCmdEnqueueIdx = 0;

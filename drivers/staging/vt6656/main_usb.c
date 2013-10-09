@@ -702,6 +702,10 @@ vt6656_probe(struct usb_interface *intf, const struct usb_device_id *id)
 
 	device_set_options(pDevice);
 	spin_lock_init(&pDevice->lock);
+	INIT_DELAYED_WORK(&pDevice->run_command_work, vRunCommand);
+	INIT_DELAYED_WORK(&pDevice->second_callback_work, BSSvSecondCallBack);
+	INIT_WORK(&pDevice->read_work_item, RXvWorkItem);
+	INIT_WORK(&pDevice->rx_mng_work_item, RXvMngWorkItem);
 
 	pDevice->tx_80211 = device_dma0_tx_80211;
 	pDevice->vnt_mgmt.pAdapter = (void *) pDevice;
@@ -981,10 +985,11 @@ static int  device_open(struct net_device *dev)
     }
 
     vMgrObjectInit(pDevice);
-    tasklet_init(&pDevice->RxMngWorkItem, (void *)RXvMngWorkItem, (unsigned long)pDevice);
-    tasklet_init(&pDevice->ReadWorkItem, (void *)RXvWorkItem, (unsigned long)pDevice);
+
     tasklet_init(&pDevice->EventWorkItem, (void *)INTvWorkItem, (unsigned long)pDevice);
-	add_timer(&pDevice->vnt_mgmt.sTimerSecondCallback);
+
+	schedule_delayed_work(&pDevice->second_callback_work, HZ);
+
 	pDevice->int_interval = 100;  /* max 100 microframes */
     pDevice->eEncryptionStatus = Ndis802_11EncryptionDisabled;
 
@@ -1000,7 +1005,7 @@ static int  device_open(struct net_device *dev)
      pDevice->bWPASuppWextEnabled = false;
     pDevice->byReAssocCount = 0;
 
-    RXvWorkItem(pDevice);
+	schedule_work(&pDevice->read_work_item);
     INTvWorkItem(pDevice);
 
     /* if WEP key already set by iwconfig but device not yet open */
@@ -1076,8 +1081,9 @@ static int device_close(struct net_device *dev)
     MP_CLEAR_FLAG(pDevice, fMP_POST_WRITES);
     MP_CLEAR_FLAG(pDevice, fMP_POST_READS);
     pDevice->fKillEventPollingThread = true;
-    del_timer(&pDevice->sTimerCommand);
-    del_timer(&pMgmt->sTimerSecondCallback);
+
+	cancel_delayed_work_sync(&pDevice->run_command_work);
+	cancel_delayed_work_sync(&pDevice->second_callback_work);
 
     del_timer(&pDevice->sTimerTxData);
 
@@ -1086,8 +1092,10 @@ static int device_close(struct net_device *dev)
         del_timer(&pDevice->TimerSQ3Tmax2);
         del_timer(&pDevice->TimerSQ3Tmax3);
     }
-    tasklet_kill(&pDevice->RxMngWorkItem);
-    tasklet_kill(&pDevice->ReadWorkItem);
+
+	cancel_work_sync(&pDevice->rx_mng_work_item);
+	cancel_work_sync(&pDevice->read_work_item);
+
     tasklet_kill(&pDevice->EventWorkItem);
 
    pDevice->bRoaming = false;
