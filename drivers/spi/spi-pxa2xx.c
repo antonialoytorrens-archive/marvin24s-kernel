@@ -546,8 +546,17 @@ static irqreturn_t ssp_int(int irq, void *dev_id)
 	if (pm_runtime_suspended(&drv_data->pdev->dev))
 		return IRQ_NONE;
 
-	sccr1_reg = read_SSCR1(reg);
+	/*
+	 * If the device is not yet in RPM suspended state and we get an
+	 * interrupt that is meant for another device, check if status bits
+	 * are all set to one. That means that the device is already
+	 * powered off.
+	 */
 	status = read_SSSR(reg);
+	if (status == ~0)
+		return IRQ_NONE;
+
+	sccr1_reg = read_SSCR1(reg);
 
 	/* Ignore possible writes if we don't need to write */
 	if (!(sccr1_reg & SSCR1_TIE))
@@ -1196,7 +1205,7 @@ static int pxa2xx_spi_probe(struct platform_device *pdev)
 
 	/* Register with the SPI framework */
 	platform_set_drvdata(pdev, drv_data);
-	status = spi_register_master(master);
+	status = devm_spi_register_master(&pdev->dev, master);
 	if (status != 0) {
 		dev_err(&pdev->dev, "problem registering spi master\n");
 		goto out_error_clock_enabled;
@@ -1247,9 +1256,6 @@ static int pxa2xx_spi_remove(struct platform_device *pdev)
 
 	/* Release SSP */
 	pxa_ssp_free(ssp);
-
-	/* Disconnect from the SPI framework */
-	spi_unregister_master(drv_data->master);
 
 	return 0;
 }

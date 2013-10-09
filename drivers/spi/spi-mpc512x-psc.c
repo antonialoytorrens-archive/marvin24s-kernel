@@ -523,8 +523,10 @@ static int mpc512x_psc_spi_do_probe(struct device *dev, u32 regaddr,
 	psc_num = master->bus_num;
 	snprintf(clk_name, sizeof(clk_name), "psc%d_mclk", psc_num);
 	clk = devm_clk_get(dev, clk_name);
-	if (IS_ERR(clk))
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
 		goto free_irq;
+	}
 	ret = clk_prepare_enable(clk);
 	if (ret)
 		goto free_irq;
@@ -535,7 +537,7 @@ static int mpc512x_psc_spi_do_probe(struct device *dev, u32 regaddr,
 	if (ret < 0)
 		goto free_clock;
 
-	ret = spi_register_master(master);
+	ret = devm_spi_register_master(dev, master);
 	if (ret < 0)
 		goto free_clock;
 
@@ -558,12 +560,10 @@ static int mpc512x_psc_spi_do_remove(struct device *dev)
 	struct spi_master *master = spi_master_get(dev_get_drvdata(dev));
 	struct mpc512x_psc_spi *mps = spi_master_get_devdata(master);
 
-	spi_unregister_master(master);
 	clk_disable_unprepare(mps->clk_mclk);
 	free_irq(mps->irq, mps);
 	if (mps->psc)
 		iounmap(mps->psc);
-	spi_master_put(master);
 
 	return 0;
 }

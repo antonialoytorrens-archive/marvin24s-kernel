@@ -39,6 +39,9 @@
 #include <linux/ioport.h>
 #include <linux/acpi.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/spi.h>
+
 static void spidev_release(struct device *dev)
 {
 	struct spi_device	*spi = to_spi_device(dev);
@@ -557,6 +560,7 @@ static void spi_pump_messages(struct kthread_work *work)
 			pm_runtime_mark_last_busy(master->dev.parent);
 			pm_runtime_put_autosuspend(master->dev.parent);
 		}
+		trace_spi_master_idle(master);
 		return;
 	}
 
@@ -585,6 +589,9 @@ static void spi_pump_messages(struct kthread_work *work)
 		}
 	}
 
+	if (!was_busy)
+		trace_spi_master_busy(master);
+
 	if (!was_busy && master->prepare_transfer_hardware) {
 		ret = master->prepare_transfer_hardware(master);
 		if (ret) {
@@ -596,6 +603,8 @@ static void spi_pump_messages(struct kthread_work *work)
 			return;
 		}
 	}
+
+	trace_spi_message_start(master->cur_msg);
 
 	ret = master->transfer_one_message(master, master->cur_msg);
 	if (ret) {
@@ -689,6 +698,8 @@ void spi_finalize_current_message(struct spi_master *master)
 	mesg->state = NULL;
 	if (mesg->complete)
 		mesg->complete(mesg->context);
+
+	trace_spi_message_done(mesg);
 }
 EXPORT_SYMBOL_GPL(spi_finalize_current_message);
 
@@ -838,10 +849,8 @@ static void of_register_spi_devices(struct spi_master *master)
 {
 	struct spi_device *spi;
 	struct device_node *nc;
-	const __be32 *prop;
-	char modalias[SPI_NAME_SIZE + 4];
 	int rc;
-	int len;
+	u32 value;
 
 	if (!master->dev.of_node)
 		return;
@@ -866,14 +875,14 @@ static void of_register_spi_devices(struct spi_master *master)
 		}
 
 		/* Device address */
-		prop = of_get_property(nc, "reg", &len);
-		if (!prop || len < sizeof(*prop)) {
-			dev_err(&master->dev, "%s has no 'reg' property\n",
-				nc->full_name);
+		rc = of_property_read_u32(nc, "reg", &value);
+		if (rc) {
+			dev_err(&master->dev, "%s has no valid 'reg' property (%d)\n",
+				nc->full_name, rc);
 			spi_dev_put(spi);
 			continue;
 		}
-		spi->chip_select = be32_to_cpup(prop);
+		spi->chip_select = value;
 
 		/* Mode (clock phase/polarity/etc.) */
 		if (of_find_property(nc, "spi-cpha", NULL))
@@ -886,55 +895,53 @@ static void of_register_spi_devices(struct spi_master *master)
 			spi->mode |= SPI_3WIRE;
 
 		/* Device DUAL/QUAD mode */
-		prop = of_get_property(nc, "spi-tx-bus-width", &len);
-		if (prop && len == sizeof(*prop)) {
-			switch (be32_to_cpup(prop)) {
-			case SPI_NBITS_SINGLE:
+		if (!of_property_read_u32(nc, "spi-tx-bus-width", &value)) {
+			switch (value) {
+			case 1:
 				break;
-			case SPI_NBITS_DUAL:
+			case 2:
 				spi->mode |= SPI_TX_DUAL;
 				break;
-			case SPI_NBITS_QUAD:
+			case 4:
 				spi->mode |= SPI_TX_QUAD;
 				break;
 			default:
 				dev_err(&master->dev,
 					"spi-tx-bus-width %d not supported\n",
-					be32_to_cpup(prop));
+					value);
 				spi_dev_put(spi);
 				continue;
 			}
 		}
 
-		prop = of_get_property(nc, "spi-rx-bus-width", &len);
-		if (prop && len == sizeof(*prop)) {
-			switch (be32_to_cpup(prop)) {
-			case SPI_NBITS_SINGLE:
+		if (!of_property_read_u32(nc, "spi-rx-bus-width", &value)) {
+			switch (value) {
+			case 1:
 				break;
-			case SPI_NBITS_DUAL:
+			case 2:
 				spi->mode |= SPI_RX_DUAL;
 				break;
-			case SPI_NBITS_QUAD:
+			case 4:
 				spi->mode |= SPI_RX_QUAD;
 				break;
 			default:
 				dev_err(&master->dev,
 					"spi-rx-bus-width %d not supported\n",
-					be32_to_cpup(prop));
+					value);
 				spi_dev_put(spi);
 				continue;
 			}
 		}
 
 		/* Device speed */
-		prop = of_get_property(nc, "spi-max-frequency", &len);
-		if (!prop || len < sizeof(*prop)) {
-			dev_err(&master->dev, "%s has no 'spi-max-frequency' property\n",
-				nc->full_name);
+		rc = of_property_read_u32(nc, "spi-max-frequency", &value);
+		if (rc) {
+			dev_err(&master->dev, "%s has no valid 'spi-max-frequency' property (%d)\n",
+				nc->full_name, rc);
 			spi_dev_put(spi);
 			continue;
 		}
-		spi->max_speed_hz = be32_to_cpup(prop);
+		spi->max_speed_hz = value;
 
 		/* IRQ */
 		spi->irq = irq_of_parse_and_map(nc, 0);
@@ -944,9 +951,7 @@ static void of_register_spi_devices(struct spi_master *master)
 		spi->dev.of_node = nc;
 
 		/* Register the new device */
-		snprintf(modalias, sizeof(modalias), "%s%s", SPI_MODULE_PREFIX,
-			 spi->modalias);
-		request_module(modalias);
+		request_module("%s%s", SPI_MODULE_PREFIX, spi->modalias);
 		rc = spi_add_device(spi);
 		if (rc) {
 			dev_err(&master->dev, "spi_device register error %s\n",
@@ -1245,6 +1250,41 @@ done:
 }
 EXPORT_SYMBOL_GPL(spi_register_master);
 
+static void devm_spi_unregister(struct device *dev, void *res)
+{
+	spi_unregister_master(*(struct spi_master **)res);
+}
+
+/**
+ * dev_spi_register_master - register managed SPI master controller
+ * @dev:    device managing SPI master
+ * @master: initialized master, originally from spi_alloc_master()
+ * Context: can sleep
+ *
+ * Register a SPI device as with spi_register_master() which will
+ * automatically be unregister
+ */
+int devm_spi_register_master(struct device *dev, struct spi_master *master)
+{
+	struct spi_master **ptr;
+	int ret;
+
+	ptr = devres_alloc(devm_spi_unregister, sizeof(*ptr), GFP_KERNEL);
+	if (!ptr)
+		return -ENOMEM;
+
+	ret = spi_register_master(master);
+	if (ret != 0) {
+		*ptr = master;
+		devres_add(dev, ptr);
+	} else {
+		devres_free(ptr);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(devm_spi_register_master);
+
 static int __unregister(struct device *dev, void *null)
 {
 	spi_unregister_device(to_spi_device(dev));
@@ -1421,6 +1461,10 @@ static int __spi_async(struct spi_device *spi, struct spi_message *message)
 	struct spi_master *master = spi->master;
 	struct spi_transfer *xfer;
 
+	message->spi = spi;
+
+	trace_spi_message_submit(message);
+
 	if (list_empty(&message->transfers))
 		return -EINVAL;
 	if (!message->complete)
@@ -1520,7 +1564,6 @@ static int __spi_async(struct spi_device *spi, struct spi_message *message)
 		}
 	}
 
-	message->spi = spi;
 	message->status = -EINPROGRESS;
 	return master->transfer(spi, message);
 }
