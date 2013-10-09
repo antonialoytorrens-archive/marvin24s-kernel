@@ -703,19 +703,6 @@ static inline void hci_set_drvdata(struct hci_dev *hdev, void *data)
 	dev_set_drvdata(&hdev->dev, data);
 }
 
-/* hci_dev_list shall be locked */
-static inline uint8_t __hci_num_ctrl(void)
-{
-	uint8_t count = 0;
-	struct list_head *p;
-
-	list_for_each(p, &hci_dev_list) {
-		count++;
-	}
-
-	return count;
-}
-
 struct hci_dev *hci_dev_get(int index);
 struct hci_dev *hci_get_route(bdaddr_t *dst, bdaddr_t *src);
 
@@ -806,22 +793,6 @@ void hci_conn_del_sysfs(struct hci_conn *conn);
 #define lmp_host_ssp_capable(dev)  ((dev)->features[1][0] & LMP_HOST_SSP)
 #define lmp_host_le_capable(dev)   (!!((dev)->features[1][0] & LMP_HOST_LE))
 #define lmp_host_le_br_capable(dev) (!!((dev)->features[1][0] & LMP_HOST_LE_BREDR))
-
-/* returns true if at least one AMP active */
-static inline bool hci_amp_capable(void)
-{
-	struct hci_dev *hdev;
-	bool ret = false;
-
-	read_lock(&hci_dev_list_lock);
-	list_for_each_entry(hdev, &hci_dev_list, list)
-		if (hdev->amp_type == HCI_AMP &&
-		    test_bit(HCI_UP, &hdev->flags))
-			ret = true;
-	read_unlock(&hci_dev_list_lock);
-
-	return ret;
-}
 
 /* ----- HCI protocols ----- */
 #define HCI_PROTO_DEFER             0x01
@@ -1120,24 +1091,24 @@ void hci_sock_dev_event(struct hci_dev *hdev, int event);
 #define DISCOV_BREDR_INQUIRY_LEN	0x08
 
 int mgmt_control(struct sock *sk, struct msghdr *msg, size_t len);
-int mgmt_index_added(struct hci_dev *hdev);
-int mgmt_index_removed(struct hci_dev *hdev);
-int mgmt_set_powered_failed(struct hci_dev *hdev, int err);
+void mgmt_index_added(struct hci_dev *hdev);
+void mgmt_index_removed(struct hci_dev *hdev);
+void mgmt_set_powered_failed(struct hci_dev *hdev, int err);
 int mgmt_powered(struct hci_dev *hdev, u8 powered);
 int mgmt_discoverable(struct hci_dev *hdev, u8 discoverable);
 int mgmt_connectable(struct hci_dev *hdev, u8 connectable);
 int mgmt_write_scan_failed(struct hci_dev *hdev, u8 scan, u8 status);
 int mgmt_new_link_key(struct hci_dev *hdev, struct link_key *key,
 		      bool persistent);
-int mgmt_device_connected(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
-			  u8 addr_type, u32 flags, u8 *name, u8 name_len,
-			  u8 *dev_class);
-int mgmt_device_disconnected(struct hci_dev *hdev, bdaddr_t *bdaddr,
-			     u8 link_type, u8 addr_type, u8 reason);
-int mgmt_disconnect_failed(struct hci_dev *hdev, bdaddr_t *bdaddr,
-			   u8 link_type, u8 addr_type, u8 status);
-int mgmt_connect_failed(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
-			u8 addr_type, u8 status);
+void mgmt_device_connected(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
+			   u8 addr_type, u32 flags, u8 *name, u8 name_len,
+			   u8 *dev_class);
+void mgmt_device_disconnected(struct hci_dev *hdev, bdaddr_t *bdaddr,
+			      u8 link_type, u8 addr_type, u8 reason);
+void mgmt_disconnect_failed(struct hci_dev *hdev, bdaddr_t *bdaddr,
+			    u8 link_type, u8 addr_type, u8 status);
+void mgmt_connect_failed(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
+			 u8 addr_type, u8 status);
 int mgmt_pin_code_request(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 secure);
 int mgmt_pin_code_reply_complete(struct hci_dev *hdev, bdaddr_t *bdaddr,
 				 u8 status);
@@ -1168,16 +1139,16 @@ int mgmt_set_class_of_dev_complete(struct hci_dev *hdev, u8 *dev_class,
 int mgmt_set_local_name_complete(struct hci_dev *hdev, u8 *name, u8 status);
 int mgmt_read_local_oob_data_reply_complete(struct hci_dev *hdev, u8 *hash,
 					    u8 *randomizer, u8 status);
-int mgmt_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
-		      u8 addr_type, u8 *dev_class, s8 rssi, u8 cfm_name,
-		      u8 ssp, u8 *eir, u16 eir_len);
-int mgmt_remote_name(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
-		     u8 addr_type, s8 rssi, u8 *name, u8 name_len);
-int mgmt_discovering(struct hci_dev *hdev, u8 discovering);
+void mgmt_device_found(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
+		       u8 addr_type, u8 *dev_class, s8 rssi, u8 cfm_name,
+		       u8 ssp, u8 *eir, u16 eir_len);
+void mgmt_remote_name(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 link_type,
+		      u8 addr_type, s8 rssi, u8 *name, u8 name_len);
+void mgmt_discovering(struct hci_dev *hdev, u8 discovering);
 int mgmt_device_blocked(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 type);
 int mgmt_device_unblocked(struct hci_dev *hdev, bdaddr_t *bdaddr, u8 type);
-bool mgmt_valid_hdev(struct hci_dev *hdev);
 int mgmt_new_ltk(struct hci_dev *hdev, struct smp_ltk *key, u8 persistent);
+void mgmt_reenable_advertising(struct hci_dev *hdev);
 
 /* HCI info for socket */
 #define hci_pi(sk) ((struct hci_pinfo *) sk)

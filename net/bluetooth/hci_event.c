@@ -918,9 +918,9 @@ static void hci_cc_le_set_adv_enable(struct hci_dev *hdev, struct sk_buff *skb)
 
 	if (!status) {
 		if (*sent)
-			set_bit(HCI_LE_PERIPHERAL, &hdev->dev_flags);
+			set_bit(HCI_ADVERTISING, &hdev->dev_flags);
 		else
-			clear_bit(HCI_LE_PERIPHERAL, &hdev->dev_flags);
+			clear_bit(HCI_ADVERTISING, &hdev->dev_flags);
 	}
 
 	if (!test_bit(HCI_INIT, &hdev->flags)) {
@@ -1005,7 +1005,7 @@ static void hci_cc_write_le_host_supported(struct hci_dev *hdev,
 		} else {
 			hdev->features[1][0] &= ~LMP_HOST_LE;
 			clear_bit(HCI_LE_ENABLED, &hdev->dev_flags);
-			clear_bit(HCI_LE_PERIPHERAL, &hdev->dev_flags);
+			clear_bit(HCI_ADVERTISING, &hdev->dev_flags);
 		}
 
 		if (sent->simul)
@@ -1296,9 +1296,11 @@ static void hci_cs_remote_name_req(struct hci_dev *hdev, __u8 status)
 		goto unlock;
 
 	if (!test_and_set_bit(HCI_CONN_AUTH_PEND, &conn->flags)) {
-		struct hci_cp_auth_requested cp;
-		cp.handle = __cpu_to_le16(conn->handle);
-		hci_send_cmd(hdev, HCI_OP_AUTH_REQUESTED, sizeof(cp), &cp);
+		struct hci_cp_auth_requested auth_cp;
+
+		auth_cp.handle = __cpu_to_le16(conn->handle);
+		hci_send_cmd(hdev, HCI_OP_AUTH_REQUESTED,
+			     sizeof(auth_cp), &auth_cp);
 	}
 
 unlock:
@@ -1826,10 +1828,25 @@ static void hci_disconn_complete_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	}
 
 	if (ev->status == 0) {
-		if (conn->type == ACL_LINK && conn->flush_key)
+		u8 type = conn->type;
+
+		if (type == ACL_LINK && conn->flush_key)
 			hci_remove_link_key(hdev, &conn->dst);
 		hci_proto_disconn_cfm(conn, ev->reason);
 		hci_conn_del(conn);
+
+		/* Re-enable advertising if necessary, since it might
+		 * have been disabled by the connection. From the
+		 * HCI_LE_Set_Advertise_Enable command description in
+		 * the core specification (v4.0):
+		 * "The Controller shall continue advertising until the Host
+		 * issues an LE_Set_Advertise_Enable command with
+		 * Advertising_Enable set to 0x00 (Advertising is disabled)
+		 * or until a connection is created or until the Advertising
+		 * is timed out due to Directed Advertising."
+		 */
+		if (type == LE_LINK)
+			mgmt_reenable_advertising(hdev);
 	}
 
 unlock:
@@ -3645,8 +3662,8 @@ void hci_event_packet(struct hci_dev *hdev, struct sk_buff *skb)
 	skb_pull(skb, HCI_EVENT_HDR_SIZE);
 
 	if (hdev->sent_cmd && bt_cb(hdev->sent_cmd)->req.event == event) {
-		struct hci_command_hdr *hdr = (void *) hdev->sent_cmd->data;
-		u16 opcode = __le16_to_cpu(hdr->opcode);
+		struct hci_command_hdr *cmd_hdr = (void *) hdev->sent_cmd->data;
+		u16 opcode = __le16_to_cpu(cmd_hdr->opcode);
 
 		hci_req_cmd_complete(hdev, opcode, 0);
 	}

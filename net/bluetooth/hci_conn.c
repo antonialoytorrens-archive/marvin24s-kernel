@@ -54,16 +54,15 @@ static void hci_le_create_connection(struct hci_conn *conn)
 	struct hci_dev *hdev = conn->hdev;
 	struct hci_cp_le_create_conn cp;
 
-	conn->state = BT_CONNECT;
-	conn->out = true;
-	conn->link_mode |= HCI_LM_MASTER;
-	conn->sec_level = BT_SECURITY_LOW;
-
 	memset(&cp, 0, sizeof(cp));
 	cp.scan_interval = __constant_cpu_to_le16(0x0060);
 	cp.scan_window = __constant_cpu_to_le16(0x0030);
 	bacpy(&cp.peer_addr, &conn->dst);
 	cp.peer_addr_type = conn->dst_type;
+	if (bacmp(&hdev->bdaddr, BDADDR_ANY))
+		cp.own_address_type = ADDR_LE_DEV_PUBLIC;
+	else
+		cp.own_address_type = ADDR_LE_DEV_RANDOM;
 	cp.conn_interval_min = __constant_cpu_to_le16(0x0028);
 	cp.conn_interval_max = __constant_cpu_to_le16(0x0038);
 	cp.supervision_timeout = __constant_cpu_to_le16(0x002a);
@@ -549,31 +548,36 @@ EXPORT_SYMBOL(hci_get_route);
 static struct hci_conn *hci_connect_le(struct hci_dev *hdev, bdaddr_t *dst,
 				    u8 dst_type, u8 sec_level, u8 auth_type)
 {
-	struct hci_conn *le;
+	struct hci_conn *conn;
 
-	if (test_bit(HCI_LE_PERIPHERAL, &hdev->flags))
+	if (test_bit(HCI_ADVERTISING, &hdev->flags))
 		return ERR_PTR(-ENOTSUPP);
 
-	le = hci_conn_hash_lookup_ba(hdev, LE_LINK, dst);
-	if (!le) {
-		le = hci_conn_hash_lookup_state(hdev, LE_LINK, BT_CONNECT);
-		if (le)
+	conn = hci_conn_hash_lookup_ba(hdev, LE_LINK, dst);
+	if (!conn) {
+		conn = hci_conn_hash_lookup_state(hdev, LE_LINK, BT_CONNECT);
+		if (conn)
 			return ERR_PTR(-EBUSY);
 
-		le = hci_conn_add(hdev, LE_LINK, dst);
-		if (!le)
+		conn = hci_conn_add(hdev, LE_LINK, dst);
+		if (!conn)
 			return ERR_PTR(-ENOMEM);
 
-		le->dst_type = bdaddr_to_le(dst_type);
-		hci_le_create_connection(le);
+		conn->dst_type = bdaddr_to_le(dst_type);
+		conn->state = BT_CONNECT;
+		conn->out = true;
+		conn->link_mode |= HCI_LM_MASTER;
+		conn->sec_level = BT_SECURITY_LOW;
+
+		hci_le_create_connection(conn);
 	}
 
-	le->pending_sec_level = sec_level;
-	le->auth_type = auth_type;
+	conn->pending_sec_level = sec_level;
+	conn->auth_type = auth_type;
 
-	hci_conn_hold(le);
+	hci_conn_hold(conn);
 
-	return le;
+	return conn;
 }
 
 static struct hci_conn *hci_connect_acl(struct hci_dev *hdev, bdaddr_t *dst,
