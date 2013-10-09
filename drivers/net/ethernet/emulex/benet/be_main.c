@@ -935,8 +935,10 @@ static netdev_tx_t be_xmit(struct sk_buff *skb, struct net_device *netdev)
 	u32 start = txq->head;
 
 	skb = be_xmit_workarounds(adapter, skb, &skip_hw_vlan);
-	if (!skb)
+	if (!skb) {
+		tx_stats(txo)->tx_drv_drops++;
 		return NETDEV_TX_OK;
+	}
 
 	wrb_cnt = wrb_cnt_for_skb(adapter, skb, &dummy_wrb);
 
@@ -965,6 +967,7 @@ static netdev_tx_t be_xmit(struct sk_buff *skb, struct net_device *netdev)
 		be_tx_stats_update(txo, wrb_cnt, copied, gso_segs, stopped);
 	} else {
 		txq->head = start;
+		tx_stats(txo)->tx_drv_drops++;
 		dev_kfree_skb_any(skb);
 	}
 	return NETDEV_TX_OK;
@@ -1275,53 +1278,79 @@ static int be_set_vf_tx_rate(struct net_device *netdev,
 	return status;
 }
 
-static void be_eqd_update(struct be_adapter *adapter, struct be_eq_obj *eqo)
+static void be_aic_update(struct be_aic_obj *aic, u64 rx_pkts, u64 tx_pkts,
+			  ulong now)
 {
-	struct be_rx_stats *stats = rx_stats(&adapter->rx_obj[eqo->idx]);
-	ulong now = jiffies;
-	ulong delta = now - stats->rx_jiffies;
-	u64 pkts;
-	unsigned int start, eqd;
+	aic->rx_pkts_prev = rx_pkts;
+	aic->tx_reqs_prev = tx_pkts;
+	aic->jiffies = now;
+}
 
-	if (!eqo->enable_aic) {
-		eqd = eqo->eqd;
-		goto modify_eqd;
-	}
+static void be_eqd_update(struct be_adapter *adapter)
+{
+	struct be_set_eqd set_eqd[MAX_EVT_QS];
+	int eqd, i, num = 0, start;
+	struct be_aic_obj *aic;
+	struct be_eq_obj *eqo;
+	struct be_rx_obj *rxo;
+	struct be_tx_obj *txo;
+	u64 rx_pkts, tx_pkts;
+	ulong now;
+	u32 pps, delta;
 
-	if (eqo->idx >= adapter->num_rx_qs)
-		return;
+	for_all_evt_queues(adapter, eqo, i) {
+		aic = &adapter->aic_obj[eqo->idx];
+		if (!aic->enable) {
+			if (aic->jiffies)
+				aic->jiffies = 0;
+			eqd = aic->et_eqd;
+			goto modify_eqd;
+		}
 
-	stats = rx_stats(&adapter->rx_obj[eqo->idx]);
+		rxo = &adapter->rx_obj[eqo->idx];
+		do {
+			start = u64_stats_fetch_begin_bh(&rxo->stats.sync);
+			rx_pkts = rxo->stats.rx_pkts;
+		} while (u64_stats_fetch_retry_bh(&rxo->stats.sync, start));
 
-	/* Wrapped around */
-	if (time_before(now, stats->rx_jiffies)) {
-		stats->rx_jiffies = now;
-		return;
-	}
+		txo = &adapter->tx_obj[eqo->idx];
+		do {
+			start = u64_stats_fetch_begin_bh(&txo->stats.sync);
+			tx_pkts = txo->stats.tx_reqs;
+		} while (u64_stats_fetch_retry_bh(&txo->stats.sync, start));
 
-	/* Update once a second */
-	if (delta < HZ)
-		return;
 
-	do {
-		start = u64_stats_fetch_begin_bh(&stats->sync);
-		pkts = stats->rx_pkts;
-	} while (u64_stats_fetch_retry_bh(&stats->sync, start));
+		/* Skip, if wrapped around or first calculation */
+		now = jiffies;
+		if (!aic->jiffies || time_before(now, aic->jiffies) ||
+		    rx_pkts < aic->rx_pkts_prev ||
+		    tx_pkts < aic->tx_reqs_prev) {
+			be_aic_update(aic, rx_pkts, tx_pkts, now);
+			continue;
+		}
 
-	stats->rx_pps = (unsigned long)(pkts - stats->rx_pkts_prev) / (delta / HZ);
-	stats->rx_pkts_prev = pkts;
-	stats->rx_jiffies = now;
-	eqd = (stats->rx_pps / 110000) << 3;
-	eqd = min(eqd, eqo->max_eqd);
-	eqd = max(eqd, eqo->min_eqd);
-	if (eqd < 10)
-		eqd = 0;
+		delta = jiffies_to_msecs(now - aic->jiffies);
+		pps = (((u32)(rx_pkts - aic->rx_pkts_prev) * 1000) / delta) +
+			(((u32)(tx_pkts - aic->tx_reqs_prev) * 1000) / delta);
+		eqd = (pps / 15000) << 2;
 
+		if (eqd < 8)
+			eqd = 0;
+		eqd = min_t(u32, eqd, aic->max_eqd);
+		eqd = max_t(u32, eqd, aic->min_eqd);
+
+		be_aic_update(aic, rx_pkts, tx_pkts, now);
 modify_eqd:
-	if (eqd != eqo->cur_eqd) {
-		be_cmd_modify_eqd(adapter, eqo->q.id, eqd);
-		eqo->cur_eqd = eqd;
+		if (eqd != aic->prev_eqd) {
+			set_eqd[num].delay_multiplier = (eqd * 65)/100;
+			set_eqd[num].eq_id = eqo->q.id;
+			aic->prev_eqd = eqd;
+			num++;
+		}
 	}
+
+	if (num)
+		be_cmd_modify_eqd(adapter, set_eqd, num);
 }
 
 static void be_rx_stats_update(struct be_rx_obj *rxo,
@@ -1938,6 +1967,7 @@ static int be_evt_queues_create(struct be_adapter *adapter)
 {
 	struct be_queue_info *eq;
 	struct be_eq_obj *eqo;
+	struct be_aic_obj *aic;
 	int i, rc;
 
 	adapter->num_evt_qs = min_t(u16, num_irqs(adapter),
@@ -1946,11 +1976,12 @@ static int be_evt_queues_create(struct be_adapter *adapter)
 	for_all_evt_queues(adapter, eqo, i) {
 		netif_napi_add(adapter->netdev, &eqo->napi, be_poll,
 			       BE_NAPI_WEIGHT);
+		aic = &adapter->aic_obj[i];
 		eqo->adapter = adapter;
 		eqo->tx_budget = BE_TX_BUDGET;
 		eqo->idx = i;
-		eqo->max_eqd = BE_MAX_EQD;
-		eqo->enable_aic = true;
+		aic->max_eqd = BE_MAX_EQD;
+		aic->enable = true;
 
 		eq = &eqo->q;
 		rc = be_queue_alloc(adapter, eq, EVNT_Q_LEN,
@@ -2937,7 +2968,8 @@ static int be_vf_setup(struct be_adapter *adapter)
 			goto err;
 		vf_cfg->def_vid = def_vlan;
 
-		be_cmd_enable_vf(adapter, vf + 1);
+		if (!old_vfs)
+			be_cmd_enable_vf(adapter, vf + 1);
 	}
 
 	if (!old_vfs) {
@@ -2962,12 +2994,12 @@ static void BEx_get_resources(struct be_adapter *adapter,
 	struct pci_dev *pdev = adapter->pdev;
 	bool use_sriov = false;
 
-	if (BE3_chip(adapter) && be_physfn(adapter)) {
+	if (BE3_chip(adapter) && sriov_want(adapter)) {
 		int max_vfs;
 
 		max_vfs = pci_sriov_get_totalvfs(pdev);
 		res->max_vfs = max_vfs > 0 ? min(MAX_VFS, max_vfs) : 0;
-		use_sriov = res->max_vfs && num_vfs;
+		use_sriov = res->max_vfs;
 	}
 
 	if (be_physfn(adapter))
@@ -2983,8 +3015,9 @@ static void BEx_get_resources(struct be_adapter *adapter,
 		res->max_vlans = BE_NUM_VLANS_SUPPORTED;
 	res->max_mcast_mac = BE_MAX_MC;
 
+	/* For BE3 1Gb ports, F/W does not properly support multiple TXQs */
 	if (BE2_chip(adapter) || use_sriov || be_is_mc(adapter) ||
-	    !be_physfn(adapter))
+	    !be_physfn(adapter) || (adapter->port_num > 1))
 		res->max_tx_qs = 1;
 	else
 		res->max_tx_qs = BE3_MAX_TX_QS;
@@ -3024,14 +3057,6 @@ static int be_get_resources(struct be_adapter *adapter)
 	if (BEx_chip(adapter)) {
 		BEx_get_resources(adapter, &res);
 		adapter->res = res;
-	}
-
-	/* For BE3 only check if FW suggests a different max-txqs value */
-	if (BE3_chip(adapter)) {
-		status = be_cmd_get_profile_config(adapter, &res, 0);
-		if (!status && res.max_tx_qs)
-			adapter->res.max_tx_qs =
-				min(adapter->res.max_tx_qs, res.max_tx_qs);
 	}
 
 	/* For Lancer, SH etc read per-function resource limits from FW.
@@ -3258,7 +3283,7 @@ static int be_setup(struct be_adapter *adapter)
 		be_cmd_set_flow_control(adapter, adapter->tx_fc,
 					adapter->rx_fc);
 
-	if (be_physfn(adapter) && num_vfs) {
+	if (sriov_want(adapter)) {
 		if (be_max_vfs(adapter))
 			be_vf_setup(adapter);
 		else
@@ -4262,7 +4287,6 @@ static void be_worker(struct work_struct *work)
 	struct be_adapter *adapter =
 		container_of(work, struct be_adapter, work.work);
 	struct be_rx_obj *rxo;
-	struct be_eq_obj *eqo;
 	int i;
 
 	/* when interrupts are not yet enabled, just reap any pending
@@ -4293,8 +4317,7 @@ static void be_worker(struct work_struct *work)
 		}
 	}
 
-	for_all_evt_queues(adapter, eqo, i)
-		be_eqd_update(adapter, eqo);
+	be_eqd_update(adapter);
 
 reschedule:
 	adapter->work_counter++;
