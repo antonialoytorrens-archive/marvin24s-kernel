@@ -142,7 +142,7 @@ struct kvm;
 struct kvm_vcpu;
 extern struct kmem_cache *kvm_vcpu_cache;
 
-extern raw_spinlock_t kvm_lock;
+extern spinlock_t kvm_lock;
 extern struct list_head vm_list;
 
 struct kvm_io_range {
@@ -190,7 +190,6 @@ struct kvm_async_pf {
 	unsigned long addr;
 	struct kvm_arch_async_pf arch;
 	struct page *page;
-	bool done;
 };
 
 void kvm_clear_async_pf_completion_queue(struct kvm_vcpu *vcpu);

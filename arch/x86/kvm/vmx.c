@@ -1898,16 +1898,12 @@ static void skip_emulated_instruction(struct kvm_vcpu *vcpu)
 /*
  * KVM wants to inject page-faults which it got to the guest. This function
  * checks whether in a nested guest, we need to inject them to L1 or L2.
- * This function assumes it is called with the exit reason in vmcs02 being
- * a #PF exception (this is the only case in which KVM injects a #PF when L2
- * is running).
  */
-static int nested_pf_handled(struct kvm_vcpu *vcpu)
+static int nested_vmx_check_exception(struct kvm_vcpu *vcpu, unsigned nr)
 {
 	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
 
-	/* TODO: also check PFEC_MATCH/MASK, not just EB.PF. */
-	if (!(vmcs12->exception_bitmap & (1u << PF_VECTOR)))
+	if (!(vmcs12->exception_bitmap & (1u << nr)))
 		return 0;
 
 	nested_vmx_vmexit(vcpu);
@@ -1921,8 +1917,8 @@ static void vmx_queue_exception(struct kvm_vcpu *vcpu, unsigned nr,
 	struct vcpu_vmx *vmx = to_vmx(vcpu);
 	u32 intr_info = nr | INTR_INFO_VALID_MASK;
 
-	if (nr == PF_VECTOR && is_guest_mode(vcpu) &&
-	    !vmx->nested.nested_run_pending && nested_pf_handled(vcpu))
+	if (!reinject && is_guest_mode(vcpu) &&
+	    nested_vmx_check_exception(vcpu, nr))
 		return;
 
 	if (has_error_code) {
@@ -2206,7 +2202,7 @@ static __init void nested_vmx_setup_ctls_msrs(void)
 #endif
 		VM_EXIT_LOAD_IA32_PAT | VM_EXIT_SAVE_IA32_PAT;
 	nested_vmx_exit_ctls_high |= (VM_EXIT_ALWAYSON_WITHOUT_TRUE_MSR |
-				      VM_EXIT_LOAD_IA32_EFER);
+		VM_EXIT_LOAD_IA32_EFER | VM_EXIT_SAVE_IA32_EFER);
 
 	/* entry controls */
 	rdmsr(MSR_IA32_VMX_ENTRY_CTLS,
@@ -2252,6 +2248,7 @@ static __init void nested_vmx_setup_ctls_msrs(void)
 	nested_vmx_secondary_ctls_low = 0;
 	nested_vmx_secondary_ctls_high &=
 		SECONDARY_EXEC_VIRTUALIZE_APIC_ACCESSES |
+		SECONDARY_EXEC_UNRESTRICTED_GUEST |
 		SECONDARY_EXEC_WBINVD_EXITING;
 
 	if (enable_ept) {
@@ -3376,8 +3373,10 @@ static void vmx_set_cr3(struct kvm_vcpu *vcpu, unsigned long cr3)
 	if (enable_ept) {
 		eptp = construct_eptp(cr3);
 		vmcs_write64(EPT_POINTER, eptp);
-		guest_cr3 = is_paging(vcpu) ? kvm_read_cr3(vcpu) :
-			vcpu->kvm->arch.ept_identity_map_addr;
+		if (is_paging(vcpu) || is_guest_mode(vcpu))
+			guest_cr3 = kvm_read_cr3(vcpu);
+		else
+			guest_cr3 = vcpu->kvm->arch.ept_identity_map_addr;
 		ept_load_pdptrs(vcpu);
 	}
 
@@ -4875,6 +4874,17 @@ vmx_patch_hypercall(struct kvm_vcpu *vcpu, unsigned char *hypercall)
 	hypercall[2] = 0xc1;
 }
 
+static bool nested_cr0_valid(struct vmcs12 *vmcs12, unsigned long val)
+{
+	unsigned long always_on = VMXON_CR0_ALWAYSON;
+
+	if (nested_vmx_secondary_ctls_high &
+		SECONDARY_EXEC_UNRESTRICTED_GUEST &&
+	    nested_cpu_has2(vmcs12, SECONDARY_EXEC_UNRESTRICTED_GUEST))
+		always_on &= ~(X86_CR0_PE | X86_CR0_PG);
+	return (val & always_on) == always_on;
+}
+
 /* called to set cr0 as appropriate for a mov-to-cr0 exit. */
 static int handle_set_cr0(struct kvm_vcpu *vcpu, unsigned long val)
 {
@@ -4893,9 +4903,7 @@ static int handle_set_cr0(struct kvm_vcpu *vcpu, unsigned long val)
 		val = (val & ~vmcs12->cr0_guest_host_mask) |
 			(vmcs12->guest_cr0 & vmcs12->cr0_guest_host_mask);
 
-		/* TODO: will have to take unrestricted guest mode into
-		 * account */
-		if ((val & VMXON_CR0_ALWAYSON) != VMXON_CR0_ALWAYSON)
+		if (!nested_cr0_valid(vmcs12, val))
 			return 1;
 
 		if (kvm_set_cr0(vcpu, val))
@@ -6732,20 +6740,6 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 	if (vmx->emulation_required)
 		return handle_invalid_guest_state(vcpu);
 
-	/*
-	 * the KVM_REQ_EVENT optimization bit is only on for one entry, and if
-	 * we did not inject a still-pending event to L1 now because of
-	 * nested_run_pending, we need to re-enable this bit.
-	 */
-	if (vmx->nested.nested_run_pending)
-		kvm_make_request(KVM_REQ_EVENT, vcpu);
-
-	if (!is_guest_mode(vcpu) && (exit_reason == EXIT_REASON_VMLAUNCH ||
-	    exit_reason == EXIT_REASON_VMRESUME))
-		vmx->nested.nested_run_pending = 1;
-	else
-		vmx->nested.nested_run_pending = 0;
-
 	if (is_guest_mode(vcpu) && nested_vmx_exit_handled(vcpu)) {
 		nested_vmx_vmexit(vcpu);
 		return 1;
@@ -7057,9 +7051,9 @@ static void __vmx_complete_interrupts(struct kvm_vcpu *vcpu,
 	case INTR_TYPE_HARD_EXCEPTION:
 		if (idt_vectoring_info & VECTORING_INFO_DELIVER_CODE_MASK) {
 			u32 err = vmcs_read32(error_code_field);
-			kvm_queue_exception_e(vcpu, vector, err);
+			kvm_requeue_exception_e(vcpu, vector, err);
 		} else
-			kvm_queue_exception(vcpu, vector);
+			kvm_requeue_exception(vcpu, vector);
 		break;
 	case INTR_TYPE_SOFT_INTR:
 		vcpu->arch.event_exit_inst_len = vmcs_read32(instr_len_field);
@@ -7279,6 +7273,16 @@ static void __noclone vmx_vcpu_run(struct kvm_vcpu *vcpu)
 
 	vmx->exit_reason = vmcs_read32(VM_EXIT_REASON);
 	trace_kvm_exit(vmx->exit_reason, vcpu, KVM_ISA_VMX);
+
+	/*
+	 * the KVM_REQ_EVENT optimization bit is only on for one entry, and if
+	 * we did not inject a still-pending event to L1 now because of
+	 * nested_run_pending, we need to re-enable this bit.
+	 */
+	if (vmx->nested.nested_run_pending)
+		kvm_make_request(KVM_REQ_EVENT, vcpu);
+
+	vmx->nested.nested_run_pending = 0;
 
 	vmx_complete_atomic_exit(vmx);
 	vmx_recover_nmi_blocking(vmx);
@@ -7514,6 +7518,20 @@ static int nested_ept_init_mmu_context(struct kvm_vcpu *vcpu)
 static void nested_ept_uninit_mmu_context(struct kvm_vcpu *vcpu)
 {
 	vcpu->arch.walk_mmu = &vcpu->arch.mmu;
+}
+
+static void vmx_inject_page_fault_nested(struct kvm_vcpu *vcpu,
+		struct x86_exception *fault)
+{
+	struct vmcs12 *vmcs12 = get_vmcs12(vcpu);
+
+	WARN_ON(!is_guest_mode(vcpu));
+
+	/* TODO: also check PFEC_MATCH/MASK, not just EB.PF. */
+	if (vmcs12->exception_bitmap & (1u << PF_VECTOR))
+		nested_vmx_vmexit(vcpu);
+	else
+		kvm_inject_page_fault(vcpu, fault);
 }
 
 /*
@@ -7769,6 +7787,9 @@ static void prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	kvm_set_cr3(vcpu, vmcs12->guest_cr3);
 	kvm_mmu_reset_context(vcpu);
 
+	if (!enable_ept)
+		vcpu->arch.walk_mmu->inject_page_fault = vmx_inject_page_fault_nested;
+
 	/*
 	 * L1 may access the L2's PDPTR, so save them to construct vmcs12
 	 */
@@ -7876,7 +7897,7 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 		return 1;
 	}
 
-	if (((vmcs12->guest_cr0 & VMXON_CR0_ALWAYSON) != VMXON_CR0_ALWAYSON) ||
+	if (!nested_cr0_valid(vmcs12, vmcs12->guest_cr0) ||
 	    ((vmcs12->guest_cr4 & VMXON_CR4_ALWAYSON) != VMXON_CR4_ALWAYSON)) {
 		nested_vmx_entry_failure(vcpu, vmcs12,
 			EXIT_REASON_INVALID_STATE, ENTRY_FAIL_DEFAULT);
@@ -7937,6 +7958,8 @@ static int nested_vmx_run(struct kvm_vcpu *vcpu, bool launch)
 		return -ENOMEM;
 
 	enter_guest_mode(vcpu);
+
+	vmx->nested.nested_run_pending = 1;
 
 	vmx->nested.vmcs01_tsc_offset = vmcs_read64(TSC_OFFSET);
 
@@ -8005,7 +8028,7 @@ static void vmcs12_save_pending_event(struct kvm_vcpu *vcpu,
 	u32 idt_vectoring;
 	unsigned int nr;
 
-	if (vcpu->arch.exception.pending) {
+	if (vcpu->arch.exception.pending && vcpu->arch.exception.reinject) {
 		nr = vcpu->arch.exception.nr;
 		idt_vectoring = nr | VECTORING_INFO_VALID_MASK;
 
@@ -8130,6 +8153,8 @@ static void prepare_vmcs12(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12)
 	vmcs12->guest_ia32_debugctl = vmcs_read64(GUEST_IA32_DEBUGCTL);
 	if (vmcs12->vm_exit_controls & VM_EXIT_SAVE_IA32_PAT)
 		vmcs12->guest_ia32_pat = vmcs_read64(GUEST_IA32_PAT);
+	if (vmcs12->vm_exit_controls & VM_EXIT_SAVE_IA32_EFER)
+		vmcs12->guest_ia32_efer = vcpu->arch.efer;
 	vmcs12->guest_sysenter_cs = vmcs_read32(GUEST_SYSENTER_CS);
 	vmcs12->guest_sysenter_esp = vmcs_readl(GUEST_SYSENTER_ESP);
 	vmcs12->guest_sysenter_eip = vmcs_readl(GUEST_SYSENTER_EIP);
@@ -8201,7 +8226,7 @@ static void load_vmcs12_host_state(struct kvm_vcpu *vcpu,
 	 * fpu_active (which may have changed).
 	 * Note that vmx_set_cr0 refers to efer set above.
 	 */
-	kvm_set_cr0(vcpu, vmcs12->host_cr0);
+	vmx_set_cr0(vcpu, vmcs12->host_cr0);
 	/*
 	 * If we did fpu_activate()/fpu_deactivate() during L2's run, we need
 	 * to apply the same changes to L1's vmcs. We just set cr0 correctly,
@@ -8223,6 +8248,9 @@ static void load_vmcs12_host_state(struct kvm_vcpu *vcpu,
 
 	kvm_set_cr3(vcpu, vmcs12->host_cr3);
 	kvm_mmu_reset_context(vcpu);
+
+	if (!enable_ept)
+		vcpu->arch.walk_mmu->inject_page_fault = kvm_inject_page_fault;
 
 	if (enable_vpid) {
 		/*
