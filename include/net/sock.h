@@ -192,10 +192,8 @@ struct sock_common {
 	struct net	 	*skc_net;
 #endif
 
-#if IS_ENABLED(CONFIG_IPV6)
 	struct in6_addr		skc_v6_daddr;
 	struct in6_addr		skc_v6_rcv_saddr;
-#endif
 
 	/*
 	 * fields between dontcopy_begin/dontcopy_end
