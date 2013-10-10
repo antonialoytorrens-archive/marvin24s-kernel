@@ -8,13 +8,9 @@
  */
 
 #include <linux/clk.h>
-#include <linux/debugfs.h>
-#include <linux/module.h>
-#include <linux/of.h>
-#include <linux/platform_device.h>
 #include <linux/clk/tegra.h>
+#include <linux/debugfs.h>
 
-#include "host1x_client.h"
 #include "dc.h"
 #include "drm.h"
 #include "gem.h"
@@ -51,6 +47,8 @@ static int tegra_plane_update(struct drm_plane *plane, struct drm_crtc *crtc,
 	window.dst.h = crtc_h;
 	window.format = tegra_dc_format(fb->pixel_format);
 	window.bits_per_pixel = fb->bits_per_pixel;
+	window.bottom_up = tegra_fb_is_bottom_up(fb);
+	window.tiled = tegra_fb_is_tiled(fb);
 
 	for (i = 0; i < drm_format_num_planes(fb->pixel_format); i++) {
 		struct tegra_bo *bo = tegra_fb_get_plane(fb, i);
@@ -145,6 +143,7 @@ static int tegra_dc_set_base(struct tegra_dc *dc, int x, int y,
 {
 	unsigned int format = tegra_dc_format(fb->pixel_format);
 	struct tegra_bo *bo = tegra_fb_get_plane(fb, 0);
+	unsigned int h_offset = 0, v_offset = 0;
 	unsigned long value;
 
 	tegra_dc_writel(dc, WINDOW_A_SELECT, DC_CMD_DISPLAY_WINDOW_HEADER);
@@ -155,6 +154,32 @@ static int tegra_dc_set_base(struct tegra_dc *dc, int x, int y,
 	tegra_dc_writel(dc, bo->paddr + value, DC_WINBUF_START_ADDR);
 	tegra_dc_writel(dc, fb->pitches[0], DC_WIN_LINE_STRIDE);
 	tegra_dc_writel(dc, format, DC_WIN_COLOR_DEPTH);
+
+	if (tegra_fb_is_tiled(fb)) {
+		value = DC_WIN_BUFFER_ADDR_MODE_TILE_UV |
+			DC_WIN_BUFFER_ADDR_MODE_TILE;
+	} else {
+		value = DC_WIN_BUFFER_ADDR_MODE_LINEAR_UV |
+			DC_WIN_BUFFER_ADDR_MODE_LINEAR;
+	}
+
+	tegra_dc_writel(dc, value, DC_WIN_BUFFER_ADDR_MODE);
+
+	/* make sure bottom-up buffers are properly displayed */
+	if (tegra_fb_is_bottom_up(fb)) {
+		value = tegra_dc_readl(dc, DC_WIN_WIN_OPTIONS);
+		value |= INVERT_V;
+		tegra_dc_writel(dc, value, DC_WIN_WIN_OPTIONS);
+
+		v_offset += fb->height - 1;
+	} else {
+		value = tegra_dc_readl(dc, DC_WIN_WIN_OPTIONS);
+		value &= ~INVERT_V;
+		tegra_dc_writel(dc, value, DC_WIN_WIN_OPTIONS);
+	}
+
+	tegra_dc_writel(dc, h_offset, DC_WINBUF_ADDR_H_OFFSET);
+	tegra_dc_writel(dc, v_offset, DC_WINBUF_ADDR_V_OFFSET);
 
 	value = GENERAL_UPDATE | WIN_A_UPDATE;
 	tegra_dc_writel(dc, value, DC_CMD_STATE_CONTROL);
@@ -491,8 +516,21 @@ int tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 		tegra_dc_writel(dc, window->stride[0], DC_WIN_LINE_STRIDE);
 	}
 
+	if (window->bottom_up)
+		v_offset += window->src.h - 1;
+
 	tegra_dc_writel(dc, h_offset, DC_WINBUF_ADDR_H_OFFSET);
 	tegra_dc_writel(dc, v_offset, DC_WINBUF_ADDR_V_OFFSET);
+
+	if (window->tiled) {
+		value = DC_WIN_BUFFER_ADDR_MODE_TILE_UV |
+			DC_WIN_BUFFER_ADDR_MODE_TILE;
+	} else {
+		value = DC_WIN_BUFFER_ADDR_MODE_LINEAR_UV |
+			DC_WIN_BUFFER_ADDR_MODE_LINEAR;
+	}
+
+	tegra_dc_writel(dc, value, DC_WIN_BUFFER_ADDR_MODE);
 
 	value = WIN_ENABLE;
 
@@ -511,6 +549,9 @@ int tegra_dc_setup_window(struct tegra_dc *dc, unsigned int index,
 	} else if (window->bits_per_pixel < 24) {
 		value |= COLOR_EXPAND;
 	}
+
+	if (window->bottom_up)
+		value |= INVERT_V;
 
 	tegra_dc_writel(dc, value, DC_WIN_WIN_OPTIONS);
 
@@ -1041,30 +1082,30 @@ static int tegra_dc_debugfs_exit(struct tegra_dc *dc)
 	return 0;
 }
 
-static int tegra_dc_drm_init(struct host1x_client *client,
-			     struct drm_device *drm)
+static int tegra_dc_init(struct host1x_client *client)
 {
+	struct tegra_drm *tegra = dev_get_drvdata(client->parent);
 	struct tegra_dc *dc = host1x_client_to_dc(client);
 	int err;
 
-	dc->pipe = drm->mode_config.num_crtc;
+	dc->pipe = tegra->drm->mode_config.num_crtc;
 
-	drm_crtc_init(drm, &dc->base, &tegra_crtc_funcs);
+	drm_crtc_init(tegra->drm, &dc->base, &tegra_crtc_funcs);
 	drm_mode_crtc_set_gamma_size(&dc->base, 256);
 	drm_crtc_helper_add(&dc->base, &tegra_crtc_helper_funcs);
 
-	err = tegra_dc_rgb_init(drm, dc);
+	err = tegra_dc_rgb_init(tegra->drm, dc);
 	if (err < 0 && err != -ENODEV) {
 		dev_err(dc->dev, "failed to initialize RGB output: %d\n", err);
 		return err;
 	}
 
-	err = tegra_dc_add_planes(drm, dc);
+	err = tegra_dc_add_planes(tegra->drm, dc);
 	if (err < 0)
 		return err;
 
 	if (IS_ENABLED(CONFIG_DEBUG_FS)) {
-		err = tegra_dc_debugfs_init(dc, drm->primary);
+		err = tegra_dc_debugfs_init(dc, tegra->drm->primary);
 		if (err < 0)
 			dev_err(dc->dev, "debugfs setup failed: %d\n", err);
 	}
@@ -1080,7 +1121,7 @@ static int tegra_dc_drm_init(struct host1x_client *client,
 	return 0;
 }
 
-static int tegra_dc_drm_exit(struct host1x_client *client)
+static int tegra_dc_exit(struct host1x_client *client)
 {
 	struct tegra_dc *dc = host1x_client_to_dc(client);
 	int err;
@@ -1103,16 +1144,19 @@ static int tegra_dc_drm_exit(struct host1x_client *client)
 }
 
 static const struct host1x_client_ops dc_client_ops = {
-	.drm_init = tegra_dc_drm_init,
-	.drm_exit = tegra_dc_drm_exit,
+	.init = tegra_dc_init,
+	.exit = tegra_dc_exit,
 };
 
 static int tegra_dc_probe(struct platform_device *pdev)
 {
-	struct host1x_drm *host1x = host1x_get_drm_data(pdev->dev.parent);
+	struct host1x *host1x = dev_get_drvdata(pdev->dev.parent);
 	struct resource *regs;
 	struct tegra_dc *dc;
 	int err;
+
+	if (!host1x)
+		return -EPROBE_DEFER;
 
 	dc = devm_kzalloc(&pdev->dev, sizeof(*dc), GFP_KERNEL);
 	if (!dc)
@@ -1167,7 +1211,7 @@ static int tegra_dc_probe(struct platform_device *pdev)
 
 static int tegra_dc_remove(struct platform_device *pdev)
 {
-	struct host1x_drm *host1x = host1x_get_drm_data(pdev->dev.parent);
+	struct host1x *host1x = dev_get_drvdata(pdev->dev.parent);
 	struct tegra_dc *dc = platform_get_drvdata(pdev);
 	int err;
 
@@ -1184,6 +1228,7 @@ static int tegra_dc_remove(struct platform_device *pdev)
 }
 
 static struct of_device_id tegra_dc_of_match[] = {
+	{ .compatible = "nvidia,tegra114-dc", },
 	{ .compatible = "nvidia,tegra30-dc", },
 	{ .compatible = "nvidia,tegra20-dc", },
 	{ },

@@ -2,6 +2,7 @@ config DRM_TEGRA
 	bool "NVIDIA Tegra DRM"
 	depends on DRM
 	select DRM_KMS_HELPER
+	select DRM_PANEL
 	select FB_SYS_FILLRECT
 	select FB_SYS_COPYAREA
 	select FB_SYS_IMAGEBLIT
@@ -13,6 +14,11 @@ config DRM_TEGRA
 
 if DRM_TEGRA
 
+config DRM_TEGRA_DEBUG
+	bool "NVIDIA Tegra DRM debug support"
+	help
+	  Say yes here to enable debugging support.
+
 config DRM_TEGRA_STAGING
 	bool "Enable HOST1X interface"
 	depends on STAGING
@@ -20,10 +26,5 @@ config DRM_TEGRA_STAGING
 	  Say yes if HOST1X should be available for userspace DRM users.
 
 	  If unsure, choose N.
-
-config DRM_TEGRA_DEBUG
-	bool "NVIDIA Tegra DRM debug support"
-	help
-	  Say yes here to enable debugging support.
 
 endif
