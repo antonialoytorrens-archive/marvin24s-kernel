@@ -20,6 +20,7 @@
 struct gr3d {
 	struct tegra_drm_client client;
 	struct host1x_channel *channel;
+	struct clk *clk_secondary;
 	struct clk *clk;
 
 	DECLARE_BITMAP(addr_regs, GR3D_NUM_REGS);
@@ -34,6 +35,17 @@ static int gr3d_init(struct host1x_client *client)
 {
 	struct tegra_drm_client *drm = host1x_to_drm_client(client);
 	struct tegra_drm *tegra = dev_get_drvdata(client->parent);
+	struct gr3d *gr3d = to_gr3d(drm);
+
+	gr3d->channel = host1x_channel_request(client->dev);
+	if (!gr3d->channel)
+		return -ENOMEM;
+
+	client->syncpts[0] = host1x_syncpt_request(client->dev, 0);
+	if (!client->syncpts[0]) {
+		host1x_channel_free(gr3d->channel);
+		return -ENOMEM;
+	}
 
 	return tegra_drm_register_client(tegra, drm);
 }
@@ -42,8 +54,17 @@ static int gr3d_exit(struct host1x_client *client)
 {
 	struct tegra_drm_client *drm = host1x_to_drm_client(client);
 	struct tegra_drm *tegra = dev_get_drvdata(client->parent);
+	struct gr3d *gr3d = to_gr3d(drm);
+	int err;
 
-	return tegra_drm_unregister_client(tegra, drm);
+	err = tegra_drm_unregister_client(tegra, drm);
+	if (err < 0)
+		return err;
+
+	host1x_syncpt_free(client->syncpts[0]);
+	host1x_channel_free(gr3d->channel);
+
+	return 0;
 }
 
 static const struct host1x_client_ops gr3d_client_ops = {
@@ -213,14 +234,11 @@ static const u32 gr3d_addr_regs[] = {
 
 static int gr3d_probe(struct platform_device *pdev)
 {
-	struct host1x *host1x = dev_get_drvdata(pdev->dev.parent);
+	struct device_node *np = pdev->dev.of_node;
 	struct host1x_syncpt **syncpts;
 	struct gr3d *gr3d;
 	unsigned int i;
 	int err;
-
-	if (!host1x)
-		return -EPROBE_DEFER;
 
 	gr3d = devm_kzalloc(&pdev->dev, sizeof(*gr3d), GFP_KERNEL);
 	if (!gr3d)
@@ -236,20 +254,28 @@ static int gr3d_probe(struct platform_device *pdev)
 		return PTR_ERR(gr3d->clk);
 	}
 
+	if (of_device_is_compatible(np, "nvidia,tegra30-gr3d")) {
+		gr3d->clk_secondary = devm_clk_get(&pdev->dev, "3d2");
+		if (IS_ERR(gr3d->clk)) {
+			dev_err(&pdev->dev, "cannot get secondary clock\n");
+			return PTR_ERR(gr3d->clk);
+		}
+	}
+
 	err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D, gr3d->clk);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to power up 3D unit\n");
 		return err;
 	}
 
-	gr3d->channel = host1x_channel_request(&pdev->dev);
-	if (!gr3d->channel)
-		return -ENOMEM;
-
-	syncpts[0] = host1x_syncpt_request(&pdev->dev, 0);
-	if (!syncpts[0]) {
-		host1x_channel_free(gr3d->channel);
-		return -ENOMEM;
+	if (gr3d->clk_secondary) {
+		err = tegra_powergate_sequence_power_up(TEGRA_POWERGATE_3D1,
+							gr3d->clk_secondary);
+		if (err < 0) {
+			dev_err(&pdev->dev,
+				"failed to power up secondary 3D unit\n");
+			return err;
+		}
 	}
 
 	INIT_LIST_HEAD(&gr3d->client.base.list);
@@ -262,7 +288,7 @@ static int gr3d_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&gr3d->client.list);
 	gr3d->client.ops = &gr3d_ops;
 
-	err = host1x_register_client(host1x, &gr3d->client.base);
+	err = host1x_client_register(&gr3d->client.base);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to register host1x client: %d\n",
 			err);
@@ -280,22 +306,22 @@ static int gr3d_probe(struct platform_device *pdev)
 
 static int gr3d_remove(struct platform_device *pdev)
 {
-	struct host1x *host1x = dev_get_drvdata(pdev->dev.parent);
 	struct gr3d *gr3d = platform_get_drvdata(pdev);
-	unsigned int i;
 	int err;
 
-	err = host1x_unregister_client(host1x, &gr3d->client.base);
+	err = host1x_client_unregister(&gr3d->client.base);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
 		return err;
 	}
 
-	for (i = 0; i < gr3d->client.base.num_syncpts; i++)
-		host1x_syncpt_free(gr3d->client.base.syncpts[i]);
+	if (gr3d->clk_secondary) {
+		tegra_powergate_power_off(TEGRA_POWERGATE_3D1);
+		clk_disable_unprepare(gr3d->clk_secondary);
+	}
 
-	host1x_channel_free(gr3d->channel);
+	tegra_powergate_power_off(TEGRA_POWERGATE_3D);
 	clk_disable_unprepare(gr3d->clk);
 
 	return 0;
@@ -303,7 +329,7 @@ static int gr3d_remove(struct platform_device *pdev)
 
 struct platform_driver tegra_gr3d_driver = {
 	.driver = {
-		.name = "gr3d",
+		.name = "tegra-gr3d",
 		.of_match_table = tegra_gr3d_match,
 	},
 	.probe = gr3d_probe,

@@ -257,6 +257,7 @@ struct host1x_device {
 
 	struct mutex subdevs_lock;
 	struct list_head subdevs;
+	struct list_head active;
 
 	struct mutex clients_lock;
 	struct list_head clients;
@@ -270,9 +271,8 @@ static inline struct host1x_device *to_host1x_device(struct device *dev)
 int host1x_device_init(struct host1x_device *device);
 int host1x_device_exit(struct host1x_device *device);
 
-int host1x_register_client(struct host1x *host1x, struct host1x_client *client);
-int host1x_unregister_client(struct host1x *host1x,
-			     struct host1x_client *client);
+int host1x_client_register(struct host1x_client *client);
+int host1x_client_unregister(struct host1x_client *client);
 
 int tegra_mipi_calibrate(struct device *device);
 

@@ -182,10 +182,14 @@ static int host1x_remove(struct platform_device *pdev)
 {
 	struct host1x *host = platform_get_drvdata(pdev);
 
+	dev_info(&pdev->dev, "> %s(pdev=%p)\n", __func__, pdev);
+
 	host1x_unregister(host);
 	host1x_intr_deinit(host);
 	host1x_syncpt_deinit(host);
 	clk_disable_unprepare(host->clk);
+
+	dev_info(&pdev->dev, "< %s()\n", __func__);
 
 	return 0;
 }

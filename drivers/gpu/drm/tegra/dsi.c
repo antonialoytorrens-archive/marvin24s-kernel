@@ -926,13 +926,9 @@ static int tegra_dsi_setup_clocks(struct tegra_dsi *dsi)
 
 static int tegra_dsi_probe(struct platform_device *pdev)
 {
-	struct host1x *host1x = dev_get_drvdata(pdev->dev.parent);
 	struct tegra_dsi *dsi;
 	struct resource *regs;
 	int err;
-
-	if (!host1x)
-		return -EPROBE_DEFER;
 
 	dsi = devm_kzalloc(&pdev->dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
@@ -940,7 +936,7 @@ static int tegra_dsi_probe(struct platform_device *pdev)
 
 	dsi->output.dev = dsi->dev = &pdev->dev;
 
-	err = tegra_output_parse_dt(&dsi->output);
+	err = tegra_output_probe(&dsi->output);
 	if (err < 0)
 		return err;
 
@@ -980,7 +976,7 @@ static int tegra_dsi_probe(struct platform_device *pdev)
 	dsi->client.ops = &dsi_client_ops;
 	dsi->client.dev = &pdev->dev;
 
-	err = host1x_register_client(host1x, &dsi->client);
+	err = host1x_client_register(&dsi->client);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to register host1x client: %d\n",
 			err);
@@ -994,11 +990,10 @@ static int tegra_dsi_probe(struct platform_device *pdev)
 
 static int tegra_dsi_remove(struct platform_device *pdev)
 {
-	struct host1x *host1x = dev_get_drvdata(pdev->dev.parent);
 	struct tegra_dsi *dsi = platform_get_drvdata(pdev);
 	int err;
 
-	err = host1x_unregister_client(host1x, &dsi->client);
+	err = host1x_client_unregister(&dsi->client);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to unregister host1x client: %d\n",
 			err);
@@ -1007,6 +1002,12 @@ static int tegra_dsi_remove(struct platform_device *pdev)
 
 	clk_disable_unprepare(dsi->clk_parent);
 	clk_disable_unprepare(dsi->clk);
+
+	err = tegra_output_remove(&dsi->output);
+	if (err < 0) {
+		dev_err(&pdev->dev, "failed to remove output: %d\n", err);
+		return err;
+	}
 
 	return 0;
 }

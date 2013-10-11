@@ -294,11 +294,18 @@ struct host1x_firewall {
 static int check_register(struct host1x_firewall *fw, unsigned long offset)
 {
 	if (fw->job->is_addr_reg(fw->dev, fw->class, offset)) {
-		if (!fw->num_relocs)
-			return -EINVAL;
+		dev_info(fw->dev, "register %#lx contains a memory address\n",
+			 offset);
 
-		if (!check_reloc(fw->reloc, fw->cmdbuf, fw->offset))
+		if (!fw->num_relocs) {
+			dev_info(fw->dev, "  no relocation found\n");
 			return -EINVAL;
+		}
+
+		if (!check_reloc(fw->reloc, fw->cmdbuf, fw->offset)) {
+			dev_info(fw->dev, "  relocation doesn't match\n");
+			return -EINVAL;
+		}
 
 		fw->num_relocs--;
 		fw->reloc++;
