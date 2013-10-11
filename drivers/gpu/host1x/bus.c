@@ -47,6 +47,13 @@ static int host1x_subdev_add(struct host1x_device *device,
 	return 0;
 }
 
+static void host1x_subdev_del(struct host1x_subdev *subdev)
+{
+	list_del(&subdev->list);
+	of_node_put(subdev->np);
+	kfree(subdev);
+}
+
 static int host1x_device_parse_dt(struct host1x_device *device)
 {
 	struct device_node *np;
@@ -124,6 +131,10 @@ static void host1x_subdev_unregister(struct host1x_device *device,
 	//of_node_put(subdev->np);
 	//kfree(subdev);
 
+	list_for_each_entry(client, &device->clients, list)
+		dev_info(&device->dev, "  client: %p (%s)\n", client,
+			 dev_name(client->dev));
+
 	dev_info(&device->dev, "< %s()\n", __func__);
 }
 
@@ -160,14 +171,14 @@ static LIST_HEAD(clients);
 
 int host1x_device_exit(struct host1x_device *device)
 {
-	struct host1x_client *client, *tmp;
+	struct host1x_client *client;
 	int err;
 
 	dev_info(&device->dev, "> %s(device=%p)\n", __func__, device);
 
 	mutex_lock(&device->clients_lock);
 
-	list_for_each_entry_safe_reverse(client, tmp, &device->clients, list) {
+	list_for_each_entry_reverse(client, &device->clients, list) {
 		dev_info(&device->dev, "  running exit for %p (%s)...\n", client,
 			 dev_name(client->dev));
 
@@ -181,27 +192,12 @@ int host1x_device_exit(struct host1x_device *device)
 				return err;
 			}
 		}
-
-		mutex_lock(&clients_lock);
-		dev_info(&device->dev, "  moving %p (%s) to idle clients list...\n",
-			 client, dev_name(client->dev));
-		list_move_tail(&client->list, &clients);
-		//list_del_init(&client->list);
-		//list_add_tail(&client->list, &clients);
-		mutex_unlock(&clients_lock);
 	}
 
-	mutex_lock(&clients_lock);
-
-	if (!list_empty(&clients)) {
-		dev_info(&device->dev, "idle clients:\n");
-
-		list_for_each_entry(client, &clients, list)
-			dev_info(&device->dev, "  %p: %s\n", client,
-				 dev_name(client->dev));
+	list_for_each_entry(client, &device->clients, list) {
+		dev_info(&device->dev, "  client: %p (%s)\n", client,
+			 dev_name(client->dev));
 	}
-
-	mutex_unlock(&clients_lock);
 
 	mutex_unlock(&device->clients_lock);
 
@@ -345,22 +341,65 @@ static int host1x_device_add(struct host1x *host1x,
 static void host1x_device_del(struct host1x *host1x,
 			      struct host1x_device *device)
 {
+	/*
 	struct kobject *kobj = &device->dev.kobj;
 	struct kref *kref = &kobj->kref;
-	int err;
+	*/
+	struct host1x_subdev *subdev, *sd;
+	struct host1x_client *client, *cl;
 
 	dev_info(host1x->dev, "> %s(host1x=%p, device=%p)\n", __func__, host1x, device);
+	/*
 	dev_info(host1x->dev, "  kobj: %p\n", kobj);
 	dev_info(host1x->dev, "    name: %s\n", kobj->name);
 	dev_info(host1x->dev, "  kref: %p\n", kref);
 	dev_info(host1x->dev, "    refcount: %d\n", atomic_read(&kref->refcount));
+	*/
 	dev_info(host1x->dev, "  driver: %p\n", device->driver);
 
-	err = device->driver->remove(device);
-	if (err < 0)
-		dev_err(&device->dev, "remove failed: %d\n", err);
+	/* unregister subdevices */
+	list_for_each_entry_safe(subdev, sd, &device->active, list) {
+		dev_info(&device->dev, "  removing active subdevice: %p (%s)\n",
+			 subdev, subdev->np->name);
+		client = subdev->client;
+		host1x_subdev_unregister(device, subdev);
 
+		mutex_lock(&clients_lock);
+		list_add_tail(&client->list, &clients);
+		mutex_unlock(&clients_lock);
+	}
+
+	/* remove subdevices */
+	list_for_each_entry_safe(subdev, sd, &device->subdevs, list) {
+		dev_info(host1x->dev, "  removing subdevice %p (%s)...\n",
+			 subdev, subdev->np->name);
+		host1x_subdev_del(subdev);
+	}
+
+	/* move clients to idle list */
+	mutex_lock(&clients_lock);
+	mutex_lock(&device->clients_lock);
+
+	list_for_each_entry_safe(client, cl, &device->clients, list) {
+		dev_info(&device->dev, "  moving %p (%s) to idle clients list...\n",
+			 client, dev_name(client->dev));
+		list_move_tail(&client->list, &clients);
+	}
+
+	if (!list_empty(&clients)) {
+		dev_info(&device->dev, "idle clients:\n");
+
+		list_for_each_entry(client, &clients, list)
+			dev_info(&device->dev, "  %p: %s\n", client,
+				 dev_name(client->dev));
+	}
+
+	mutex_unlock(&device->clients_lock);
+	mutex_unlock(&clients_lock);
+
+	/*
 	dev_info(host1x->dev, "    refcount: %d\n", atomic_read(&kref->refcount));
+	*/
 	list_del_init(&device->list);
 	device_unregister(&device->dev);
 
@@ -478,11 +517,17 @@ int host1x_client_register(struct host1x_client *client)
 	struct host1x *host1x;
 	int err;
 
+	mutex_lock(&devices_lock);
+
 	list_for_each_entry(host1x, &devices, list) {
 		err = host1x_register_client(host1x, client);
-		if (!err)
+		if (!err) {
+			mutex_unlock(&devices_lock);
 			return 0;
+		}
 	}
+
+	mutex_unlock(&devices_lock);
 
 	pr_info("adding %p (%s) to idle clients list...\n", client,
 		dev_name(client->dev));
@@ -501,15 +546,21 @@ int host1x_client_unregister(struct host1x_client *client)
 
 	dev_info(client->dev, "> %s(client=%p)\n", __func__, client);
 
+	mutex_lock(&devices_lock);
+
 	list_for_each_entry(host1x, &devices, list) {
 		err = host1x_unregister_client(host1x, client);
 		if (!err) {
 			dev_info(client->dev, "  removed from %s...\n",
 				 dev_name(host1x->dev));
 			dev_info(client->dev, "< %s()\n", __func__);
+			mutex_unlock(&devices_lock);
 			return 0;
 		}
 	}
+
+	mutex_unlock(&devices_lock);
+	mutex_lock(&clients_lock);
 
 	list_for_each_entry(c, &clients, list) {
 		if (c == client) {
@@ -517,6 +568,8 @@ int host1x_client_unregister(struct host1x_client *client)
 			break;
 		}
 	}
+
+	mutex_unlock(&clients_lock);
 
 	dev_info(client->dev, "< %s()\n", __func__);
 	return 0;
