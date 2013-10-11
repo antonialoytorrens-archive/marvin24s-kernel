@@ -133,10 +133,11 @@
 			clocks = <&tegra_car TEGRA30_CLK_GR2D>;
 		};
 
-		gr3d {
+		gr3d@54180000 {
 			compatible = "nvidia,tegra30-gr3d";
 			reg = <0x54180000 0x00040000>;
-			clocks = <&tegra_car 24 &tegra_car 98>;
+			clocks = <&tegra_car TEGRA30_CLK_GR3D
+				  &tegra_car TEGRA30_CLK_GR3D2>;
 			clock-names = "3d", "3d2";
 		};
 
