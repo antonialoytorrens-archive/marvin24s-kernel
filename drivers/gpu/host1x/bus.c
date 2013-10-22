@@ -219,13 +219,13 @@ static int host1x_register_client(struct host1x *host1x,
 		list_for_each_entry(subdev, &device->subdevs, list) {
 			if (subdev->np == client->dev->of_node) {
 				host1x_subdev_register(device, subdev, client);
-				mutex_lock(&host1x->devices_lock);
+				mutex_unlock(&host1x->devices_lock);
 				return 0;
 			}
 		}
 	}
 
-	mutex_lock(&host1x->devices_lock);
+	mutex_unlock(&host1x->devices_lock);
 	return -ENODEV;
 }
 
@@ -241,13 +241,13 @@ static int host1x_unregister_client(struct host1x *host1x,
 		list_for_each_entry(subdev, &device->active, list) {
 			if (subdev->client == client) {
 				host1x_subdev_unregister(device, subdev);
-				mutex_lock(&host1x->devices_lock);
+				mutex_unlock(&host1x->devices_lock);
 				return 0;
 			}
 		}
 	}
 
-	mutex_lock(&host1x->devices_lock);
+	mutex_unlock(&host1x->devices_lock);
 	return -ENODEV;
 }
 
